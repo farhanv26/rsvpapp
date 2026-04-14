@@ -1,19 +1,33 @@
 import Link from "next/link";
 import { DeleteEventButton } from "@/components/admin/delete-event-button";
 import { SafeEventImage } from "@/components/safe-event-image";
+import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 type AdminEventsPageProps = {
-  searchParams?: Promise<{ deleted?: string }>;
+  searchParams?: Promise<{ deleted?: string; owner?: string; q?: string; status?: string }>;
 };
 
 export default async function AdminEventsPage({ searchParams }: AdminEventsPageProps) {
   const params = searchParams ? await searchParams : undefined;
   const showDeletedNotice = params?.deleted === "1";
+  const ownerFilter = params?.owner?.trim() || "all";
+  const creatorQuery = params?.q?.trim().toLowerCase() || "";
+  const creatorStatusFilter = ["all", "open", "closing_soon", "closes_today", "closed"].includes(
+    params?.status ?? "",
+  )
+    ? (params?.status as "all" | "open" | "closing_soon" | "closes_today" | "closed")
+    : "all";
+  const admin = await requireCurrentAdminUser();
+  const currentAdminName = admin.name;
+  const isSuper = isSuperAdmin(admin);
+  const creators = ["Farhan", "Zulfikar", "Asif", "Javed", "Rafiya"] as const;
   const events: Array<{
+    ownerUserId: string;
+    owner: { name: string } | null;
     id: string;
     title: string | null;
     theme: string | null;
@@ -36,12 +50,28 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
     message: string;
     stack?: string;
   } = null;
+  let recentActivity: Array<{
+    id: string;
+    description: string;
+    createdAt: Date;
+    guest: { guestName: string } | null;
+    event: { title: string } | null;
+  }> = [];
+  let creatorRecentActivity: Array<{
+    id: string;
+    description: string;
+    createdAt: Date;
+    guest: { guestName: string } | null;
+    event: { title: string } | null;
+  }> = [];
 
   try {
     console.info("[admin/events] loading events");
     const results = await prisma.event.findMany({
+      where: isSuper ? undefined : { ownerUserId: admin.id },
       orderBy: { createdAt: "desc" },
       include: {
+        owner: { select: { name: true } },
         _count: { select: { guests: true } },
         guests: {
           select: {
@@ -54,6 +84,30 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
       },
     });
     if (Array.isArray(results)) events.push(...results);
+    if (isSuper) {
+      recentActivity = await prisma.rsvpActivity.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: {
+          guest: { select: { guestName: true } },
+          event: { select: { title: true } },
+        },
+      });
+    } else if (results.length > 0) {
+      creatorRecentActivity = await prisma.rsvpActivity.findMany({
+        where: {
+          eventId: {
+            in: results.map((event) => event.id),
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        include: {
+          guest: { select: { guestName: true } },
+          event: { select: { title: true } },
+        },
+      });
+    }
 
     console.info("[admin/events] events loaded", { eventCount: events.length });
     if (events.length > 0) {
@@ -96,6 +150,64 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
     });
   }
 
+  const ownerLabelOf = (event: (typeof events)[number]) => {
+    const eventAny = event as unknown as { owner?: { name?: string | null }; ownerName?: string | null };
+    return eventAny.owner?.name || eventAny.ownerName || "Unassigned";
+  };
+  const visibleEvents =
+    isSuper && ownerFilter !== "all"
+      ? events.filter((event) => ownerLabelOf(event) === ownerFilter)
+      : events;
+  const creatorFilteredEvents = !isSuper
+    ? visibleEvents.filter((event) => {
+        const safeTitle = event.title?.toLowerCase() ?? "";
+        const safeCouple = event.coupleNames?.toLowerCase() ?? "";
+        const matchesQuery = creatorQuery
+          ? safeTitle.includes(creatorQuery) || safeCouple.includes(creatorQuery)
+          : true;
+        const status = getRsvpDeadlineMeta(event.rsvpDeadline)?.status ?? "open";
+        const matchesStatus = creatorStatusFilter === "all" ? true : status === creatorStatusFilter;
+        return matchesQuery && matchesStatus;
+      })
+    : visibleEvents;
+  const renderedEvents = isSuper ? visibleEvents : creatorFilteredEvents;
+  const invitedFamilies = visibleEvents.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0);
+  const confirmedAttendees = visibleEvents.reduce(
+    (sum, event) =>
+      sum +
+      (Array.isArray(event.guests)
+        ? event.guests.reduce((guestSum, guest) => guestSum + (guest.attendingCount ?? 0), 0)
+        : 0),
+    0,
+  );
+  const pendingResponses = visibleEvents.reduce(
+    (sum, event) =>
+      sum + (Array.isArray(event.guests) ? event.guests.filter((guest) => !guest.respondedAt).length : 0),
+    0,
+  );
+  const closingSoonCount = visibleEvents.filter((event) => {
+    const meta = getRsvpDeadlineMeta(event.rsvpDeadline);
+    return meta?.status === "closing_soon" || meta?.status === "closes_today";
+  }).length;
+  const noResponsesCount = visibleEvents.filter((event) =>
+    (Array.isArray(event.guests) ? event.guests.filter((guest) => Boolean(guest.respondedAt)).length : 0) === 0,
+  ).length;
+  const missingCardCount = visibleEvents.filter((event) => !getSafeImageSrc(event.imagePath)).length;
+  const creatorInvitedFamilies = creatorFilteredEvents.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0);
+  const creatorConfirmed = creatorFilteredEvents.reduce(
+    (sum, event) =>
+      sum +
+      (Array.isArray(event.guests)
+        ? event.guests.reduce((guestSum, guest) => guestSum + (guest.attendingCount ?? 0), 0)
+        : 0),
+    0,
+  );
+  const creatorPending = creatorFilteredEvents.reduce(
+    (sum, event) =>
+      sum + (Array.isArray(event.guests) ? event.guests.filter((guest) => !guest.respondedAt).length : 0),
+    0,
+  );
+
   return (
     <main className="min-h-screen">
       <div className="app-shell space-y-8">
@@ -104,46 +216,193 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
             <div>
               <p className="section-title">Wedding Operations</p>
               <h1 className="headline-display mt-2">Events overview</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-                Manage every celebration in one place, track RSVP progress, and move quickly from
-                planning to guest confirmations.
-              </p>
+              {isSuper ? (
+                <>
+                  <p className="mt-3 text-lg font-semibold text-zinc-900">Welcome back, Farhan</p>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                    You have full access to all events, creators, and RSVP activity.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                  Welcome back, {currentAdminName}. Manage your events, guest lists, and RSVP updates.
+                </p>
+              )}
             </div>
-            <Link href="/admin/events/new" className="btn-primary">
-              Create new event
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {isSuper ? (
+                <div className="rounded-2xl border border-[#e2d4bf] bg-[#f9f3e8] px-3 py-2 text-xs text-zinc-700">
+                  Full-control mode
+                </div>
+              ) : null}
+              <Link href="/admin/events/new" className="btn-primary">
+                Create new event
+              </Link>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <OverviewStat label="Total events" value={events.length} />
-          <OverviewStat
-            label="Invited families"
-            value={events.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0)}
-          />
-          <OverviewStat
-            label="Confirmed attendees"
-            value={events.reduce(
-              (sum, event) =>
-                sum +
-                (Array.isArray(event.guests)
-                  ? event.guests.reduce((guestSum, guest) => guestSum + (guest.attendingCount ?? 0), 0)
-                  : 0),
-              0,
-            )}
-          />
-          <OverviewStat
-            label="Pending invites"
-            value={events.reduce(
-              (sum, event) =>
-                sum +
-                (Array.isArray(event.guests)
-                  ? event.guests.filter((guest) => !guest.respondedAt).length
-                  : 0),
-              0,
-            )}
-          />
-        </div>
+        {isSuper ? (
+          <div className="app-card-muted grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <OverviewStat label="Total events" value={visibleEvents.length} compact />
+            <OverviewStat label="Total creators" value={creators.length} compact />
+            <OverviewStat label="Invited families" value={invitedFamilies} compact />
+            <OverviewStat label="Confirmed attendees" value={confirmedAttendees} compact />
+            <OverviewStat label="Pending responses" value={pendingResponses} compact />
+            <OverviewStat label="Events closing soon" value={closingSoonCount} compact />
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <OverviewStat label="My events" value={creatorFilteredEvents.length} />
+            <OverviewStat label="Invited families" value={creatorInvitedFamilies} />
+            <OverviewStat label="Confirmed attendees" value={creatorConfirmed} />
+            <OverviewStat label="Pending responses" value={creatorPending} />
+          </div>
+        )}
+
+        {isSuper ? (
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="section-title">Creator filter</p>
+              <p className="mt-1 text-sm text-zinc-600">Filter all events by creator owner.</p>
+            </div>
+            <form className="flex items-center gap-2">
+              <select name="owner" defaultValue={ownerFilter} className="input-luxe mt-0 w-52 py-2.5 text-sm">
+                <option value="all">All creators</option>
+                {creators.map((creator) => (
+                  <option key={creator} value={creator}>
+                    {creator}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="btn-secondary">
+                Apply
+              </button>
+            </form>
+          </div>
+        ) : null}
+
+        {!isSuper ? (
+          <>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="section-title">My events</p>
+                <p className="mt-1 text-sm text-zinc-600">Find and manage your events quickly.</p>
+              </div>
+              <form className="flex flex-wrap items-center gap-2">
+                <input
+                  name="q"
+                  defaultValue={creatorQuery}
+                  placeholder="Search event title or couple names"
+                  className="input-luxe mt-0 w-64 py-2.5 text-sm"
+                />
+                <select
+                  name="status"
+                  defaultValue={creatorStatusFilter}
+                  className="input-luxe mt-0 w-44 py-2.5 text-sm"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="open">Open</option>
+                  <option value="closing_soon">Closing soon</option>
+                  <option value="closes_today">Closes today</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <button type="submit" className="btn-secondary">
+                  Apply
+                </button>
+              </form>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <section className="app-card p-5">
+                <p className="section-title">Needs attention</p>
+                <h2 className="mt-2 text-lg font-semibold text-zinc-900">Your priority items</h2>
+                <div className="mt-4 space-y-2 text-sm text-zinc-700">
+                  <p>
+                    <span className="font-semibold">{closingSoonCount}</span> of your events are closing soon.
+                  </p>
+                  <p>
+                    <span className="font-semibold">{noResponsesCount}</span> of your events still have no responses.
+                  </p>
+                  <p>
+                    <span className="font-semibold">{missingCardCount}</span> of your events are missing invite cards.
+                  </p>
+                </div>
+              </section>
+              <section className="app-card p-5">
+                <p className="section-title">Your recent activity</p>
+                <h2 className="mt-2 text-lg font-semibold text-zinc-900">Latest RSVP changes</h2>
+                {creatorRecentActivity.length === 0 ? (
+                  <p className="mt-4 text-sm text-zinc-600">No recent updates on your events yet.</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {creatorRecentActivity.map((activity) => (
+                      <article
+                        key={activity.id}
+                        className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-3"
+                      >
+                        <p className="text-sm text-zinc-800">
+                          <span className="font-semibold">{activity.guest?.guestName ?? "Guest"}</span>{" "}
+                          {activity.description} for{" "}
+                          <span className="font-semibold">{activity.event?.title ?? "an event"}</span>
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
+                            activity.createdAt,
+                          )}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          </>
+        ) : null}
+
+        {isSuper ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section className="app-card p-5">
+              <p className="section-title">Needs attention</p>
+              <h2 className="mt-2 text-lg font-semibold text-zinc-900">Operational highlights</h2>
+              <div className="mt-4 space-y-2 text-sm text-zinc-700">
+                <p>
+                  <span className="font-semibold">{closingSoonCount}</span> events have RSVP deadlines closing soon.
+                </p>
+                <p>
+                  <span className="font-semibold">{noResponsesCount}</span> events still have no responses.
+                </p>
+                <p>
+                  <span className="font-semibold">{missingCardCount}</span> events are missing an invite card image.
+                </p>
+              </div>
+            </section>
+            <section className="app-card p-5">
+              <p className="section-title">Recent activity</p>
+              <h2 className="mt-2 text-lg font-semibold text-zinc-900">Across all events</h2>
+              {recentActivity.length === 0 ? (
+                <p className="mt-4 text-sm text-zinc-600">No recent updates yet.</p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {recentActivity.map((activity) => (
+                    <article key={activity.id} className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-3">
+                      <p className="text-sm text-zinc-800">
+                        <span className="font-semibold">{activity.guest?.guestName ?? "Guest"}</span>{" "}
+                        {activity.description} for{" "}
+                        <span className="font-semibold">{activity.event?.title ?? "an event"}</span>
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
+                          activity.createdAt,
+                        )}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : null}
 
         {showDeletedNotice ? (
           <div className="app-card border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
@@ -162,23 +421,38 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
               Retry loading events
             </Link>
           </div>
-        ) : events.length === 0 ? (
+        ) : renderedEvents.length === 0 ? (
           <div className="app-card p-8 text-center sm:p-12">
-            <p className="section-title">No events yet</p>
-            <h2 className="headline-display mt-3 text-2xl sm:text-3xl">Start your first celebration</h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-              Create your first event to generate private guest links, track responses, and keep
-              all RSVP activity organized.
-            </p>
-            <div className="mt-6">
-              <Link href="/admin/events/new" className="btn-primary">
-                Create your first event
-              </Link>
-            </div>
+            {isSuper && ownerFilter !== "all" ? (
+              <>
+                <p className="section-title">No results</p>
+                <h2 className="headline-display mt-3 text-2xl sm:text-3xl">No events found for this creator</h2>
+                <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                  Try selecting a different creator filter or switch back to all creators.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="section-title">{isSuper ? "No events yet" : "No events yet"}</p>
+                <h2 className="headline-display mt-3 text-2xl sm:text-3xl">
+                  {isSuper ? "Start your first celebration" : "You haven’t created any events yet"}
+                </h2>
+                <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                  {isSuper
+                    ? "Create your first event to generate private guest links, track responses, and keep all RSVP activity organized."
+                    : "Create your first event to start inviting guests and tracking RSVP responses."}
+                </p>
+                <div className="mt-6">
+                  <Link href="/admin/events/new" className="btn-primary">
+                    Create your first event
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid gap-5 lg:grid-cols-2">
-            {events.map((event) => {
+            {renderedEvents.map((event) => {
               const guests = Array.isArray(event.guests) ? event.guests : [];
               const safeTitle =
                 typeof event.title === "string" && event.title.trim().length > 0
@@ -267,6 +541,11 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                       <p className="section-title">Event</p>
                       <h2 className="mt-2 text-2xl font-semibold text-zinc-900">{coupleNames ?? safeTitle}</h2>
                       {coupleNames ? <p className="mt-1 text-sm text-zinc-600">{safeTitle}</p> : null}
+                      {isSuper ? (
+                        <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500">
+                          Owner: {ownerLabelOf(event)}
+                        </p>
+                      ) : null}
                       <p className="mt-2 font-mono text-xs text-zinc-500">{safeSlug}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -365,11 +644,19 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   );
 }
 
-function OverviewStat({ label, value }: { label: string; value: number | string }) {
+function OverviewStat({
+  label,
+  value,
+  compact = false,
+}: {
+  label: string;
+  value: number | string;
+  compact?: boolean;
+}) {
   return (
-    <div className="app-card p-5">
+    <div className={`app-card ${compact ? "p-4" : "p-5"}`}>
       <p className="section-title">{label}</p>
-      <p className="mt-3 text-3xl font-semibold text-zinc-900 tabular-nums">{value}</p>
+      <p className={`mt-3 font-semibold text-zinc-900 tabular-nums ${compact ? "text-2xl" : "text-3xl"}`}>{value}</p>
     </div>
   );
 }

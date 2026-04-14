@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createGuestAction } from "@/app/admin/events/actions";
 import { DeleteEventButton } from "@/components/admin/delete-event-button";
 import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
+import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 
@@ -14,6 +16,7 @@ type Props = {
 export const dynamic = "force-dynamic";
 
 export default async function EventDashboardPage({ params }: Props) {
+  const admin = await requireCurrentAdminUser();
   const { eventId } = await params;
 
   const event = await prisma.event.findUnique({
@@ -44,6 +47,9 @@ export default async function EventDashboardPage({ params }: Props) {
         </div>
       </main>
     );
+  }
+  if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
+    redirect("/admin/events");
   }
 
   const totalFamilies = event.guests.length;

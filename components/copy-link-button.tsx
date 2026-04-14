@@ -23,7 +23,7 @@ export function CopyLinkButton({ value }: CopyLinkButtonProps) {
     <button
       type="button"
       onClick={handleCopy}
-      className={`rounded-xl border px-3.5 py-2 text-sm font-semibold shadow-sm transition active:scale-[0.98] ${
+      className={`btn-secondary px-3.5 py-2 text-sm font-semibold shadow-sm ${
         copied
           ? "border-emerald-300 bg-emerald-50 text-emerald-800"
           : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"

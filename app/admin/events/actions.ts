@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { generateSecureToken } from "@/lib/security";
 import { getSafeImageSrc } from "@/lib/utils";
 import { eventSchema, guestSchema } from "@/lib/validation";
@@ -49,7 +50,26 @@ async function createUniqueSlug(baseTitle: string, eventId?: string) {
   }
 }
 
+async function ensureEventAccess(eventId: string, mode: "view" | "manage" = "manage") {
+  const admin = await requireCurrentAdminUser();
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, ownerUserId: true },
+  });
+  if (!event) {
+    throw new Error("Event not found.");
+  }
+  if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
+    if (mode === "view") {
+      redirect("/admin/events");
+    }
+    throw new Error("You are not allowed to manage this event.");
+  }
+  return { admin, event };
+}
+
 export async function createEventAction(formData: FormData) {
+  const admin = await requireCurrentAdminUser();
   const parsed = eventSchema.safeParse({
     title: formData.get("title"),
     theme: formData.get("theme") || "modern",
@@ -74,6 +94,7 @@ export async function createEventAction(formData: FormData) {
   const event = await prisma.event.create({
     data: {
       title: parsed.data.title,
+      ownerUserId: admin.id,
       theme: parsed.data.theme,
       description: parsed.data.description || null,
       slug,
@@ -99,6 +120,7 @@ export async function updateEventAction(formData: FormData) {
     throw new Error("Event id is missing.");
   }
 
+  await ensureEventAccess(eventId, "manage");
   const parsed = eventSchema.safeParse({
     title: formData.get("title"),
     theme: formData.get("theme") || "modern",
@@ -152,10 +174,7 @@ export async function deleteEventAction(formData: FormData) {
   }
 
   try {
-    const existing = await prisma.event.findUnique({
-      where: { id: eventId },
-      select: { id: true },
-    });
+    const { event: existing } = await ensureEventAccess(eventId, "manage");
 
     if (!existing) {
       return { ok: false, error: "This event no longer exists." };
@@ -185,6 +204,7 @@ export async function createGuestAction(formData: FormData) {
     throw new Error("Event id is missing.");
   }
 
+  await ensureEventAccess(eventId, "manage");
   const parsed = guestSchema.safeParse({
     guestName: formData.get("guestName"),
     maxGuests: formData.get("maxGuests"),
@@ -221,6 +241,7 @@ export async function updateGuestAction(formData: FormData) {
     throw new Error("Missing event or guest id.");
   }
 
+  await ensureEventAccess(eventId, "manage");
   const parsed = guestSchema.safeParse({
     guestName: formData.get("guestName"),
     maxGuests: formData.get("maxGuests"),
@@ -264,6 +285,7 @@ export async function deleteGuestAction(formData: FormData) {
     throw new Error("Missing event or guest id.");
   }
 
+  await ensureEventAccess(eventId, "manage");
   const existing = await prisma.guest.findFirst({
     where: { id: guestId, eventId },
     select: { id: true },

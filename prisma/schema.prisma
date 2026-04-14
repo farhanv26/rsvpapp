@@ -15,6 +15,8 @@ datasource db {
 
 model Event {
   id            String   @id @default(cuid())
+  ownerUserId   String?
+  owner         User?    @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
   title         String
   theme         String   @default("modern")
   slug          String   @unique
@@ -31,6 +33,18 @@ model Event {
   updatedAt     DateTime @updatedAt
   guests        Guest[]
   rsvpActivities RsvpActivity[]
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  passwordHash String
+  role         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  events       Event[]
 }
 
 model Guest {

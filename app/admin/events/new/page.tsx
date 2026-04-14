@@ -2,8 +2,10 @@ import Link from "next/link";
 import { createEventAction } from "@/app/admin/events/actions";
 import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
+import { requireCurrentAdminUser } from "@/lib/admin-auth";
 
-export default function NewEventPage() {
+export default async function NewEventPage() {
+  await requireCurrentAdminUser();
   return (
     <main className="app-shell max-w-4xl">
       <div className="mb-6">

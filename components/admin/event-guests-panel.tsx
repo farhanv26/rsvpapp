@@ -192,12 +192,12 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                         </span>
                       ) : null}
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
+                        className={`${
                           st === "pending"
-                            ? "bg-zinc-200 text-zinc-700"
+                            ? "badge-neutral"
                             : st === "attending"
-                              ? "bg-emerald-100 text-emerald-900"
-                              : "bg-rose-100 text-rose-800"
+                              ? "badge-success"
+                              : "badge-danger"
                         }`}
                       >
                         {st}
@@ -232,7 +232,7 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                           setCopiedMessageGuestId(null);
                         }
                       }}
-                      className={`rounded-xl border px-3.5 py-2 text-sm font-semibold shadow-sm transition active:scale-[0.98] ${
+                      className={`btn-secondary px-3.5 py-2 text-sm font-semibold shadow-sm ${
                         copiedMessageGuestId === guest.id
                           ? "border-emerald-300 bg-emerald-50 text-emerald-800"
                           : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
@@ -253,7 +253,7 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                       <input type="hidden" name="guestId" value={guest.id} />
                       <button
                         type="submit"
-                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                        className="btn-secondary border-red-200 bg-white text-red-600 hover:bg-red-50"
                       >
                         Delete
                       </button>

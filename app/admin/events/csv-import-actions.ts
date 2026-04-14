@@ -6,13 +6,29 @@ import {
   previewGuestCsv,
   selectRowsForImport,
 } from "@/lib/csv-guests";
+import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { generateSecureToken } from "@/lib/security";
 
-export async function previewGuestCsvAction(eventId: string, csvText: string) {
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
+async function ensureCsvEventAccess(eventId: string) {
+  const admin = await requireCurrentAdminUser();
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, ownerUserId: true },
+  });
   if (!event) {
-    return { error: "Event not found.", preview: null };
+    return { error: "Event not found.", event: null };
+  }
+  if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
+    return { error: "You are not allowed to import guests for this event.", event: null };
+  }
+  return { error: null, event };
+}
+
+export async function previewGuestCsvAction(eventId: string, csvText: string) {
+  const access = await ensureCsvEventAccess(eventId);
+  if (!access.event) {
+    return { error: access.error, preview: null };
   }
 
   const guests = await prisma.guest.findMany({
@@ -30,9 +46,9 @@ export async function previewGuestCsvAction(eventId: string, csvText: string) {
 }
 
 export async function commitGuestCsvImportAction(eventId: string, csvText: string) {
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
-  if (!event) {
-    return { error: "Event not found." };
+  const access = await ensureCsvEventAccess(eventId);
+  if (!access.event) {
+    return { error: access.error };
   }
 
   const guests = await prisma.guest.findMany({

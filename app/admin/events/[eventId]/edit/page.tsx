@@ -4,6 +4,7 @@ import { updateEventAction } from "@/app/admin/events/actions";
 import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 import { SafeEventImage } from "@/components/safe-event-image";
+import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { getSafeImageSrc } from "@/lib/utils";
 
@@ -14,9 +15,30 @@ type Props = {
 export const dynamic = "force-dynamic";
 
 export default async function EditEventPage({ params }: Props) {
+  const admin = await requireCurrentAdminUser();
   const { eventId } = await params;
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      ownerUserId: true,
+      title: true,
+      coupleNames: true,
+      eventSubtitle: true,
+      eventDate: true,
+      rsvpDeadline: true,
+      eventTime: true,
+      venue: true,
+      description: true,
+      welcomeMessage: true,
+      imagePath: true,
+      theme: true,
+    },
+  });
   if (!event) {
+    notFound();
+  }
+  if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
     notFound();
   }
   const safeImageSrc = getSafeImageSrc(event.imagePath);
