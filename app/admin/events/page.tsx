@@ -11,6 +11,7 @@ export default async function AdminEventsPage() {
     coupleNames: string | null;
     imagePath: string | null;
     eventDate: Date | null;
+    eventTime: string | null;
     venue: string | null;
     _count: { guests: number };
     guests: Array<{
@@ -85,44 +86,81 @@ export default async function AdminEventsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#faf8f3]">
-      <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Wedding RSVP</p>
-            <h1 className="mt-1 text-2xl font-semibold text-zinc-900 sm:text-3xl">Events</h1>
+    <main className="min-h-screen">
+      <div className="app-shell space-y-8">
+        <div className="app-card p-6 sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div>
+              <p className="section-title">Wedding Operations</p>
+              <h1 className="headline-display mt-2">Events overview</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                Manage every celebration in one place, track RSVP progress, and move quickly from
+                planning to guest confirmations.
+              </p>
+            </div>
+            <Link href="/admin/events/new" className="btn-primary">
+              Create new event
+            </Link>
           </div>
-          <Link
-            href="/admin/events/new"
-            className="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
-          >
-            New Event
-          </Link>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <OverviewStat label="Total events" value={events.length} />
+          <OverviewStat
+            label="Invited families"
+            value={events.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0)}
+          />
+          <OverviewStat
+            label="Confirmed attendees"
+            value={events.reduce(
+              (sum, event) =>
+                sum +
+                (Array.isArray(event.guests)
+                  ? event.guests.reduce((guestSum, guest) => guestSum + (guest.attendingCount ?? 0), 0)
+                  : 0),
+              0,
+            )}
+          />
+          <OverviewStat
+            label="Pending invites"
+            value={events.reduce(
+              (sum, event) =>
+                sum +
+                (Array.isArray(event.guests)
+                  ? event.guests.filter((guest) => !guest.respondedAt).length
+                  : 0),
+              0,
+            )}
+          />
         </div>
 
         {loadError ? (
-          <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-900 shadow-sm">
+          <div className="app-card border-red-200 bg-red-50 p-6 text-red-900 shadow-sm">
             <h2 className="text-lg font-semibold">We could not load events</h2>
             <p className="mt-2 text-sm">
               The admin page is reachable, but fetching event data failed. Check server logs for
               details and try again.
             </p>
-            <Link
-              href="/admin/events"
-              className="mt-4 inline-flex rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900"
-            >
+            <Link href="/admin/events" className="btn-secondary mt-4 border-red-300 text-red-900">
               Retry loading events
             </Link>
           </div>
         ) : events.length === 0 ? (
-          <div className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-amber-900/10">
-            <h2 className="text-lg font-semibold text-zinc-900">No events yet</h2>
-            <p className="mt-2 text-sm text-zinc-600">
-              Create your first event to begin sending RSVP links.
+          <div className="app-card p-8 text-center sm:p-12">
+            <p className="section-title">No events yet</p>
+            <h2 className="headline-display mt-3 text-2xl sm:text-3xl">Start your first celebration</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+              Create your first event to generate private guest links, track responses, and keep
+              all RSVP activity organized.
             </p>
+            <div className="mt-6">
+              <Link href="/admin/events/new" className="btn-primary">
+                Create your first event
+              </Link>
+            </div>
           </div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5 lg:grid-cols-2">
             {events.map((event) => {
               const guests = Array.isArray(event.guests) ? event.guests : [];
               const safeTitle =
@@ -133,12 +171,17 @@ export default async function AdminEventsPage() {
                 typeof event.slug === "string" && event.slug.trim().length > 0
                   ? event.slug.trim()
                   : "no-slug";
+              const coupleNames =
+                typeof event.coupleNames === "string" && event.coupleNames.trim().length > 0
+                  ? event.coupleNames.trim()
+                  : null;
 
               let responded = 0;
               let attendingFamilies = 0;
               let declinedFamilies = 0;
               let confirmedAttendees = 0;
               let totalMaxInvited = 0;
+              let pendingFamilies = 0;
 
               try {
                 responded = guests.filter((guest) => Boolean(guest.respondedAt)).length;
@@ -161,6 +204,7 @@ export default async function AdminEventsPage() {
                       : 0),
                   0,
                 );
+                pendingFamilies = Math.max(0, guests.length - responded);
 
                 console.info("[admin/events] event stats generated", {
                   eventId: event.id,
@@ -178,33 +222,58 @@ export default async function AdminEventsPage() {
                 });
               }
 
-              const coupleNames =
-                typeof event.coupleNames === "string" && event.coupleNames.trim().length > 0
-                  ? event.coupleNames.trim()
-                  : null;
-
               return (
                 <article
                   key={event.id ?? `${safeSlug}-${safeTitle}`}
-                  className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-amber-900/10"
+                  className="app-card p-6 transition hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-38px_rgba(71,52,29,0.48)] sm:p-7"
                 >
-                  <h2 className="text-xl font-semibold text-zinc-900">{coupleNames ?? safeTitle}</h2>
-                  {coupleNames ? <p className="mt-1 text-sm text-zinc-600">{safeTitle}</p> : null}
-                  <p className="mt-1 text-xs uppercase tracking-wide text-zinc-400">{safeSlug}</p>
-                  <div className="mt-4 space-y-1.5 text-sm text-zinc-700">
-                    <p>Guest families: {event._count?.guests ?? guests.length}</p>
-                    <p>Families responded: {responded}</p>
-                    <p>Families attending: {attendingFamilies}</p>
-                    <p>Families declined: {declinedFamilies}</p>
-                    <p>Max invited people: {totalMaxInvited}</p>
-                    <p>Confirmed attendees: {confirmedAttendees}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="section-title">Event</p>
+                      <h2 className="mt-2 text-2xl font-semibold text-zinc-900">{coupleNames ?? safeTitle}</h2>
+                      {coupleNames ? <p className="mt-1 text-sm text-zinc-600">{safeTitle}</p> : null}
+                      <p className="mt-2 font-mono text-xs text-zinc-500">{safeSlug}</p>
+                    </div>
+                    <span className="badge-soft shrink-0">
+                      {event._count?.guests ?? guests.length} families
+                    </span>
                   </div>
-                  <Link
-                    href={`/admin/events/${event.id ?? ""}`}
-                    className="mt-5 inline-flex rounded-xl border border-zinc-200 bg-zinc-50/80 px-4 py-2.5 text-sm font-medium text-zinc-800"
-                  >
-                    Open dashboard
-                  </Link>
+
+                  {(event.eventDate || event.eventTime || event.venue) ? (
+                    <p className="mt-4 text-sm text-zinc-600">
+                      {event.eventDate
+                        ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(event.eventDate)
+                        : null}
+                      {event.eventDate && event.eventTime ? " · " : null}
+                      {event.eventTime ?? null}
+                      {(event.eventDate || event.eventTime) && event.venue ? " · " : null}
+                      {event.venue ?? null}
+                    </p>
+                  ) : (
+                    <p className="mt-4 text-sm text-zinc-500">Date and venue details not set yet.</p>
+                  )}
+
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <MiniStat label="Responded" value={responded} />
+                    <MiniStat label="Pending" value={pendingFamilies} />
+                    <MiniStat label="Confirmed" value={confirmedAttendees} />
+                    <MiniStat label="Max Invited" value={totalMaxInvited} />
+                  </div>
+
+                  <p className="mt-4 text-sm text-zinc-600">
+                    {responded === 0
+                      ? "No RSVPs yet"
+                      : `RSVP summary: ${attendingFamilies} attending · ${declinedFamilies} declined`}
+                  </p>
+
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    <Link href={`/admin/events/${event.id ?? ""}`} className="btn-primary">
+                      Open dashboard
+                    </Link>
+                    <Link href={`/admin/events/${event.id ?? ""}/edit`} className="btn-secondary">
+                      Edit
+                    </Link>
+                  </div>
                 </article>
               );
             })}
@@ -212,5 +281,23 @@ export default async function AdminEventsPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function OverviewStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="app-card p-5">
+      <p className="section-title">{label}</p>
+      <p className="mt-3 text-3xl font-semibold text-zinc-900 tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="app-card-muted px-3 py-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-zinc-900">{value}</p>
+    </div>
   );
 }

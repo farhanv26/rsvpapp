@@ -46,16 +46,16 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
   return (
     <form
       action={handleSubmit}
-      className={`rsvp-fade-up relative w-full rounded-[1.85rem] border border-[#d4af37]/35 bg-[#fdfcf9] px-5 py-8 shadow-[0_26px_72px_-46px_rgba(80,60,30,0.45)] sm:px-8 sm:py-9 ${serif} ${isPending ? "opacity-[0.92]" : ""}`}
+      className={`rsvp-fade-up relative w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-5 py-7 shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)] sm:px-8 sm:py-8 ${serif} ${isPending ? "opacity-[0.92]" : ""}`}
       style={{ fontFamily: "var(--font-wedding-sans), sans-serif" }}
       aria-busy={isPending}
     >
       <input type="hidden" name="token" value={token} />
 
-      <p className={`text-center text-[0.62rem] font-semibold uppercase tracking-[0.38em] text-[#9a7b2c]`}>
-        Kindly respond
+      <p className="text-center text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">
+        RSVP
       </p>
-      <p className={`mt-2 text-center text-xl text-[#2c2419] ${script}`}>Your reply</p>
+      <p className={`mt-2 text-center text-2xl text-zinc-900 ${script}`}>Will you be attending?</p>
 
       <div className="mt-7 space-y-3">
         <label className="block cursor-pointer touch-manipulation">
@@ -70,14 +70,12 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
           <div
             className={`rounded-2xl border-2 px-5 py-4 text-left transition-all duration-300 ease-out ${
               attending === "yes"
-                ? "border-[#c9a227]/80 bg-[linear-gradient(145deg,#fffdf9_0%,#f8f0e4_100%)] shadow-[0_10px_36px_-22px_rgba(120,90,40,0.45)]"
-                : "border-[#e8dcc4]/90 bg-white"
+                ? "border-emerald-300 bg-emerald-50/70 shadow-[0_10px_30px_-24px_rgba(20,120,80,0.45)]"
+                : "border-[#e8dcc4] bg-white"
             }`}
           >
-            <span className={`block text-lg text-[#2c2419] ${serif}`}>Joyfully Accept</span>
-            <span className="mt-1 block text-xs leading-relaxed text-[#7a7268]">
-              We will be there with grateful hearts
-            </span>
+            <span className={`block text-lg text-zinc-900 ${serif}`}>Accept</span>
+            <span className="mt-1 block text-xs leading-relaxed text-zinc-600">We would love to celebrate with you</span>
           </div>
         </label>
 
@@ -93,44 +91,42 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
           <div
             className={`rounded-2xl border-2 px-5 py-4 text-left transition-all duration-300 ease-out ${
               attending === "no"
-                ? "border-[#c9a227]/80 bg-[linear-gradient(145deg,#fffdf9_0%,#f3ebe0_100%)] shadow-[0_10px_36px_-22px_rgba(90,70,40,0.4)]"
-                : "border-[#e8dcc4]/90 bg-white"
+                ? "border-rose-300 bg-rose-50/70 shadow-[0_10px_30px_-24px_rgba(190,60,80,0.35)]"
+                : "border-[#e8dcc4] bg-white"
             }`}
           >
-            <span className={`block text-lg text-[#2c2419] ${serif}`}>Regretfully Decline</span>
-            <span className="mt-1 block text-xs leading-relaxed text-[#7a7268]">
-              With love, though we cannot attend
-            </span>
+            <span className={`block text-lg text-zinc-900 ${serif}`}>Decline</span>
+            <span className="mt-1 block text-xs leading-relaxed text-zinc-600">We are unable to attend this time</span>
           </div>
         </label>
       </div>
 
       {attending === "yes" ? (
-        <div className="mt-8 rounded-2xl border border-[#e8dcc4]/90 bg-[#fffdf9] px-4 py-5">
+        <div className="mt-8 rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5">
           <input type="hidden" name="attendingCount" value={attendingCount} />
-          <p className="text-center text-sm font-medium text-[#3d3429]">Guests attending</p>
-          <p className="mt-1 text-center text-xs text-[#8a8278]">From your invitation · max {maxGuests}</p>
+          <p className="text-center text-sm font-medium text-zinc-800">Guests attending</p>
+          <p className="mt-1 text-center text-xs text-zinc-500">Maximum allowed: {maxGuests}</p>
           <div className="mt-6 flex items-center justify-center gap-3 sm:gap-4">
             <button
               type="button"
               onClick={() => step(-1)}
               disabled={attendingCount <= 1 || isPending}
               aria-label="Decrease guest count"
-              className="flex h-[3rem] min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border border-[#d4af37]/40 bg-white text-xl font-light text-[#4a4238] shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
+              className="flex h-[3rem] min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border border-[#d9ccb7] bg-white text-xl font-light text-zinc-700 shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
             >
               −
             </button>
             <div
-              className={`flex min-w-[4.75rem] flex-col items-center justify-center rounded-2xl border border-[#e5d9c4] bg-[#fdfbf7] px-4 py-2.5 ${serif}`}
+              className={`flex min-w-[4.75rem] flex-col items-center justify-center rounded-2xl border border-[#ddd0bc] bg-white px-4 py-2.5 ${serif}`}
             >
-              <span className="text-[1.85rem] leading-none tabular-nums text-[#2c2419]">{attendingCount}</span>
+              <span className="text-[1.85rem] leading-none tabular-nums text-zinc-900">{attendingCount}</span>
             </div>
             <button
               type="button"
               onClick={() => step(1)}
               disabled={attendingCount >= maxGuests || isPending}
               aria-label="Increase guest count"
-              className="flex h-[3rem] min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border border-[#d4af37]/40 bg-white text-xl font-light text-[#4a4238] shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
+              className="flex h-[3rem] min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border border-[#d9ccb7] bg-white text-xl font-light text-zinc-700 shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
             >
               +
             </button>
@@ -139,7 +135,7 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
       ) : null}
 
       {error ? (
-        <p className="mt-4 text-center text-sm text-red-700" role="alert">
+        <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-sm text-red-700" role="alert">
           {error}
         </p>
       ) : null}
@@ -147,9 +143,9 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
       <button
         type="submit"
         disabled={isPending}
-        className={`mt-9 w-full rounded-2xl border border-[#8a7235]/90 bg-[linear-gradient(180deg,#6b5a2e_0%,#4a3d22_100%)] py-4 text-[0.95rem] font-semibold tracking-[0.12em] text-[#fdfcf3] shadow-[0_14px_40px_-18px_rgba(50,40,20,0.55)] transition active:scale-[0.99] disabled:opacity-60 touch-manipulation ${serif}`}
+        className={`mt-9 w-full rounded-2xl border border-[#3f2f1f] bg-[#3f2f1f] py-4 text-sm font-semibold tracking-[0.08em] text-white shadow-[0_14px_40px_-18px_rgba(50,40,20,0.55)] transition hover:bg-[#352618] active:scale-[0.99] disabled:opacity-60 touch-manipulation ${serif}`}
       >
-        {isPending ? "Sending your reply…" : "Send our reply"}
+        {isPending ? "Sending your RSVP..." : "Send RSVP"}
       </button>
     </form>
   );

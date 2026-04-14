@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
+  --background: #f8f4ec;
+  --foreground: #1d1b18;
+  --surface: #fffdfa;
+  --surface-muted: #f6f1e8;
+  --border-soft: #e7dccb;
+  --brand-deep: #3f2f1f;
+  --brand-accent: #b28944;
 }
 
 @theme inline {
@@ -13,9 +18,53 @@
 }
 
 body {
-  background: var(--background);
+  background: radial-gradient(circle at top, #fcfaf6 0%, #f8f4ec 45%, #f2ebdf 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+@layer components {
+  .app-shell {
+    @apply mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12;
+  }
+
+  .app-card {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    @apply rounded-3xl shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)];
+  }
+
+  .app-card-muted {
+    background: var(--surface-muted);
+    border: 1px solid #eadfce;
+    @apply rounded-3xl;
+  }
+
+  .section-title {
+    @apply text-xs font-semibold uppercase tracking-[0.26em] text-zinc-500;
+  }
+
+  .headline-display {
+    font-family: var(--font-display-serif), Georgia, serif;
+    @apply text-3xl leading-tight text-zinc-900 sm:text-4xl;
+  }
+
+  .btn-primary {
+    background: linear-gradient(180deg, #4c3a26 0%, #302216 100%);
+    @apply inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-[#fff8ee] shadow-[0_14px_38px_-18px_rgba(48,34,22,0.75)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-2xl border border-[#ddcfba] bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-[#faf6ef] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .input-luxe {
+    @apply mt-1.5 w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#b28944] focus:ring-2 focus:ring-[#b28944]/20;
+  }
+
+  .badge-soft {
+    @apply inline-flex items-center rounded-full border border-[#e2d4bf] bg-[#f9f3e8] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#6a5434];
+  }
 }
 
 /* Guest RSVP — subtle entrance (reduced motion respected below) */

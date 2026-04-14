@@ -3,15 +3,16 @@ import { createEventAction } from "@/app/admin/events/actions";
 
 export default function NewEventPage() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+    <main className="app-shell max-w-4xl">
       <div className="mb-6">
-        <Link href="/admin/events" className="text-sm text-zinc-600">
+        <Link href="/admin/events" className="text-sm font-medium text-zinc-600">
           ← Back to events
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold">Create Wedding Event</h1>
+        <h1 className="headline-display mt-3 text-3xl">Create wedding event</h1>
+        <p className="mt-2 text-sm text-zinc-600">Set the core details first, then add guests and invite links.</p>
       </div>
 
-      <form action={createEventAction} className="space-y-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-rose-100 sm:p-6">
+      <form action={createEventAction} className="app-card space-y-5 p-6 sm:p-7">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label htmlFor="coupleNames" className="mb-2 block text-sm font-medium">
@@ -22,7 +23,7 @@ export default function NewEventPage() {
               name="coupleNames"
               type="text"
               placeholder="Emma & Liam"
-              className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base"
+              className="input-luxe mt-0"
             />
           </div>
           <div className="sm:col-span-2">
@@ -34,7 +35,7 @@ export default function NewEventPage() {
               name="title"
               type="text"
               placeholder="Wedding Celebration"
-              className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base"
+              className="input-luxe mt-0"
               required
             />
           </div>
@@ -47,7 +48,7 @@ export default function NewEventPage() {
               name="eventSubtitle"
               type="text"
               placeholder="Together with their families..."
-              className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base"
+              className="input-luxe mt-0"
             />
           </div>
           <div>
@@ -58,7 +59,7 @@ export default function NewEventPage() {
               id="eventDate"
               name="eventDate"
               type="date"
-              className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base"
+              className="input-luxe mt-0"
             />
           </div>
           <div>
@@ -70,7 +71,7 @@ export default function NewEventPage() {
               name="eventTime"
               type="text"
               placeholder="4:30 PM"
-              className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base"
+              className="input-luxe mt-0"
             />
           </div>
           <div className="sm:col-span-2">
@@ -82,7 +83,7 @@ export default function NewEventPage() {
               name="venue"
               type="text"
               placeholder="Rosewood Estate, Napa Valley"
-              className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base"
+              className="input-luxe mt-0"
             />
           </div>
         </div>
@@ -94,7 +95,7 @@ export default function NewEventPage() {
           <textarea
             id="welcomeMessage"
             name="welcomeMessage"
-            className="h-24 w-full rounded-xl border border-zinc-300 px-4 py-3 text-base"
+            className="input-luxe mt-0 h-24"
             placeholder="We are so excited to celebrate with you."
           />
         </div>
@@ -106,7 +107,7 @@ export default function NewEventPage() {
           <textarea
             id="description"
             name="description"
-            className="h-28 w-full rounded-xl border border-zinc-300 px-4 py-3 text-base"
+            className="input-luxe mt-0 h-28"
           />
         </div>
 
@@ -119,14 +120,11 @@ export default function NewEventPage() {
             name="image"
             type="file"
             accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-            className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5"
+            className="w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-base file:mr-3 file:rounded-xl file:border-0 file:bg-[#efe3d2] file:px-3 file:py-2 file:text-sm"
           />
         </div>
 
-        <button
-          type="submit"
-          className="w-full rounded-xl bg-zinc-900 px-5 py-3 text-base font-semibold text-white"
-        >
+        <button type="submit" className="btn-primary w-full">
           Create Event
         </button>
       </form>

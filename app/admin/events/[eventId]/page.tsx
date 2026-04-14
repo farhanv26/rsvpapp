@@ -63,68 +63,73 @@ export default async function EventDashboardPage({ params }: Props) {
   }));
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#faf8f3_0%,#f5f0e8_100%)]">
-      <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-8 sm:px-6 sm:py-12">
+    <main className="min-h-screen">
+      <div className="app-shell max-w-6xl space-y-8">
         <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+          <div className="app-card p-6 sm:p-7 lg:flex-1">
             <Link href="/admin/events" className="text-sm font-medium text-zinc-600 hover:text-zinc-900">
               ← Events
             </Link>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-900">
+            <h1 className="headline-display mt-3 text-3xl">
               {event.coupleNames?.trim() || event.title}
             </h1>
             {event.coupleNames?.trim() ? (
               <p className="mt-1 text-lg text-zinc-600">{event.title}</p>
             ) : null}
-            <p className="mt-2 font-mono text-xs text-zinc-400">{event.slug}</p>
-          </div>
-          <Link
-            href={`/admin/events/${event.id}/edit`}
-            className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-900 shadow-sm"
-          >
-            Edit event
-          </Link>
-        </header>
-
-        <section className="overflow-hidden rounded-3xl border border-amber-900/10 bg-white shadow-[0_24px_60px_-40px_rgba(60,40,20,0.15)]">
-          {event.imagePath ? (
-            <div className="relative h-48 w-full sm:h-64">
-              <Image src={event.imagePath} alt={event.title} fill className="object-cover" priority />
-            </div>
-          ) : null}
-          <div className="space-y-3 p-6 text-sm leading-relaxed text-zinc-700 sm:p-8">
-            {event.eventSubtitle ? <p className="text-zinc-600">{event.eventSubtitle}</p> : null}
-            {event.eventDate || event.eventTime || event.venue ? (
-              <p className="text-zinc-600">
+            <p className="mt-2 font-mono text-xs text-zinc-500">{event.slug}</p>
+            {(event.eventDate || event.eventTime || event.venue) ? (
+              <p className="mt-4 text-sm text-zinc-600">
                 {event.eventDate
-                  ? new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(event.eventDate)
+                  ? new Intl.DateTimeFormat("en-US", { dateStyle: "full" }).format(event.eventDate)
                   : null}
                 {event.eventDate && event.eventTime ? " · " : null}
                 {event.eventTime ?? null}
                 {(event.eventDate || event.eventTime) && event.venue ? " · " : null}
                 {event.venue ?? null}
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-4 text-sm text-zinc-500">No ceremony details added yet.</p>
+            )}
+          </div>
+          <Link
+            href={`/admin/events/${event.id}/edit`}
+            className="btn-secondary inline-flex shrink-0"
+          >
+            Edit event
+          </Link>
+        </header>
+
+        <section className="app-card overflow-hidden">
+          {event.imagePath ? (
+            <div className="relative h-52 w-full sm:h-72">
+              <Image src={event.imagePath} alt={event.title} fill className="object-cover" priority />
+            </div>
+          ) : null}
+          <div className="space-y-3 p-6 text-sm leading-relaxed text-zinc-700 sm:p-8">
+            {event.eventSubtitle ? <p className="text-zinc-600">{event.eventSubtitle}</p> : null}
             {event.welcomeMessage ? <p>{event.welcomeMessage}</p> : null}
             {event.description ? <p className="text-zinc-600">{event.description}</p> : null}
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Invited families" value={totalFamilies} accent="bg-white" />
-          <StatCard label="Max headcount" value={totalMaximumInvited} accent="bg-white" />
-          <StatCard label="Responded" value={totalResponded} sub={`${totalPending} pending`} accent="bg-white" />
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard label="Invited families" value={totalFamilies} />
+          <StatCard label="Max invited" value={totalMaximumInvited} />
+          <StatCard label="Responded families" value={totalResponded} sub={`${totalPending} pending`} />
+          <StatCard label="Confirmed attendees" value={totalConfirmedAttendees} />
+          <StatCard label="Declined families" value={totalDeclinedFamilies} />
           <StatCard
-            label="Attending / Declined"
-            value={`${totalAttendingFamilies} / ${totalDeclinedFamilies}`}
-            sub={`${totalConfirmedAttendees} guests`}
-            accent="bg-white"
+            label="Attending families"
+            value={totalAttendingFamilies}
+            sub={`${totalDeclinedFamilies} declined`}
           />
         </section>
 
-        <section className="rounded-3xl border border-amber-900/10 bg-white p-6 shadow-sm sm:p-8">
+        <section className="app-card p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-zinc-900">Add one guest</h2>
-          <p className="mt-1 text-sm text-zinc-600">Optional: group, contact, notes — helpful for your records only.</p>
+          <p className="mt-1 text-sm text-zinc-600">
+            Optional: group, contact, and notes for your internal planning.
+          </p>
           <form action={createGuestAction} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <input type="hidden" name="eventId" value={event.id} />
             <label className="block text-sm font-medium text-zinc-700 sm:col-span-2">
@@ -133,7 +138,7 @@ export default async function EventDashboardPage({ params }: Props) {
                 name="guestName"
                 type="text"
                 placeholder="The Valli Family"
-                className="mt-1.5 w-full rounded-2xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-base"
+                className="input-luxe"
                 required
               />
             </label>
@@ -144,31 +149,28 @@ export default async function EventDashboardPage({ params }: Props) {
                 type="number"
                 min={1}
                 defaultValue={1}
-                className="mt-1.5 w-full rounded-2xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-base"
+                className="input-luxe"
                 required
               />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
               Group / side
-              <input name="group" type="text" className="mt-1.5 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-base" />
+              <input name="group" type="text" className="input-luxe" />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
               Phone
-              <input name="phone" type="text" className="mt-1.5 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-base" />
+              <input name="phone" type="text" className="input-luxe" />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
               Email
-              <input name="email" type="email" className="mt-1.5 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-base" />
+              <input name="email" type="email" className="input-luxe" />
             </label>
             <label className="block text-sm font-medium text-zinc-700 sm:col-span-2 lg:col-span-3">
               Notes
-              <input name="notes" type="text" className="mt-1.5 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-base" />
+              <input name="notes" type="text" className="input-luxe" />
             </label>
             <div className="sm:col-span-2 lg:col-span-3">
-              <button
-                type="submit"
-                className="w-full rounded-2xl bg-zinc-900 px-5 py-3.5 text-sm font-semibold text-white shadow-sm sm:w-auto"
-              >
+              <button type="submit" className="btn-primary w-full sm:w-auto">
                 Add guest &amp; generate link
               </button>
             </div>
@@ -187,16 +189,14 @@ function StatCard({
   label,
   value,
   sub,
-  accent,
 }: {
   label: string;
   value: number | string;
   sub?: string;
-  accent: string;
 }) {
   return (
-    <div className={`rounded-3xl border border-amber-900/10 p-5 shadow-sm ${accent}`}>
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
+    <div className="app-card p-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
       <p className="mt-2 text-2xl font-semibold tabular-nums text-zinc-900">{value}</p>
       {sub ? <p className="mt-1 text-xs text-zinc-500">{sub}</p> : null}
     </div>

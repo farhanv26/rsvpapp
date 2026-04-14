@@ -101,27 +101,27 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
   }, [guests, q, filter, sort]);
 
   return (
-    <div className="rounded-3xl border border-amber-900/10 bg-white p-6 shadow-sm">
+    <div className="app-card p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-900">Guests</h2>
+          <h2 className="text-xl font-semibold text-zinc-900">Guests</h2>
           <p className="mt-1 text-sm text-zinc-600">
             {guests.length} famil{guests.length === 1 ? "y" : "ies"} · Search & filter below
           </p>
         </div>
-        <div className="flex w-full flex-col gap-3 sm:max-w-xl sm:flex-row sm:items-center">
+        <div className="flex w-full flex-col gap-3 sm:max-w-xl sm:flex-row sm:items-center sm:justify-end">
           <input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search name, group, notes…"
-            className="w-full rounded-2xl border border-zinc-200 bg-zinc-50/80 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400"
+            className="input-luxe mt-0 py-2.5 text-sm"
           />
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as typeof sort)}
-            className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-medium text-zinc-800"
-                aria-label="Sort guests"
+            className="rounded-2xl border border-[#dccfbb] bg-white px-3 py-2.5 text-sm font-medium text-zinc-800"
+            aria-label="Sort guests"
           >
             <option value="recent">Newest added</option>
             <option value="nameAsc">Name A–Z</option>
@@ -138,9 +138,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
             type="button"
             onClick={() => setFilter(t.id)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              filter === t.id
-                ? "bg-zinc-900 text-white"
-                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200/80"
+              filter === t.id ? "bg-[#3f2f1f] text-white" : "bg-[#f5efe4] text-zinc-700 hover:bg-[#ede3d1]"
             }`}
           >
             {t.label}
@@ -154,7 +152,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
 
       <div className="mt-4 space-y-4">
         {filtered.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/80 px-4 py-8 text-center text-sm text-zinc-600">
+          <p className="app-card-muted border border-dashed px-4 py-8 text-center text-sm text-zinc-600">
             No guests match your filters.
           </p>
         ) : (
@@ -164,24 +162,24 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
             return (
               <article
                 key={guest.id}
-                className="rounded-2xl border border-zinc-200/80 bg-gradient-to-b from-white to-zinc-50/50 p-4 shadow-sm sm:p-5"
+                className="app-card rounded-2xl border-[#e4d8c4] bg-gradient-to-b from-white to-[#fcf8f1] p-4 sm:p-5"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-base font-semibold text-zinc-900">{guest.guestName}</h3>
                       {guest.group ? (
-                        <span className="rounded-full bg-amber-100/80 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+                        <span className="badge-soft">
                           {guest.group}
                         </span>
                       ) : null}
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                           st === "pending"
-                            ? "bg-amber-100 text-amber-900"
+                            ? "bg-zinc-200 text-zinc-700"
                             : st === "attending"
                               ? "bg-emerald-100 text-emerald-900"
-                              : "bg-zinc-200 text-zinc-800"
+                              : "bg-rose-100 text-rose-800"
                         }`}
                       >
                         {st}
@@ -208,7 +206,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
                       <input type="hidden" name="guestId" value={guest.id} />
                       <button
                         type="submit"
-                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600"
+                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
                       >
                         Delete
                       </button>
@@ -229,7 +227,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
                       type="text"
                       name="guestName"
                       defaultValue={guest.guestName}
-                      className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                       required
                     />
                   </label>
@@ -240,7 +238,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
                       name="maxGuests"
                       min={1}
                       defaultValue={guest.maxGuests}
-                      className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                       required
                     />
                   </label>
@@ -250,7 +248,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
                       type="text"
                       name="group"
                       defaultValue={guest.group ?? ""}
-                      className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                     />
                   </label>
                   <label className="block text-xs font-medium text-zinc-600">
@@ -259,7 +257,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
                       type="text"
                       name="phone"
                       defaultValue={guest.phone ?? ""}
-                      className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                     />
                   </label>
                   <label className="block text-xs font-medium text-zinc-600">
@@ -268,7 +266,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
                       type="email"
                       name="email"
                       defaultValue={guest.email ?? ""}
-                      className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                     />
                   </label>
                   <label className="block text-xs font-medium text-zinc-600 sm:col-span-2 lg:col-span-3">
@@ -277,14 +275,11 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
                       type="text"
                       name="notes"
                       defaultValue={guest.notes ?? ""}
-                      className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                     />
                   </label>
                   <div className="sm:col-span-2 lg:col-span-3">
-                    <button
-                      type="submit"
-                      className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800"
-                    >
+                    <button type="submit" className="btn-secondary">
                       Save changes
                     </button>
                   </div>

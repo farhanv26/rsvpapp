@@ -16,6 +16,7 @@ export function GuestCsvImport({ eventId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isDragging, setIsDragging] = useState(false);
 
   function runPreview() {
     setError(null);
@@ -58,10 +59,10 @@ export function GuestCsvImport({ eventId }: Props) {
   }
 
   return (
-    <div className="rounded-3xl border border-amber-900/10 bg-white p-6 shadow-sm">
+    <div className="app-card p-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-900">Import guests from CSV</h2>
+          <h2 className="text-xl font-semibold text-zinc-900">Import guests from CSV</h2>
           <p className="mt-1 text-sm text-zinc-600">
             Required columns: <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">guestName</code>,{" "}
             <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">maxGuests</code>. Optional:{" "}
@@ -69,29 +70,58 @@ export function GuestCsvImport({ eventId }: Props) {
             <code className="text-xs">phone</code>, <code className="text-xs">email</code>.
           </p>
         </div>
+        <a
+          href="/samples/guests-import.csv"
+          download
+          className="btn-secondary w-fit"
+        >
+          Download template
+        </a>
       </div>
 
       <div className="mt-4">
         <label className="block text-sm font-medium text-zinc-700" htmlFor="csv">
           Paste CSV or upload a .csv file
         </label>
-        <textarea
-          id="csv"
-          value={csvText}
-          onChange={(e) => {
-            setCsvText(e.target.value);
+        <div
+          className={`mt-2 rounded-2xl border-2 border-dashed p-3 transition ${
+            isDragging ? "border-[#b28944] bg-[#f8f1e5]" : "border-[#dbcdb8] bg-[#fdfaf3]"
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={async (e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            const file = e.dataTransfer.files?.[0];
+            if (!file) return;
+            const text = await file.text();
+            setCsvText(text);
             setPreview(null);
             setSuccess(null);
           }}
-          rows={5}
-          placeholder={`guestName,maxGuests,group,notes\nThe Valli Family,4,Family,,`}
-          className="mt-2 w-full rounded-2xl border border-zinc-200 bg-zinc-50/50 px-4 py-3 font-mono text-sm text-zinc-900 placeholder:text-zinc-400"
-        />
+        >
+          <textarea
+            id="csv"
+            value={csvText}
+            onChange={(e) => {
+              setCsvText(e.target.value);
+              setPreview(null);
+              setSuccess(null);
+            }}
+            rows={6}
+            placeholder={`guestName,maxGuests,group,notes\nThe Valli Family,4,Family,,`}
+            className="w-full rounded-xl border border-[#dccfbb] bg-white px-4 py-3 font-mono text-sm text-zinc-900 placeholder:text-zinc-400"
+          />
+          <p className="mt-2 text-xs text-zinc-500">Tip: drag and drop your CSV file into this area.</p>
+        </div>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <input
             type="file"
             accept=".csv,text/csv"
-            className="text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+            className="text-sm text-zinc-600 file:mr-3 file:rounded-xl file:border-0 file:bg-[#3f2f1f] file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
             onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) {
@@ -107,15 +137,15 @@ export function GuestCsvImport({ eventId }: Props) {
             type="button"
             disabled={isPending || !csvText.trim()}
             onClick={runPreview}
-            className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 disabled:opacity-50"
+            className="btn-secondary disabled:opacity-50"
           >
-            Preview
+            {isPending ? "Working..." : "Preview"}
           </button>
           <button
             type="button"
             disabled={isPending || !preview || preview.importableCount === 0}
             onClick={runImport}
-            className="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="btn-primary disabled:opacity-50"
           >
             Import {preview?.importableCount ? `(${preview.importableCount})` : ""}
           </button>
