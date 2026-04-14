@@ -23,7 +23,8 @@ Copy `.env.example` to `.env` and set:
 
 | Variable | Purpose |
 | -------- | ------- |
-| `DATABASE_URL` | PostgreSQL connection string (`postgresql://` or `postgres://`) |
+| `DATABASE_URL` | **Runtime Prisma Client URL** (Supabase pooler `:6543`) with `?pgbouncer=true&connection_limit=1` |
+| `DIRECT_URL` | **Prisma CLI URL** for migrations/introspection (direct DB host `:5432`) |
 | `NEXT_PUBLIC_APP_URL` | Public site URL for **absolute RSVP links** in admin (e.g. `https://your-app.vercel.app`) |
 | `ADMIN_PASSWORD` | Shared password for all `/admin/*` routes (except `/admin/login`) |
 | `ADMIN_AUTH_SECRET` | **At least 16 characters** — signs the admin session JWT cookie |
@@ -40,13 +41,13 @@ Use Docker (example):
 docker run --name rsvp-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=rsvpapp -p 5432:5432 -d postgres:16
 ```
 
-Point `DATABASE_URL` at that instance (see `.env.example`).
+Point both `DATABASE_URL` and `DIRECT_URL` at that instance (for local Postgres they can be the same URL).
 
 ### 2. Install and migrate
 
 ```bash
 cp .env.example .env
-# Edit .env: DATABASE_URL, NEXT_PUBLIC_APP_URL, ADMIN_PASSWORD, ADMIN_AUTH_SECRET
+# Edit .env: DATABASE_URL, DIRECT_URL, NEXT_PUBLIC_APP_URL, ADMIN_PASSWORD, ADMIN_AUTH_SECRET
 
 npm install
 npx prisma migrate deploy
@@ -111,7 +112,8 @@ Connect the repo; leave defaults or set **Root** if the app lives in a subfolder
 
 In **Project → Settings → Environment Variables**, add for **Production** (and Preview if you want):
 
-- `DATABASE_URL` — Postgres URL from step 1  
+- `DATABASE_URL` — **Supabase pooler URL** on port `6543` with `?pgbouncer=true&connection_limit=1&sslmode=require`  
+- `DIRECT_URL` — **direct DB URL** on port `5432` (for Prisma migrate/introspect)  
 - `NEXT_PUBLIC_APP_URL` — `https://<your-deployment>.vercel.app` or your custom domain  
 - `ADMIN_PASSWORD` — strong shared password  
 - `ADMIN_AUTH_SECRET` — long random string (32+ characters)  

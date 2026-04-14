@@ -94,7 +94,6 @@ export default async function AdminEventsPage() {
               The admin page is reachable, but fetching event data failed. Check server logs for
               details and try again.
             </p>
-            <p className="mt-2 text-xs font-mono text-red-700">{loadError.message}</p>
             <Link
               href="/admin/events"
               className="mt-4 inline-flex rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900"
