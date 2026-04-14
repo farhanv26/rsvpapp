@@ -1,5 +1,5 @@
-import Image from "next/image";
 import { RsvpForm } from "@/components/rsvp-form";
+import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { RsvpResponsePanel } from "@/components/rsvp-response-panel";
 import { formatDateTime, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
@@ -117,6 +117,11 @@ export default async function RsvpTokenPage({ params }: Props) {
   const hasResponded = Boolean(guest.respondedAt);
   const ev = guest.event;
   const safeImageSrc = getSafeImageSrc(ev.imagePath);
+  console.info("[event-image] rsvp render src", {
+    token,
+    rawImagePath: ev.imagePath,
+    safeImageSrc,
+  });
   const deadlineMeta = getRsvpDeadlineMeta(ev.rsvpDeadline);
   const isRsvpClosed = deadlineMeta?.status === "closed";
   const hasCeremonyDetails = Boolean(ev.eventDate || ev.eventTime || ev.venue);
@@ -129,17 +134,13 @@ export default async function RsvpTokenPage({ params }: Props) {
         <section className="rsvp-fade-up rounded-3xl border border-[#e7dccb] bg-[#fffdfa] p-5 shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)] sm:p-7">
           <div className="space-y-6 text-center">
             {safeImageSrc ? (
-              <div className="relative mx-auto max-w-[26rem]">
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#f7f4ee]">
-                  <Image
-                    src={safeImageSrc}
-                    alt={ev.title}
-                    fill
-                    priority
-                    sizes="(max-width: 640px) 92vw, 26rem"
-                    className="object-contain object-center"
-                  />
-                </div>
+              <div className="mx-auto w-full max-w-[31rem]">
+                <EventImageLightbox
+                  src={safeImageSrc}
+                  alt={ev.title}
+                  hintText="Tap to enlarge invitation"
+                  previewHeightClassName="h-[25rem] sm:h-[36rem]"
+                />
               </div>
             ) : null}
 

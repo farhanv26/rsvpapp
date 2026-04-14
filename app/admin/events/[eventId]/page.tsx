@@ -1,6 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { createGuestAction } from "@/app/admin/events/actions";
+import { DeleteEventButton } from "@/components/admin/delete-event-button";
+import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
 import { prisma } from "@/lib/prisma";
@@ -71,6 +72,11 @@ export default async function EventDashboardPage({ params }: Props) {
     createdAt: g.createdAt.toISOString(),
   }));
   const safeImageSrc = getSafeImageSrc(event.imagePath);
+  console.info("[event-image] admin detail render src", {
+    eventId: event.id,
+    rawImagePath: event.imagePath,
+    safeImageSrc,
+  });
   const deadlineMeta = getRsvpDeadlineMeta(event.rsvpDeadline);
 
   return (
@@ -134,18 +140,30 @@ export default async function EventDashboardPage({ params }: Props) {
               </div>
             ) : null}
           </div>
-          <Link
-            href={`/admin/events/${event.id}/edit`}
-            className="btn-secondary inline-flex shrink-0"
-          >
-            Edit event
-          </Link>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Link
+              href={`/admin/events/${event.id}/edit`}
+              className="btn-secondary inline-flex shrink-0"
+            >
+              Edit event
+            </Link>
+            <DeleteEventButton
+              eventId={event.id}
+              redirectToListOnSuccess
+              className="btn-secondary border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
+            />
+          </div>
         </header>
 
         <section className="app-card overflow-hidden">
           {safeImageSrc ? (
-            <div className="relative h-52 w-full sm:h-72">
-              <Image src={safeImageSrc} alt={event.title} fill className="object-cover" priority />
+            <div className="p-5 sm:p-7">
+              <EventImageLightbox
+                src={safeImageSrc}
+                alt={event.title}
+                hintText="View full invitation"
+                previewHeightClassName="h-[18rem] sm:h-[30rem]"
+              />
             </div>
           ) : (
             <div className="flex h-44 w-full items-center justify-center bg-[#f7f1e8] text-sm text-zinc-500">
@@ -294,7 +312,12 @@ export default async function EventDashboardPage({ params }: Props) {
           )}
         </section>
 
-        <EventGuestsPanel eventId={event.id} guests={guestsSerialized} siteUrl={getPublicSiteUrl()} />
+        <EventGuestsPanel
+          eventId={event.id}
+          eventTitle={event.title}
+          guests={guestsSerialized}
+          siteUrl={getPublicSiteUrl()}
+        />
       </div>
     </main>
   );

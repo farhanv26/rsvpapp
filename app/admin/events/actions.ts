@@ -1,31 +1,11 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { generateSecureToken } from "@/lib/security";
+import { getSafeImageSrc } from "@/lib/utils";
 import { eventSchema, guestSchema } from "@/lib/validation";
-
-async function saveEventImage(image: File) {
-  if (!image || image.size === 0) {
-    return null;
-  }
-
-  if (!["image/png", "image/jpeg"].includes(image.type)) {
-    throw new Error("Image must be PNG or JPG/JPEG.");
-  }
-
-  const ext = image.type === "image/png" ? "png" : "jpg";
-  const filename = `${Date.now()}-${generateSecureToken().slice(0, 12)}.${ext}`;
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  await mkdir(uploadsDir, { recursive: true });
-  const filePath = path.join(uploadsDir, filename);
-  const bytes = await image.arrayBuffer();
-  await writeFile(filePath, Buffer.from(bytes));
-  return `/uploads/${filename}`;
-}
 
 function parseOptionalDate(value?: string) {
   if (!value) {
@@ -86,8 +66,8 @@ export async function createEventAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid event details.");
   }
 
-  const image = formData.get("image");
-  const imagePath = image instanceof File ? await saveEventImage(image) : null;
+  const imagePath = getSafeImageSrc(String(formData.get("imagePath") || "")) ?? null;
+  console.info("[event-image] value to write on create", { imagePath });
   const slug = await createUniqueSlug(parsed.data.title);
 
   const event = await prisma.event.create({
@@ -133,8 +113,10 @@ export async function updateEventAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid event details.");
   }
 
-  const image = formData.get("image");
-  const imagePath = image instanceof File ? await saveEventImage(image) : null;
+  const imagePath = getSafeImageSrc(String(formData.get("imagePath") || "")) ?? null;
+  if (imagePath) {
+    console.info("[event-image] value to write on update", { eventId, imagePath });
+  }
   const slug = await createUniqueSlug(parsed.data.title, eventId);
 
   await prisma.event.update({
@@ -157,6 +139,40 @@ export async function updateEventAction(formData: FormData) {
   revalidatePath("/admin/events");
   revalidatePath(`/admin/events/${eventId}`);
   redirect(`/admin/events/${eventId}`);
+}
+
+export async function deleteEventAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "");
+  if (!eventId) {
+    return { ok: false, error: "Event id is missing." };
+  }
+
+  try {
+    const existing = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return { ok: false, error: "This event no longer exists." };
+    }
+
+    await prisma.event.delete({
+      where: { id: eventId },
+    });
+
+    revalidatePath("/admin/events");
+    revalidatePath(`/admin/events/${eventId}`);
+    return { ok: true };
+  } catch (error) {
+    console.error("[admin/events] failed to delete event", {
+      eventId,
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return { ok: false, error: "Could not delete event right now. Please try again." };
+  }
 }
 
 export async function createGuestAction(formData: FormData) {

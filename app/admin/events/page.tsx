@@ -1,10 +1,18 @@
 import Link from "next/link";
+import { DeleteEventButton } from "@/components/admin/delete-event-button";
+import { SafeEventImage } from "@/components/safe-event-image";
 import { prisma } from "@/lib/prisma";
-import { getRsvpDeadlineMeta } from "@/lib/utils";
+import { getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminEventsPage() {
+type AdminEventsPageProps = {
+  searchParams?: Promise<{ deleted?: string }>;
+};
+
+export default async function AdminEventsPage({ searchParams }: AdminEventsPageProps) {
+  const params = searchParams ? await searchParams : undefined;
+  const showDeletedNotice = params?.deleted === "1";
   const events: Array<{
     id: string;
     title: string | null;
@@ -136,6 +144,12 @@ export default async function AdminEventsPage() {
           />
         </div>
 
+        {showDeletedNotice ? (
+          <div className="app-card border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+            Event deleted successfully.
+          </div>
+        ) : null}
+
         {loadError ? (
           <div className="app-card border-red-200 bg-red-50 p-6 text-red-900 shadow-sm">
             <h2 className="text-lg font-semibold">We could not load events</h2>
@@ -178,6 +192,14 @@ export default async function AdminEventsPage() {
                   ? event.coupleNames.trim()
                   : null;
               const deadlineMeta = getRsvpDeadlineMeta(event.rsvpDeadline);
+              const safeImageSrc = getSafeImageSrc(event.imagePath);
+              if (event.imagePath) {
+                console.info("[event-image] admin list render src", {
+                  eventId: event.id,
+                  rawImagePath: event.imagePath,
+                  safeImageSrc,
+                });
+              }
               const deadlineLabel = deadlineMeta
                 ? deadlineMeta.status === "closed"
                   ? "Closed"
@@ -279,6 +301,20 @@ export default async function AdminEventsPage() {
                   ) : (
                     <p className="mt-4 text-sm text-zinc-500">Date and venue details not set yet.</p>
                   )}
+                  {safeImageSrc ? (
+                    <div className="mt-4 rounded-2xl border border-[#e7dccb] bg-[#f7f2e9] p-3">
+                      <div className="relative h-40 w-full overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fffdfa]">
+                        <SafeEventImage
+                          src={safeImageSrc}
+                          alt={safeTitle}
+                          fill
+                          sizes="(max-width: 1024px) 92vw, 30rem"
+                          className="object-contain object-center"
+                          fallbackLabel="Invitation image unavailable"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                   {event.rsvpDeadline ? (
                     <p className="mt-2 text-xs text-zinc-600">
                       RSVP deadline{" "}
@@ -309,6 +345,11 @@ export default async function AdminEventsPage() {
                     <Link href={`/admin/events/${event.id ?? ""}/edit`} className="btn-secondary">
                       Edit
                     </Link>
+                    <DeleteEventButton
+                      eventId={event.id}
+                      label="Delete"
+                      className="btn-secondary border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
+                    />
                   </div>
                 </article>
               );

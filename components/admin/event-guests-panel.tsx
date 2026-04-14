@@ -21,6 +21,7 @@ export type GuestPanelGuest = {
 
 type Props = {
   eventId: string;
+  eventTitle: string;
   guests: GuestPanelGuest[];
   /** Public origin without trailing slash; empty means relative /rsvp/... links */
   siteUrl: string;
@@ -61,10 +62,10 @@ function guestRsvpUrl(siteUrl: string, token: string) {
   return `${siteUrl.replace(/\/$/, "")}${path}`;
 }
 
-function buildInviteMessage(guestName: string, link: string) {
+function buildInviteMessage(guestName: string, link: string, eventTitle: string) {
   return `Hi ${guestName},
 
-We are so happy to invite you to celebrate our wedding with us.
+We are so happy to invite you to celebrate our ${eventTitle} with us.
 Please RSVP using your private link:
 ${link}
 
@@ -76,7 +77,7 @@ function waShareUrl(message: string) {
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
-export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
+export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<(typeof filterTabs)[number]["id"]>("all");
   const [sort, setSort] = useState<"nameAsc" | "nameDesc" | "recent" | "responded">("recent");
@@ -174,7 +175,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
         ) : (
           filtered.map((guest) => {
             const link = guestRsvpUrl(siteUrl, guest.token);
-            const inviteMessage = buildInviteMessage(guest.guestName, link);
+            const inviteMessage = buildInviteMessage(guest.guestName, link, eventTitle);
             const st = statusOf(guest);
             return (
               <article

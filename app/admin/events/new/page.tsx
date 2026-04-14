@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createEventAction } from "@/app/admin/events/actions";
+import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 
 export default function NewEventPage() {
@@ -102,18 +103,7 @@ export default function NewEventPage() {
           />
         </div>
 
-        <div>
-          <label htmlFor="image" className="mb-2 block text-sm font-medium">
-            Invitation image (PNG/JPG, optional)
-          </label>
-          <input
-            id="image"
-            name="image"
-            type="file"
-            accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-            className="w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-base file:mr-3 file:rounded-xl file:border-0 file:bg-[#efe3d2] file:px-3 file:py-2 file:text-sm"
-          />
-        </div>
+        <EventImageUploadField />
 
         <button type="submit" className="btn-primary w-full">
           Create Event

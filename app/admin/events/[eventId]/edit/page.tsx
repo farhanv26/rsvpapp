@@ -1,8 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateEventAction } from "@/app/admin/events/actions";
+import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
+import { SafeEventImage } from "@/components/safe-event-image";
 import { prisma } from "@/lib/prisma";
 import { getSafeImageSrc } from "@/lib/utils";
 
@@ -19,6 +20,11 @@ export default async function EditEventPage({ params }: Props) {
     notFound();
   }
   const safeImageSrc = getSafeImageSrc(event.imagePath);
+  console.info("[event-image] admin edit render src", {
+    eventId: event.id,
+    rawImagePath: event.imagePath,
+    safeImageSrc,
+  });
 
   return (
     <main className="app-shell max-w-4xl">
@@ -128,24 +134,21 @@ export default async function EditEventPage({ params }: Props) {
         {safeImageSrc ? (
           <div>
             <p className="mb-2 text-sm font-medium">Current image</p>
-            <div className="relative h-44 w-full overflow-hidden rounded-2xl border border-[#e3d8c7]">
-              <Image src={safeImageSrc} alt={event.title} fill className="object-cover" />
+            <div className="rounded-2xl border border-[#e3d8c7] bg-[#f7f2e9] p-3">
+              <div className="relative h-52 w-full overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fffdfa]">
+              <SafeEventImage
+                src={safeImageSrc}
+                alt={event.title}
+                fill
+                className="object-contain object-center"
+                fallbackLabel="Invitation image unavailable"
+              />
+              </div>
             </div>
           </div>
         ) : null}
 
-        <div>
-          <label htmlFor="image" className="mb-2 block text-sm font-medium">
-            Replace image (optional)
-          </label>
-          <input
-            id="image"
-            name="image"
-            type="file"
-            accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-            className="w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-base file:mr-3 file:rounded-xl file:border-0 file:bg-[#efe3d2] file:px-3 file:py-2 file:text-sm"
-          />
-        </div>
+        <EventImageUploadField initialImagePath={event.imagePath} />
 
         <button type="submit" className="btn-primary w-full">
           Save Event Changes

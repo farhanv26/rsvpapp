@@ -28,6 +28,7 @@ Copy `.env.example` to `.env` and set:
 | `NEXT_PUBLIC_APP_URL` | Public site URL for **absolute RSVP links** in admin (e.g. `https://your-app.vercel.app`) |
 | `ADMIN_PASSWORD` | Shared password for all `/admin/*` routes (except `/admin/login`) |
 | `ADMIN_AUTH_SECRET` | **At least 16 characters** — signs the admin session JWT cookie |
+| `BLOB_READ_WRITE_TOKEN` | Optional Vercel Blob token for durable invite image uploads |
 
 **Optional:** On Vercel, `VERCEL_URL` is set automatically. `getPublicSiteUrl()` uses it as a fallback if `NEXT_PUBLIC_APP_URL` is unset (server-side). For consistent copy/paste links, set `NEXT_PUBLIC_APP_URL` to your canonical domain.
 
@@ -87,7 +88,12 @@ Current migrations target **PostgreSQL** only (`prisma/migrations/.../init_postg
 
 ## Uploads
 
-Event images are stored under `public/uploads/` on the server filesystem. On serverless hosts, prefer moving to object storage later; URLs in the DB stay paths like `/uploads/...`.
+Invite card uploads now use this order:
+
+1. **Vercel Blob** (when `BLOB_READ_WRITE_TOKEN` is set) — stores durable public URL in `Event.imagePath`.
+2. Local fallback (`public/uploads/`) for local/dev environments without Blob token.
+
+Rendering is defensive: if image URL/path is missing or malformed, admin and RSVP pages show a graceful placeholder instead of crashing.
 
 ## CSV bulk import
 
