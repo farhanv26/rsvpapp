@@ -59,6 +59,17 @@ export function EventSchedulingFields({
   const [isDeadlineTouched, setIsDeadlineTouched] = useState(Boolean(rsvpDeadlineDefault));
   const [openPicker, setOpenPicker] = useState<"eventDate" | "rsvpDeadline" | null>(null);
   const eventDateRef = useRef<HTMLInputElement | null>(null);
+  const todayDate = useMemo(() => parseIsoToDate(today), [today]);
+  const selectedEventDate = useMemo(() => parseIsoToDate(eventDate), [eventDate]);
+  const selectedDeadlineDate = useMemo(() => parseIsoToDate(rsvpDeadline), [rsvpDeadline]);
+  const eventDateDisabled = todayDate ? { before: todayDate } : undefined;
+  const deadlineDisabled =
+    todayDate || selectedEventDate
+      ? {
+          ...(todayDate ? { before: todayDate } : {}),
+          ...(selectedEventDate ? { after: selectedEventDate } : {}),
+        }
+      : undefined;
 
   const eventDateRequiredError = !eventDate ? "Event date is required." : null;
   const eventDatePastError = eventDate && eventDate < today ? "Event date cannot be in the past." : null;
@@ -130,14 +141,14 @@ export function EventSchedulingFields({
             <div className="absolute z-30 mt-2 rounded-2xl border border-[#e3d8c7] bg-[#fffdfa] p-3 shadow-xl">
               <DayPicker
                 mode="single"
-                selected={parseIsoToDate(eventDate)}
+                selected={selectedEventDate}
                 onSelect={(value) => {
                   if (!value) return;
                   const iso = formatIsoFromDate(value);
                   setEventDate(iso);
                   setOpenPicker(null);
                 }}
-                disabled={{ before: parseIsoToDate(today) }}
+                disabled={eventDateDisabled}
               />
             </div>
           ) : null}
@@ -188,17 +199,14 @@ export function EventSchedulingFields({
             <div className="absolute z-30 mt-2 rounded-2xl border border-[#e3d8c7] bg-[#fffdfa] p-3 shadow-xl">
               <DayPicker
                 mode="single"
-                selected={parseIsoToDate(rsvpDeadline)}
+                selected={selectedDeadlineDate}
                 onSelect={(value) => {
                   if (!value) return;
                   setIsDeadlineTouched(true);
                   setRsvpDeadline(formatIsoFromDate(value));
                   setOpenPicker(null);
                 }}
-                disabled={{
-                  before: parseIsoToDate(today),
-                  after: parseIsoToDate(eventDate),
-                }}
+                disabled={deadlineDisabled}
               />
             </div>
           ) : null}
