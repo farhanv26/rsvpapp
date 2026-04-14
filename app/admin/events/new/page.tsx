@@ -54,18 +54,6 @@ export default function NewEventPage() {
             />
           </div>
           <EventSchedulingFields />
-          <div>
-            <label htmlFor="eventTime" className="mb-2 block text-sm font-medium">
-              Event time (optional)
-            </label>
-            <input
-              id="eventTime"
-              name="eventTime"
-              type="text"
-              placeholder="4:30 PM"
-              className="input-luxe mt-0"
-            />
-          </div>
           <div className="sm:col-span-2">
             <label htmlFor="venue" className="mb-2 block text-sm font-medium">
               Venue (optional)

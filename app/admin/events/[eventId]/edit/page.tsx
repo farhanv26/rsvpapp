@@ -80,19 +80,8 @@ export default async function EditEventPage({ params }: Props) {
           <EventSchedulingFields
             eventDateDefault={event.eventDate ? event.eventDate.toISOString().slice(0, 10) : ""}
             rsvpDeadlineDefault={event.rsvpDeadline ? event.rsvpDeadline.toISOString().slice(0, 10) : ""}
+            eventTimeDefault={event.eventTime ?? ""}
           />
-          <div>
-            <label htmlFor="eventTime" className="mb-2 block text-sm font-medium">
-              Event time (optional)
-            </label>
-            <input
-              id="eventTime"
-              name="eventTime"
-              type="text"
-              defaultValue={event.eventTime ?? ""}
-              className="input-luxe mt-0"
-            />
-          </div>
           <div className="sm:col-span-2">
             <label htmlFor="venue" className="mb-2 block text-sm font-medium">
               Venue (optional)

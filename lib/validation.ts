@@ -18,9 +18,9 @@ export const eventSchema = z.object({
   description: z.string().trim().optional(),
   coupleNames: z.string().trim().optional(),
   eventSubtitle: z.string().trim().optional(),
-  eventDate: z.string().trim().optional(),
-  rsvpDeadline: z.string().trim().optional(),
-  eventTime: z.string().trim().optional(),
+  eventDate: z.string().trim().min(1, "Event date is required."),
+  rsvpDeadline: z.string().trim().min(1, "RSVP deadline is required."),
+  eventTime: z.string().trim().min(1, "Event time is required."),
   venue: z.string().trim().optional(),
   welcomeMessage: z.string().trim().optional(),
 }).superRefine((data, ctx) => {
@@ -60,14 +60,6 @@ export const eventSchema = z.object({
     });
   }
 
-  if (deadlineText && !eventDateText) {
-    ctx.addIssue({
-      code: "custom",
-      message: "Set an event date before adding an RSVP deadline.",
-      path: ["rsvpDeadline"],
-    });
-  }
-
   if (deadlineDate && deadlineDate < startOfTodayLocal()) {
     ctx.addIssue({
       code: "custom",
@@ -83,6 +75,7 @@ export const eventSchema = z.object({
       path: ["rsvpDeadline"],
     });
   }
+
 });
 
 export const guestSchema = z
