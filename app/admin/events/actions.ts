@@ -31,9 +31,11 @@ function parseOptionalDate(value?: string) {
   if (!value) {
     return null;
   }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
 }
 
 function slugify(value: string) {
@@ -74,6 +76,7 @@ export async function createEventAction(formData: FormData) {
     coupleNames: formData.get("coupleNames") || undefined,
     eventSubtitle: formData.get("eventSubtitle") || undefined,
     eventDate: formData.get("eventDate") || undefined,
+    rsvpDeadline: formData.get("rsvpDeadline") || undefined,
     eventTime: formData.get("eventTime") || undefined,
     venue: formData.get("venue") || undefined,
     welcomeMessage: formData.get("welcomeMessage") || undefined,
@@ -96,6 +99,7 @@ export async function createEventAction(formData: FormData) {
       coupleNames: parsed.data.coupleNames || null,
       eventSubtitle: parsed.data.eventSubtitle || null,
       eventDate: parseOptionalDate(parsed.data.eventDate),
+      rsvpDeadline: parseOptionalDate(parsed.data.rsvpDeadline),
       eventTime: parsed.data.eventTime || null,
       venue: parsed.data.venue || null,
       welcomeMessage: parsed.data.welcomeMessage || null,
@@ -119,6 +123,7 @@ export async function updateEventAction(formData: FormData) {
     coupleNames: formData.get("coupleNames") || undefined,
     eventSubtitle: formData.get("eventSubtitle") || undefined,
     eventDate: formData.get("eventDate") || undefined,
+    rsvpDeadline: formData.get("rsvpDeadline") || undefined,
     eventTime: formData.get("eventTime") || undefined,
     venue: formData.get("venue") || undefined,
     welcomeMessage: formData.get("welcomeMessage") || undefined,
@@ -141,6 +146,7 @@ export async function updateEventAction(formData: FormData) {
       coupleNames: parsed.data.coupleNames || null,
       eventSubtitle: parsed.data.eventSubtitle || null,
       eventDate: parseOptionalDate(parsed.data.eventDate),
+      rsvpDeadline: parseOptionalDate(parsed.data.rsvpDeadline),
       eventTime: parsed.data.eventTime || null,
       venue: parsed.data.venue || null,
       welcomeMessage: parsed.data.welcomeMessage || null,

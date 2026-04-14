@@ -4,7 +4,7 @@ import { createGuestAction } from "@/app/admin/events/actions";
 import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
 import { prisma } from "@/lib/prisma";
-import { getPublicSiteUrl } from "@/lib/utils";
+import { getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -20,6 +20,15 @@ export default async function EventDashboardPage({ params }: Props) {
     include: {
       guests: {
         orderBy: { createdAt: "desc" },
+      },
+      rsvpActivities: {
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        include: {
+          guest: {
+            select: { guestName: true },
+          },
+        },
       },
     },
   });
@@ -61,6 +70,8 @@ export default async function EventDashboardPage({ params }: Props) {
     email: g.email,
     createdAt: g.createdAt.toISOString(),
   }));
+  const safeImageSrc = getSafeImageSrc(event.imagePath);
+  const deadlineMeta = getRsvpDeadlineMeta(event.rsvpDeadline);
 
   return (
     <main className="min-h-screen">
@@ -90,6 +101,38 @@ export default async function EventDashboardPage({ params }: Props) {
             ) : (
               <p className="mt-4 text-sm text-zinc-500">No ceremony details added yet.</p>
             )}
+            {event.rsvpDeadline ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <p className="uppercase tracking-[0.18em] text-zinc-500">
+                  RSVP deadline{" "}
+                  {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(event.rsvpDeadline)}
+                </p>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                    deadlineMeta?.status === "closed"
+                      ? "bg-zinc-200 text-zinc-800"
+                      : deadlineMeta?.status === "closes_today"
+                        ? "bg-rose-100 text-rose-800"
+                        : deadlineMeta?.status === "closing_soon"
+                          ? "bg-amber-100 text-amber-900"
+                          : "bg-emerald-100 text-emerald-900"
+                  }`}
+                >
+                  {deadlineMeta?.status === "closed"
+                    ? "Closed"
+                    : deadlineMeta?.status === "closes_today"
+                      ? "Closes Today"
+                      : deadlineMeta?.status === "closing_soon"
+                        ? "Closing Soon"
+                        : "Open"}
+                </span>
+                {typeof deadlineMeta?.daysRemaining === "number" && deadlineMeta.daysRemaining > 0 ? (
+                  <span className="text-zinc-500">
+                    {deadlineMeta.daysRemaining} day{deadlineMeta.daysRemaining === 1 ? "" : "s"} remaining
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <Link
             href={`/admin/events/${event.id}/edit`}
@@ -100,11 +143,15 @@ export default async function EventDashboardPage({ params }: Props) {
         </header>
 
         <section className="app-card overflow-hidden">
-          {event.imagePath ? (
+          {safeImageSrc ? (
             <div className="relative h-52 w-full sm:h-72">
-              <Image src={event.imagePath} alt={event.title} fill className="object-cover" priority />
+              <Image src={safeImageSrc} alt={event.title} fill className="object-cover" priority />
             </div>
-          ) : null}
+          ) : (
+            <div className="flex h-44 w-full items-center justify-center bg-[#f7f1e8] text-sm text-zinc-500">
+              No invitation image uploaded
+            </div>
+          )}
           <div className="space-y-3 p-6 text-sm leading-relaxed text-zinc-700 sm:p-8">
             {event.eventSubtitle ? <p className="text-zinc-600">{event.eventSubtitle}</p> : null}
             {event.welcomeMessage ? <p>{event.welcomeMessage}</p> : null}
@@ -124,6 +171,28 @@ export default async function EventDashboardPage({ params }: Props) {
             sub={`${totalDeclinedFamilies} declined`}
           />
         </section>
+
+        {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
+          <section
+            className={`app-card p-5 ${
+              deadlineMeta.status === "closed"
+                ? "border-zinc-300 bg-zinc-100/60"
+                : deadlineMeta.status === "closes_today"
+                  ? "border-rose-200 bg-rose-50"
+                  : "border-amber-200 bg-amber-50"
+            }`}
+          >
+            <p className="text-sm font-semibold text-zinc-900">
+              {deadlineMeta.status === "closed"
+                ? "RSVP is closed for this event."
+                : deadlineMeta.status === "closes_today"
+                  ? "RSVP closes today."
+                  : `RSVP closes soon (${deadlineMeta.daysRemaining} day${
+                      deadlineMeta.daysRemaining === 1 ? "" : "s"
+                    } remaining).`}
+            </p>
+          </section>
+        ) : null}
 
         <section className="app-card p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-zinc-900">Add one guest</h2>
@@ -178,6 +247,52 @@ export default async function EventDashboardPage({ params }: Props) {
         </section>
 
         <GuestCsvImport eventId={event.id} />
+
+        <section className="app-card p-6 sm:p-8">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold text-zinc-900">Recent RSVP updates</h2>
+            <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+              {event.rsvpActivities.length} items
+            </span>
+          </div>
+          {event.rsvpActivities.length === 0 ? (
+            <p className="mt-4 rounded-2xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-4 py-6 text-sm text-zinc-600">
+              No RSVP updates yet.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
+                <article className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
+                  <p className="text-sm font-medium text-zinc-900">
+                    {deadlineMeta.status === "closed"
+                      ? "Reminder · RSVP closed today"
+                      : deadlineMeta.status === "closes_today"
+                        ? "Reminder · RSVP closes today"
+                        : `Reminder · RSVP closes in ${deadlineMeta.daysRemaining} day${
+                            deadlineMeta.daysRemaining === 1 ? "" : "s"
+                          }`}
+                  </p>
+                </article>
+              ) : null}
+              {event.rsvpActivities.map((activity) => (
+                <article
+                  key={activity.id}
+                  className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-3"
+                >
+                  <p className="text-sm font-medium text-zinc-900">
+                    {activity.guest?.guestName ?? "Guest"} · {activity.description}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {new Intl.DateTimeFormat("en-US", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(activity.createdAt)}
+                  </p>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
 
         <EventGuestsPanel eventId={event.id} guests={guestsSerialized} siteUrl={getPublicSiteUrl()} />
       </div>

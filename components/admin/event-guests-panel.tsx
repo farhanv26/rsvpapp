@@ -61,10 +61,26 @@ function guestRsvpUrl(siteUrl: string, token: string) {
   return `${siteUrl.replace(/\/$/, "")}${path}`;
 }
 
+function buildInviteMessage(guestName: string, link: string) {
+  return `Hi ${guestName},
+
+We are so happy to invite you to celebrate our wedding with us.
+Please RSVP using your private link:
+${link}
+
+With love,
+Farhan & Rafiya`;
+}
+
+function waShareUrl(message: string) {
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
 export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<(typeof filterTabs)[number]["id"]>("all");
   const [sort, setSort] = useState<"nameAsc" | "nameDesc" | "recent" | "responded">("recent");
+  const [copiedMessageGuestId, setCopiedMessageGuestId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let list = [...guests];
@@ -158,6 +174,7 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
         ) : (
           filtered.map((guest) => {
             const link = guestRsvpUrl(siteUrl, guest.token);
+            const inviteMessage = buildInviteMessage(guest.guestName, link);
             const st = statusOf(guest);
             return (
               <article
@@ -201,6 +218,35 @@ export function EventGuestsPanel({ eventId, guests, siteUrl }: Props) {
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
                     <CopyLinkButton value={link} />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(inviteMessage);
+                          setCopiedMessageGuestId(guest.id);
+                          setTimeout(() => {
+                            setCopiedMessageGuestId((current) => (current === guest.id ? null : current));
+                          }, 1800);
+                        } catch {
+                          setCopiedMessageGuestId(null);
+                        }
+                      }}
+                      className={`rounded-xl border px-3.5 py-2 text-sm font-semibold shadow-sm transition active:scale-[0.98] ${
+                        copiedMessageGuestId === guest.id
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                          : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
+                      }`}
+                    >
+                      {copiedMessageGuestId === guest.id ? "Copied message!" : "Copy invite message"}
+                    </button>
+                    <a
+                      href={waShareUrl(inviteMessage)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-secondary"
+                    >
+                      WhatsApp
+                    </a>
                     <form action={deleteGuestAction}>
                       <input type="hidden" name="eventId" value={eventId} />
                       <input type="hidden" name="guestId" value={guest.id} />

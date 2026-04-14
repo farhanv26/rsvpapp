@@ -36,3 +36,54 @@ export function buildAbsoluteUrl(pathname: string) {
   }
   return pathname;
 }
+
+/** Guards Image src values so malformed DB values do not crash rendering. */
+export function getSafeImageSrc(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  const src = value.trim();
+  if (!src) {
+    return null;
+  }
+  if (src.startsWith("/")) {
+    return src;
+  }
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    return src;
+  }
+  return null;
+}
+
+export type RsvpDeadlineStatus = "open" | "closing_soon" | "closes_today" | "closed";
+
+function startOfLocalDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+export function getRsvpDeadlineMeta(deadline: Date | null | undefined, now = new Date()) {
+  if (!deadline) {
+    return null;
+  }
+  const today = startOfLocalDay(now);
+  const deadlineDay = startOfLocalDay(deadline);
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const daysRemaining = Math.round((deadlineDay.getTime() - today.getTime()) / msPerDay);
+
+  let status: RsvpDeadlineStatus;
+  if (daysRemaining < 0) {
+    status = "closed";
+  } else if (daysRemaining === 0) {
+    status = "closes_today";
+  } else if (daysRemaining <= 7) {
+    status = "closing_soon";
+  } else {
+    status = "open";
+  }
+
+  return {
+    status,
+    daysRemaining,
+    deadlineDay,
+  };
+}

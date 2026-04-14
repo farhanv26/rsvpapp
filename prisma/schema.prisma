@@ -22,12 +22,14 @@ model Event {
   coupleNames   String?
   eventSubtitle String?
   eventDate     DateTime?
+  rsvpDeadline  DateTime?
   eventTime     String?
   venue         String?
   welcomeMessage String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   guests        Guest[]
+  rsvpActivities RsvpActivity[]
 }
 
 model Guest {
@@ -47,7 +49,23 @@ model Guest {
   updatedAt      DateTime @updatedAt
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rsvpActivities RsvpActivity[]
 
   @@index([eventId])
   @@index([token])
+}
+
+model RsvpActivity {
+  id          String   @id @default(cuid())
+  eventId     String
+  guestId     String
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt(sort: Desc)])
+  @@index([guestId, createdAt(sort: Desc)])
 }

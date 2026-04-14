@@ -2,7 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateEventAction } from "@/app/admin/events/actions";
+import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 import { prisma } from "@/lib/prisma";
+import { getSafeImageSrc } from "@/lib/utils";
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -16,6 +18,7 @@ export default async function EditEventPage({ params }: Props) {
   if (!event) {
     notFound();
   }
+  const safeImageSrc = getSafeImageSrc(event.imagePath);
 
   return (
     <main className="app-shell max-w-4xl">
@@ -68,18 +71,10 @@ export default async function EditEventPage({ params }: Props) {
               className="input-luxe mt-0"
             />
           </div>
-          <div>
-            <label htmlFor="eventDate" className="mb-2 block text-sm font-medium">
-              Event date (optional)
-            </label>
-            <input
-              id="eventDate"
-              name="eventDate"
-              type="date"
-              defaultValue={event.eventDate ? event.eventDate.toISOString().slice(0, 10) : ""}
-              className="input-luxe mt-0"
-            />
-          </div>
+          <EventSchedulingFields
+            eventDateDefault={event.eventDate ? event.eventDate.toISOString().slice(0, 10) : ""}
+            rsvpDeadlineDefault={event.rsvpDeadline ? event.rsvpDeadline.toISOString().slice(0, 10) : ""}
+          />
           <div>
             <label htmlFor="eventTime" className="mb-2 block text-sm font-medium">
               Event time (optional)
@@ -130,11 +125,11 @@ export default async function EditEventPage({ params }: Props) {
           />
         </div>
 
-        {event.imagePath ? (
+        {safeImageSrc ? (
           <div>
             <p className="mb-2 text-sm font-medium">Current image</p>
             <div className="relative h-44 w-full overflow-hidden rounded-2xl border border-[#e3d8c7]">
-              <Image src={event.imagePath} alt={event.title} fill className="object-cover" />
+              <Image src={safeImageSrc} alt={event.title} fill className="object-cover" />
             </div>
           </div>
         ) : null}

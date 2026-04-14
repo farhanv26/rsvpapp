@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createEventAction } from "@/app/admin/events/actions";
+import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 
 export default function NewEventPage() {
   return (
@@ -51,17 +52,7 @@ export default function NewEventPage() {
               className="input-luxe mt-0"
             />
           </div>
-          <div>
-            <label htmlFor="eventDate" className="mb-2 block text-sm font-medium">
-              Event date (optional)
-            </label>
-            <input
-              id="eventDate"
-              name="eventDate"
-              type="date"
-              className="input-luxe mt-0"
-            />
-          </div>
+          <EventSchedulingFields />
           <div>
             <label htmlFor="eventTime" className="mb-2 block text-sm font-medium">
               Event time (optional)

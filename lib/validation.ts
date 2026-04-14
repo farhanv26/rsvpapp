@@ -1,14 +1,88 @@
 import { z } from "zod";
 
+function parseLocalDateOnly(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+}
+
+function startOfTodayLocal() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 export const eventSchema = z.object({
   title: z.string().trim().min(1, "Event title is required."),
   description: z.string().trim().optional(),
   coupleNames: z.string().trim().optional(),
   eventSubtitle: z.string().trim().optional(),
   eventDate: z.string().trim().optional(),
+  rsvpDeadline: z.string().trim().optional(),
   eventTime: z.string().trim().optional(),
   venue: z.string().trim().optional(),
   welcomeMessage: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  const eventDateText = data.eventDate?.trim();
+  const deadlineText = data.rsvpDeadline?.trim();
+
+  let eventDate: Date | null = null;
+  let deadlineDate: Date | null = null;
+
+  if (eventDateText) {
+    eventDate = parseLocalDateOnly(eventDateText);
+  }
+  if (deadlineText) {
+    deadlineDate = parseLocalDateOnly(deadlineText);
+  }
+
+  if (eventDateText && !eventDate) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Invalid event date.",
+      path: ["eventDate"],
+    });
+  }
+  if (deadlineText && !deadlineDate) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Invalid RSVP deadline.",
+      path: ["rsvpDeadline"],
+    });
+  }
+
+  if (eventDate && eventDate < startOfTodayLocal()) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Event date cannot be in the past.",
+      path: ["eventDate"],
+    });
+  }
+
+  if (deadlineText && !eventDateText) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Set an event date before adding an RSVP deadline.",
+      path: ["rsvpDeadline"],
+    });
+  }
+
+  if (deadlineDate && deadlineDate < startOfTodayLocal()) {
+    ctx.addIssue({
+      code: "custom",
+      message: "RSVP deadline cannot be in the past.",
+      path: ["rsvpDeadline"],
+    });
+  }
+
+  if (eventDate && deadlineDate && deadlineDate > eventDate) {
+    ctx.addIssue({
+      code: "custom",
+      message: "RSVP deadline must be on or before the event date.",
+      path: ["rsvpDeadline"],
+    });
+  }
 });
 
 export const guestSchema = z

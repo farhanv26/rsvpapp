@@ -7,25 +7,40 @@ type RsvpFormProps = {
   token: string;
   maxGuests: number;
   isLocked: boolean;
+  initialAttending?: "yes" | "no";
+  onCancelEdit?: () => void;
 };
 
 const serif = "font-[family-name:var(--font-wedding-serif),Georgia,serif]";
 const script = "font-[family-name:var(--font-wedding-script),cursive]";
 
-export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
-  const [attending, setAttending] = useState<"yes" | "no">("yes");
-  const [attendingCount, setAttendingCount] = useState(1);
+export function RsvpForm({
+  token,
+  maxGuests,
+  isLocked,
+  initialAttending = "yes",
+  onCancelEdit,
+}: RsvpFormProps) {
+  const [attending, setAttending] = useState<"yes" | "no">(initialAttending);
+  const [attendingCount, setAttendingCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   if (isLocked) {
     return null;
   }
 
-  function handleSubmit(formData: FormData) {
+  function submitRsvp() {
     setError(null);
     startTransition(async () => {
       try {
+        const formData = new FormData();
+        formData.set("token", token);
+        formData.set("attending", attending);
+        if (attending === "yes") {
+          formData.set("attendingCount", String(attendingCount));
+        }
         await submitRsvpAction(formData);
         window.location.reload();
       } catch (err) {
@@ -36,16 +51,29 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
     });
   }
 
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    if (attending === "yes" && (attendingCount < 1 || attendingCount > maxGuests)) {
+      setError(`Please choose between 1 and ${maxGuests} guests.`);
+      return;
+    }
+    setShowConfirm(true);
+  }
+
   function step(delta: number) {
     setAttendingCount((current) => {
       const next = current + delta;
-      return Math.min(maxGuests, Math.max(1, next));
+      return Math.min(maxGuests, Math.max(0, next));
     });
   }
 
+  const canSubmit = attending === "no" || (attendingCount >= 1 && attendingCount <= maxGuests);
+
   return (
+    <>
     <form
-      action={handleSubmit}
+      onSubmit={handleSubmit}
       className={`rsvp-fade-up relative w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-5 py-7 shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)] sm:px-8 sm:py-8 ${serif} ${isPending ? "opacity-[0.92]" : ""}`}
       style={{ fontFamily: "var(--font-wedding-sans), sans-serif" }}
       aria-busy={isPending}
@@ -57,14 +85,17 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
       </p>
       <p className={`mt-2 text-center text-2xl text-zinc-900 ${script}`}>Will you be attending?</p>
 
-      <div className="mt-7 space-y-3">
+      <div className="mt-7 grid gap-3 sm:grid-cols-2">
         <label className="block cursor-pointer touch-manipulation">
           <input
             type="radio"
             name="attending"
             value="yes"
             checked={attending === "yes"}
-            onChange={() => setAttending("yes")}
+            onChange={() => {
+              setAttending("yes");
+              setAttendingCount(0);
+            }}
             className="sr-only"
           />
           <div
@@ -75,7 +106,7 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
             }`}
           >
             <span className={`block text-lg text-zinc-900 ${serif}`}>Accept</span>
-            <span className="mt-1 block text-xs leading-relaxed text-zinc-600">We would love to celebrate with you</span>
+            <span className="mt-1 block text-xs leading-relaxed text-zinc-600">I will attend</span>
           </div>
         </label>
 
@@ -96,7 +127,7 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
             }`}
           >
             <span className={`block text-lg text-zinc-900 ${serif}`}>Decline</span>
-            <span className="mt-1 block text-xs leading-relaxed text-zinc-600">We are unable to attend this time</span>
+            <span className="mt-1 block text-xs leading-relaxed text-zinc-600">I can&apos;t attend</span>
           </div>
         </label>
       </div>
@@ -105,12 +136,13 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
         <div className="mt-8 rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5">
           <input type="hidden" name="attendingCount" value={attendingCount} />
           <p className="text-center text-sm font-medium text-zinc-800">Guests attending</p>
-          <p className="mt-1 text-center text-xs text-zinc-500">Maximum allowed: {maxGuests}</p>
+          <p className="mt-1 text-center text-xs text-zinc-500">Select how many guests will attend</p>
+          <p className="mt-1 text-center text-xs text-zinc-500">Your invitation allows up to {maxGuests} guests</p>
           <div className="mt-6 flex items-center justify-center gap-3 sm:gap-4">
             <button
               type="button"
               onClick={() => step(-1)}
-              disabled={attendingCount <= 1 || isPending}
+              disabled={attendingCount <= 0 || isPending}
               aria-label="Decrease guest count"
               className="flex h-[3rem] min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border border-[#d9ccb7] bg-white text-xl font-light text-zinc-700 shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
             >
@@ -142,11 +174,50 @@ export function RsvpForm({ token, maxGuests, isLocked }: RsvpFormProps) {
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || !canSubmit}
         className={`mt-9 w-full rounded-2xl border border-[#3f2f1f] bg-[#3f2f1f] py-4 text-sm font-semibold tracking-[0.08em] text-white shadow-[0_14px_40px_-18px_rgba(50,40,20,0.55)] transition hover:bg-[#352618] active:scale-[0.99] disabled:opacity-60 touch-manipulation ${serif}`}
       >
-        {isPending ? "Sending your RSVP..." : "Send RSVP"}
+        {isPending ? "Sending your RSVP..." : "Review RSVP"}
       </button>
+      {onCancelEdit ? (
+        <button type="button" onClick={onCancelEdit} className="btn-secondary mt-3 w-full">
+          Cancel edit
+        </button>
+      ) : null}
     </form>
+    {showConfirm ? (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/45 p-4 sm:items-center">
+        <div className="w-full max-w-md rounded-3xl border border-[#e7dccb] bg-[#fffdfa] p-6 shadow-xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Confirm RSVP</p>
+          <p className="mt-3 text-base text-zinc-800">
+            {attending === "yes"
+              ? `You are confirming your presence with ${attendingCount} guest(s).`
+              : "You are declining the invitation."}
+          </p>
+          <div className="mt-6 flex gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setShowConfirm(false);
+                submitRsvp();
+              }}
+              className="btn-primary flex-1"
+              disabled={isPending}
+            >
+              Confirm
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowConfirm(false)}
+              className="btn-secondary flex-1"
+              disabled={isPending}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

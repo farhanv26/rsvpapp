@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getRsvpDeadlineMeta } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function AdminEventsPage() {
     coupleNames: string | null;
     imagePath: string | null;
     eventDate: Date | null;
+    rsvpDeadline: Date | null;
     eventTime: string | null;
     venue: string | null;
     _count: { guests: number };
@@ -175,6 +177,16 @@ export default async function AdminEventsPage() {
                 typeof event.coupleNames === "string" && event.coupleNames.trim().length > 0
                   ? event.coupleNames.trim()
                   : null;
+              const deadlineMeta = getRsvpDeadlineMeta(event.rsvpDeadline);
+              const deadlineLabel = deadlineMeta
+                ? deadlineMeta.status === "closed"
+                  ? "Closed"
+                  : deadlineMeta.status === "closes_today"
+                    ? "Closes Today"
+                    : deadlineMeta.status === "closing_soon"
+                      ? "Closing Soon"
+                      : "Open"
+                : null;
 
               let responded = 0;
               let attendingFamilies = 0;
@@ -234,9 +246,24 @@ export default async function AdminEventsPage() {
                       {coupleNames ? <p className="mt-1 text-sm text-zinc-600">{safeTitle}</p> : null}
                       <p className="mt-2 font-mono text-xs text-zinc-500">{safeSlug}</p>
                     </div>
-                    <span className="badge-soft shrink-0">
-                      {event._count?.guests ?? guests.length} families
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <span className="badge-soft">{event._count?.guests ?? guests.length} families</span>
+                      {deadlineLabel ? (
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                            deadlineMeta?.status === "closed"
+                              ? "bg-zinc-200 text-zinc-800"
+                              : deadlineMeta?.status === "closes_today"
+                                ? "bg-rose-100 text-rose-800"
+                                : deadlineMeta?.status === "closing_soon"
+                                  ? "bg-amber-100 text-amber-900"
+                                  : "bg-emerald-100 text-emerald-900"
+                          }`}
+                        >
+                          {deadlineLabel}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   {(event.eventDate || event.eventTime || event.venue) ? (
@@ -252,6 +279,15 @@ export default async function AdminEventsPage() {
                   ) : (
                     <p className="mt-4 text-sm text-zinc-500">Date and venue details not set yet.</p>
                   )}
+                  {event.rsvpDeadline ? (
+                    <p className="mt-2 text-xs text-zinc-600">
+                      RSVP deadline{" "}
+                      {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(event.rsvpDeadline)}
+                      {deadlineMeta?.status === "closing_soon" && deadlineMeta.daysRemaining > 0
+                        ? ` · ${deadlineMeta.daysRemaining} day${deadlineMeta.daysRemaining === 1 ? "" : "s"} left`
+                        : ""}
+                    </p>
+                  ) : null}
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <MiniStat label="Responded" value={responded} />
