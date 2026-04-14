@@ -13,10 +13,12 @@
     "db:seed": "prisma db seed"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^6.19.3",
     "jose": "^6.2.2",
     "next": "16.2.3",
     "papaparse": "^5.5.3",
+    "pg": "^8.20.0",
     "prisma": "^6.19.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
