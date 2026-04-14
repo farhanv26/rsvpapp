@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "react-day-picker/style.css";
 
 :root {
   --background: #f8f4ec;
@@ -87,4 +88,14 @@ body {
   .rsvp-fade-up {
     animation: none;
   }
+}
+
+.rdp-root {
+  --rdp-accent-color: #7a5d35;
+  --rdp-background-color: #f3ecdf;
+  margin: 0;
+}
+
+.rdp-day_button {
+  border-radius: 10px;
 }

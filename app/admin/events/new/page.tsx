@@ -15,83 +15,104 @@ export default function NewEventPage() {
       </div>
 
       <form action={createEventAction} className="app-card space-y-5 p-6 sm:p-7">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label htmlFor="coupleNames" className="mb-2 block text-sm font-medium">
-              Couple names (optional)
-            </label>
-            <input
-              id="coupleNames"
-              name="coupleNames"
-              type="text"
-              placeholder="Emma & Liam"
-              className="input-luxe mt-0"
-            />
+        <section className="space-y-4">
+          <div>
+            <p className="section-title">Event basics</p>
+            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Core identity</h2>
           </div>
-          <div className="sm:col-span-2">
-            <label htmlFor="title" className="mb-2 block text-sm font-medium">
-              Event title
-            </label>
-            <input
-              id="title"
-              name="title"
-              type="text"
-              placeholder="Wedding Celebration"
-              className="input-luxe mt-0"
-              required
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="title" className="mb-2 block text-sm font-medium">
+                Event title
+              </label>
+              <input
+                id="title"
+                name="title"
+                type="text"
+                placeholder="Wedding Celebration"
+                className="input-luxe mt-0"
+                required
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="coupleNames" className="mb-2 block text-sm font-medium">
+                Couple names (optional)
+              </label>
+              <input
+                id="coupleNames"
+                name="coupleNames"
+                type="text"
+                placeholder="Emma & Liam"
+                className="input-luxe mt-0"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="eventSubtitle" className="mb-2 block text-sm font-medium">
+                Event subtitle (optional)
+              </label>
+              <input
+                id="eventSubtitle"
+                name="eventSubtitle"
+                type="text"
+                placeholder="Together with their families..."
+                className="input-luxe mt-0"
+              />
+            </div>
           </div>
-          <div className="sm:col-span-2">
-            <label htmlFor="eventSubtitle" className="mb-2 block text-sm font-medium">
-              Event subtitle (optional)
-            </label>
-            <input
-              id="eventSubtitle"
-              name="eventSubtitle"
-              type="text"
-              placeholder="Together with their families..."
-              className="input-luxe mt-0"
-            />
-          </div>
+        </section>
+
+        <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <EventSchedulingFields />
-          <div className="sm:col-span-2">
-            <label htmlFor="venue" className="mb-2 block text-sm font-medium">
-              Venue (optional)
+        </section>
+
+        <section className="space-y-4">
+          <div>
+            <p className="section-title">Ceremony details</p>
+            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Location and messaging</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="venue" className="mb-2 block text-sm font-medium">
+                Venue (optional)
+              </label>
+              <input
+                id="venue"
+                name="venue"
+                type="text"
+                placeholder="Rosewood Estate, Napa Valley"
+                className="input-luxe mt-0"
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="welcomeMessage" className="mb-2 block text-sm font-medium">
+              Welcome message (optional)
             </label>
-            <input
-              id="venue"
-              name="venue"
-              type="text"
-              placeholder="Rosewood Estate, Napa Valley"
-              className="input-luxe mt-0"
+            <textarea
+              id="welcomeMessage"
+              name="welcomeMessage"
+              className="input-luxe mt-0 h-24"
+              placeholder="We are so excited to celebrate with you."
             />
           </div>
-        </div>
+          <div>
+            <label htmlFor="description" className="mb-2 block text-sm font-medium">
+              Description (optional)
+            </label>
+            <textarea id="description" name="description" className="input-luxe mt-0 h-28" />
+          </div>
+        </section>
 
-        <div>
-          <label htmlFor="welcomeMessage" className="mb-2 block text-sm font-medium">
-            Welcome message (optional)
-          </label>
-          <textarea
-            id="welcomeMessage"
-            name="welcomeMessage"
-            className="input-luxe mt-0 h-24"
-            placeholder="We are so excited to celebrate with you."
-          />
-        </div>
-
-        <div>
-          <label htmlFor="description" className="mb-2 block text-sm font-medium">
-            Description (optional)
-          </label>
-          <textarea
-            id="description"
-            name="description"
-            className="input-luxe mt-0 h-28"
-          />
-        </div>
-
-        <EventImageUploadField />
+        <section className="app-card-muted space-y-3 p-4 sm:p-5">
+          <div>
+            <p className="section-title">Invitation card</p>
+            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Upload invite image</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Use a clear PNG or JPG so guests see the full card beautifully.
+            </p>
+          </div>
+          <EventImageUploadField />
+        </section>
 
         <button type="submit" className="btn-primary w-full">
           Create Event

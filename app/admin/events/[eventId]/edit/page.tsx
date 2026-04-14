@@ -37,52 +37,66 @@ export default async function EditEventPage({ params }: Props) {
 
       <form action={updateEventAction} className="app-card space-y-5 p-6 sm:p-7">
         <input type="hidden" name="eventId" value={event.id} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label htmlFor="coupleNames" className="mb-2 block text-sm font-medium">
-              Couple names (optional)
-            </label>
-            <input
-              id="coupleNames"
-              name="coupleNames"
-              type="text"
-              defaultValue={event.coupleNames ?? ""}
-              className="input-luxe mt-0"
-            />
+        <section className="space-y-4">
+          <div>
+            <p className="section-title">Event basics</p>
+            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Core identity</h2>
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="title" className="mb-2 block text-sm font-medium">
+                Event title
+              </label>
+              <input
+                id="title"
+                name="title"
+                type="text"
+                defaultValue={event.title}
+                className="input-luxe mt-0"
+                required
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="coupleNames" className="mb-2 block text-sm font-medium">
+                Couple names (optional)
+              </label>
+              <input
+                id="coupleNames"
+                name="coupleNames"
+                type="text"
+                defaultValue={event.coupleNames ?? ""}
+                className="input-luxe mt-0"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="eventSubtitle" className="mb-2 block text-sm font-medium">
+                Event subtitle (optional)
+              </label>
+              <input
+                id="eventSubtitle"
+                name="eventSubtitle"
+                type="text"
+                defaultValue={event.eventSubtitle ?? ""}
+                className="input-luxe mt-0"
+              />
+            </div>
+          </div>
+        </section>
 
-          <div className="sm:col-span-2">
-            <label htmlFor="title" className="mb-2 block text-sm font-medium">
-              Event title
-            </label>
-            <input
-              id="title"
-              name="title"
-              type="text"
-              defaultValue={event.title}
-              className="input-luxe mt-0"
-              required
-            />
-          </div>
-
-          <div className="sm:col-span-2">
-            <label htmlFor="eventSubtitle" className="mb-2 block text-sm font-medium">
-              Event subtitle (optional)
-            </label>
-            <input
-              id="eventSubtitle"
-              name="eventSubtitle"
-              type="text"
-              defaultValue={event.eventSubtitle ?? ""}
-              className="input-luxe mt-0"
-            />
-          </div>
+        <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <EventSchedulingFields
             eventDateDefault={event.eventDate ? event.eventDate.toISOString().slice(0, 10) : ""}
             rsvpDeadlineDefault={event.rsvpDeadline ? event.rsvpDeadline.toISOString().slice(0, 10) : ""}
             eventTimeDefault={event.eventTime ?? ""}
           />
-          <div className="sm:col-span-2">
+        </section>
+
+        <section className="space-y-4">
+          <div>
+            <p className="section-title">Ceremony details</p>
+            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Location and messaging</h2>
+          </div>
+          <div>
             <label htmlFor="venue" className="mb-2 block text-sm font-medium">
               Venue (optional)
             </label>
@@ -94,50 +108,54 @@ export default async function EditEventPage({ params }: Props) {
               className="input-luxe mt-0"
             />
           </div>
-        </div>
-
-        <div>
-          <label htmlFor="description" className="mb-2 block text-sm font-medium">
-            Description (optional)
-          </label>
-          <textarea
-            id="description"
-            name="description"
-            defaultValue={event.description ?? ""}
-            className="input-luxe mt-0 h-28"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="welcomeMessage" className="mb-2 block text-sm font-medium">
-            Welcome message (optional)
-          </label>
-          <textarea
-            id="welcomeMessage"
-            name="welcomeMessage"
-            defaultValue={event.welcomeMessage ?? ""}
-            className="input-luxe mt-0 h-24"
-          />
-        </div>
+          <div>
+            <label htmlFor="welcomeMessage" className="mb-2 block text-sm font-medium">
+              Welcome message (optional)
+            </label>
+            <textarea
+              id="welcomeMessage"
+              name="welcomeMessage"
+              defaultValue={event.welcomeMessage ?? ""}
+              className="input-luxe mt-0 h-24"
+            />
+          </div>
+          <div>
+            <label htmlFor="description" className="mb-2 block text-sm font-medium">
+              Description (optional)
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              defaultValue={event.description ?? ""}
+              className="input-luxe mt-0 h-28"
+            />
+          </div>
+        </section>
 
         {safeImageSrc ? (
           <div>
             <p className="mb-2 text-sm font-medium">Current image</p>
             <div className="rounded-2xl border border-[#e3d8c7] bg-[#f7f2e9] p-3">
               <div className="relative h-52 w-full overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fffdfa]">
-              <SafeEventImage
-                src={safeImageSrc}
-                alt={event.title}
-                fill
-                className="object-contain object-center"
-                fallbackLabel="Invitation image unavailable"
-              />
+                <SafeEventImage
+                  src={safeImageSrc}
+                  alt={event.title}
+                  fill
+                  className="object-contain object-center"
+                  fallbackLabel="Invitation image unavailable"
+                />
               </div>
             </div>
           </div>
         ) : null}
 
-        <EventImageUploadField initialImagePath={event.imagePath} />
+        <section className="app-card-muted space-y-3 p-4 sm:p-5">
+          <div>
+            <p className="section-title">Invitation card</p>
+            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Replace invite image</h2>
+          </div>
+          <EventImageUploadField initialImagePath={event.imagePath} />
+        </section>
 
         <button type="submit" className="btn-primary w-full">
           Save Event Changes

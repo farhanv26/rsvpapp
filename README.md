@@ -28,7 +28,9 @@ Copy `.env.example` to `.env` and set:
 | `NEXT_PUBLIC_APP_URL` | Public site URL for **absolute RSVP links** in admin (e.g. `https://your-app.vercel.app`) |
 | `ADMIN_PASSWORD` | Shared password for all `/admin/*` routes (except `/admin/login`) |
 | `ADMIN_AUTH_SECRET` | **At least 16 characters** — signs the admin session JWT cookie |
-| `BLOB_READ_WRITE_TOKEN` | Required for invite image uploads (durable Vercel Blob storage) |
+| `SUPABASE_URL` | Supabase project URL used for Storage uploads |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side key used to upload invite cards to Supabase Storage |
+| `SUPABASE_STORAGE_BUCKET` | Optional Storage bucket name (default: `event-invites`) |
 
 **Optional:** On Vercel, `VERCEL_URL` is set automatically. `getPublicSiteUrl()` uses it as a fallback if `NEXT_PUBLIC_APP_URL` is unset (server-side). For consistent copy/paste links, set `NEXT_PUBLIC_APP_URL` to your canonical domain.
 
@@ -88,7 +90,7 @@ Current migrations target **PostgreSQL** only (`prisma/migrations/.../init_postg
 
 ## Uploads
 
-Invite card uploads use **Vercel Blob only** and store the durable public URL in `Event.imagePath`.
+Invite card uploads use **Supabase Storage** and store the durable public URL in `Event.imagePath`.
 Local filesystem fallback has been removed to keep production-safe behavior on serverless platforms.
 
 Rendering is defensive: if image URL/path is missing or malformed, admin and RSVP pages show a graceful placeholder instead of crashing.

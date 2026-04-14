@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DayPicker } from "react-day-picker";
 
 type Props = {
   eventDateDefault?: string;
@@ -27,6 +28,25 @@ function minusDays(isoDate: string, days: number) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function parseIsoToDate(value: string) {
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return undefined;
+  return new Date(y, m - 1, d);
+}
+
+function formatIsoFromDate(value: Date) {
+  const yyyy = String(value.getFullYear());
+  const mm = String(value.getMonth() + 1).padStart(2, "0");
+  const dd = String(value.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function displayDate(value: string) {
+  const asDate = parseIsoToDate(value);
+  if (!asDate) return "Select date";
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(asDate);
+}
+
 export function EventSchedulingFields({
   eventDateDefault = "",
   rsvpDeadlineDefault = "",
@@ -37,6 +57,7 @@ export function EventSchedulingFields({
   const [rsvpDeadline, setRsvpDeadline] = useState(rsvpDeadlineDefault);
   const [eventTime, setEventTime] = useState(eventTimeDefault);
   const [isDeadlineTouched, setIsDeadlineTouched] = useState(Boolean(rsvpDeadlineDefault));
+  const [openPicker, setOpenPicker] = useState<"eventDate" | "rsvpDeadline" | null>(null);
   const eventDateRef = useRef<HTMLInputElement | null>(null);
 
   const eventDateRequiredError = !eventDate ? "Event date is required." : null;
@@ -62,6 +83,18 @@ export function EventSchedulingFields({
   }, [hasError]);
 
   useEffect(() => {
+    function closeOnOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-date-picker-root]")) {
+        setOpenPicker(null);
+      }
+    }
+    if (!openPicker) return;
+    window.addEventListener("mousedown", closeOnOutside);
+    return () => window.removeEventListener("mousedown", closeOnOutside);
+  }, [openPicker]);
+
+  useEffect(() => {
     if (!eventDate || isDeadlineTouched || rsvpDeadline || eventDate < today) return;
     const suggestion = minusDays(eventDate, 3);
     if (suggestion && suggestion >= today && suggestion <= eventDate) {
@@ -71,23 +104,43 @@ export function EventSchedulingFields({
 
   return (
     <>
-      <div>
-        <label htmlFor="eventDate" className="mb-2 block text-sm font-medium">
+      <div className="sm:col-span-2">
+        <p className="section-title">Schedule</p>
+        <h3 className="mt-2 text-lg font-semibold text-zinc-900">Date, time, and RSVP deadline</h3>
+        <p className="mt-1 text-sm text-zinc-600">
+          Set when your event happens and when guests should respond.
+        </p>
+      </div>
+
+      <div className="space-y-2" data-date-picker-root>
+        <label htmlFor="eventDate" className="block text-sm font-medium">
           Event date
         </label>
+        <input ref={eventDateRef} id="eventDate" name="eventDate" type="hidden" value={eventDate} required />
         <div className="relative">
-          <input
-            ref={eventDateRef}
-            id="eventDate"
-            name="eventDate"
-            type="date"
-            min={today}
-            required
-            value={eventDate}
-            onChange={(e) => setEventDate(e.target.value)}
-            className={`input-luxe mt-0 pr-10 ${eventDateError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""}`}
-          />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">📅</span>
+          <button
+            type="button"
+            onClick={() => setOpenPicker((v) => (v === "eventDate" ? null : "eventDate"))}
+            className={`input-luxe mt-0 flex w-full items-center justify-between text-left ${eventDate ? "text-zinc-900" : "text-zinc-500"} ${eventDateError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""}`}
+          >
+            <span>{displayDate(eventDate)}</span>
+            <span aria-hidden>📅</span>
+          </button>
+          {openPicker === "eventDate" ? (
+            <div className="absolute z-30 mt-2 rounded-2xl border border-[#e3d8c7] bg-[#fffdfa] p-3 shadow-xl">
+              <DayPicker
+                mode="single"
+                selected={parseIsoToDate(eventDate)}
+                onSelect={(value) => {
+                  if (!value) return;
+                  const iso = formatIsoFromDate(value);
+                  setEventDate(iso);
+                  setOpenPicker(null);
+                }}
+                disabled={{ before: parseIsoToDate(today) }}
+              />
+            </div>
+          ) : null}
         </div>
         {eventDateError ? <p className="mt-2 text-sm text-red-700">{eventDateError}</p> : null}
       </div>
@@ -111,29 +164,44 @@ export function EventSchedulingFields({
         {eventTimeError ? <p className="mt-2 text-sm text-red-700">{eventTimeError}</p> : null}
       </div>
 
-      <div>
+      <div className="space-y-2" data-date-picker-root>
         <label htmlFor="rsvpDeadline" className="mb-2 block text-sm font-medium">
           RSVP deadline
         </label>
+        <input id="rsvpDeadline" name="rsvpDeadline" type="hidden" value={rsvpDeadline} required />
         <div className="relative">
-          <input
-            id="rsvpDeadline"
-            name="rsvpDeadline"
-            type="date"
-            min={today}
-            max={eventDate || undefined}
-            required
-            disabled={!eventDate}
-            value={rsvpDeadline}
-            onChange={(e) => {
-              setIsDeadlineTouched(true);
-              setRsvpDeadline(e.target.value);
+          <button
+            type="button"
+            onClick={() => {
+              if (!eventDate) return;
+              setOpenPicker((v) => (v === "rsvpDeadline" ? null : "rsvpDeadline"));
             }}
-            className={`input-luxe mt-0 pr-10 disabled:cursor-not-allowed disabled:bg-zinc-100 ${
+            disabled={!eventDate}
+            className={`input-luxe mt-0 flex w-full items-center justify-between text-left ${rsvpDeadline ? "text-zinc-900" : "text-zinc-500"} disabled:cursor-not-allowed disabled:bg-zinc-100 ${
               deadlineError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""
             }`}
-          />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">📅</span>
+          >
+            <span>{displayDate(rsvpDeadline)}</span>
+            <span aria-hidden>📅</span>
+          </button>
+          {openPicker === "rsvpDeadline" && eventDate ? (
+            <div className="absolute z-30 mt-2 rounded-2xl border border-[#e3d8c7] bg-[#fffdfa] p-3 shadow-xl">
+              <DayPicker
+                mode="single"
+                selected={parseIsoToDate(rsvpDeadline)}
+                onSelect={(value) => {
+                  if (!value) return;
+                  setIsDeadlineTouched(true);
+                  setRsvpDeadline(formatIsoFromDate(value));
+                  setOpenPicker(null);
+                }}
+                disabled={{
+                  before: parseIsoToDate(today),
+                  after: parseIsoToDate(eventDate),
+                }}
+              />
+            </div>
+          ) : null}
         </div>
         {!eventDate ? (
           <p className="mt-2 text-xs text-zinc-500">
