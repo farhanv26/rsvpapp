@@ -18,7 +18,19 @@ export async function saveEventImage(file: File) {
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || "event-invites";
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error("Image upload storage is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
+    const hasSupabaseUrl = Boolean(supabaseUrl);
+    const hasServiceRoleKey = Boolean(supabaseServiceRoleKey);
+    console.error("[event-image] missing Supabase storage env vars", {
+      hasSupabaseUrl,
+      hasServiceRoleKey,
+      cwd: process.cwd(),
+      nodeEnv: process.env.NODE_ENV ?? null,
+    });
+    const missing = [
+      !hasSupabaseUrl ? "SUPABASE_URL" : null,
+      !hasServiceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
+    ].filter(Boolean);
+    throw new Error(`Image upload storage is not configured. Missing: ${missing.join(", ")}.`);
   }
 
   const ext = file.type === "image/png" ? "png" : "jpg";
