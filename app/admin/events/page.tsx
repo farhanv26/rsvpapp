@@ -4,26 +4,27 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export default async function AdminEventsPage() {
-  let events:
-    | Array<{
-        id: string;
-        title: string;
-        slug: string;
-        coupleNames: string | null;
-        _count: { guests: number };
-        guests: Array<{
-          attending: boolean | null;
-          attendingCount: number | null;
-          maxGuests: number;
-          respondedAt: Date | null;
-        }>;
-      }>
-    | null = null;
-  let loadError = false;
+  const events: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    coupleNames: string | null;
+    _count: { guests: number };
+    guests: Array<{
+      attending: boolean | null;
+      attendingCount: number | null;
+      maxGuests: number;
+      respondedAt: Date | null;
+    }>;
+  }> = [];
+  let loadError: null | {
+    message: string;
+    stack?: string;
+  } = null;
 
   try {
     console.info("[admin/events] loading events");
-    events = await prisma.event.findMany({
+    const results = await prisma.event.findMany({
       orderBy: { createdAt: "desc" },
       include: {
         _count: { select: { guests: true } },
@@ -37,10 +38,37 @@ export default async function AdminEventsPage() {
         },
       },
     });
+    if (Array.isArray(results)) {
+      events.push(...results);
+    } else {
+      console.error("[admin/events] unexpected non-array result from prisma.event.findMany", {
+        resultType: typeof results,
+      });
+      loadError = {
+        message: "Unexpected query result type from database",
+      };
+    }
+
     console.info("[admin/events] events loaded", { eventCount: events.length });
   } catch (error) {
-    loadError = true;
-    console.error("[admin/events] failed to load events", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    const errorCode =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof (error as { code?: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : undefined;
+
+    loadError = { message, stack };
+
+    console.error("[admin/events] failed to load events", {
+      message,
+      stack,
+      code: errorCode,
+      error,
+    });
   }
 
   return (
@@ -66,6 +94,7 @@ export default async function AdminEventsPage() {
               The admin page is reachable, but fetching event data failed. Check server logs for
               details and try again.
             </p>
+            <p className="mt-2 text-xs font-mono text-red-700">{loadError.message}</p>
             <Link
               href="/admin/events"
               className="mt-4 inline-flex rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900"
@@ -73,7 +102,7 @@ export default async function AdminEventsPage() {
               Retry loading events
             </Link>
           </div>
-        ) : events && events.length === 0 ? (
+        ) : events.length === 0 ? (
           <div className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-amber-900/10">
             <h2 className="text-lg font-semibold text-zinc-900">No events yet</h2>
             <p className="mt-2 text-sm text-zinc-600">
@@ -82,7 +111,7 @@ export default async function AdminEventsPage() {
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2">
-            {(events ?? []).map((event) => {
+            {events.map((event) => {
               const guests = Array.isArray(event.guests) ? event.guests : [];
 
               let responded = 0;
