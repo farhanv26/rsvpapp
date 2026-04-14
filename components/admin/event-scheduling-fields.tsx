@@ -101,7 +101,17 @@ export function EventSchedulingFields({
   const [eventTime, setEventTime] = useState(normalizeTimeValue(eventTimeDefault));
   const [isDeadlineTouched, setIsDeadlineTouched] = useState(Boolean(rsvpDeadlineDefault));
   const [openPicker, setOpenPicker] = useState<"eventDate" | "eventTime" | "rsvpDeadline" | null>(null);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [touched, setTouched] = useState({
+    eventDate: Boolean(eventDateDefault),
+    eventTime: Boolean(eventTimeDefault),
+    rsvpDeadline: Boolean(rsvpDeadlineDefault),
+  });
+  const [attentionField, setAttentionField] = useState<"eventDate" | "eventTime" | "rsvpDeadline" | null>(null);
   const eventDateRef = useRef<HTMLInputElement | null>(null);
+  const eventDateButtonRef = useRef<HTMLButtonElement | null>(null);
+  const eventTimeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const deadlineButtonRef = useRef<HTMLButtonElement | null>(null);
   const timeParts = useMemo(() => parseTimeParts(eventTime), [eventTime]);
   const [timeHour, setTimeHour] = useState(timeParts.hour12);
   const [timeMinute, setTimeMinute] = useState(timeParts.minute);
@@ -135,15 +145,9 @@ export function EventSchedulingFields({
       : null;
   const deadlineError = deadlineRequiredError || deadlinePastError || deadlineAfterEventError || null;
   const hasError = Boolean(eventDateError || deadlineError || eventTimeError);
-
-  useEffect(() => {
-    const form = eventDateRef.current?.form;
-    if (!form) return;
-    const submitButtons = Array.from(form.querySelectorAll<HTMLButtonElement>('button[type="submit"]'));
-    submitButtons.forEach((button) => {
-      button.disabled = hasError;
-    });
-  }, [hasError]);
+  const showEventDateError = Boolean(eventDateError && (touched.eventDate || submitAttempted));
+  const showEventTimeError = Boolean(eventTimeError && (touched.eventTime || submitAttempted));
+  const showDeadlineError = Boolean(deadlineError && (touched.rsvpDeadline || submitAttempted));
 
   useEffect(() => {
     function closeOnOutside(event: MouseEvent) {
@@ -156,6 +160,46 @@ export function EventSchedulingFields({
     window.addEventListener("mousedown", closeOnOutside);
     return () => window.removeEventListener("mousedown", closeOnOutside);
   }, [openPicker]);
+
+  useEffect(() => {
+    const form = eventDateRef.current?.form;
+    if (!form) return;
+
+    function focusField(field: "eventDate" | "eventTime" | "rsvpDeadline") {
+      const target =
+        field === "eventDate"
+          ? eventDateButtonRef.current
+          : field === "eventTime"
+            ? eventTimeButtonRef.current
+            : deadlineButtonRef.current;
+      if (!target) return;
+      target.focus();
+      target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+      setAttentionField(field);
+      window.setTimeout(() => setAttentionField((current) => (current === field ? null : current)), 500);
+    }
+
+    function onSubmit(event: Event) {
+      setSubmitAttempted(true);
+      if (!hasError) return;
+      event.preventDefault();
+      setTouched({ eventDate: true, eventTime: true, rsvpDeadline: true });
+      if (eventDateError) {
+        focusField("eventDate");
+        return;
+      }
+      if (eventTimeError) {
+        focusField("eventTime");
+        return;
+      }
+      if (deadlineError) {
+        focusField("rsvpDeadline");
+      }
+    }
+
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, [deadlineError, eventDateError, eventTimeError, hasError]);
 
   useEffect(() => {
     if (openPicker !== "eventTime") return;
@@ -185,14 +229,16 @@ export function EventSchedulingFields({
 
       <div className="space-y-2" data-date-picker-root>
         <label htmlFor="eventDate" className="block text-sm font-medium">
-          Event date
+          Event date <span className="text-zinc-500">*</span>
         </label>
-        <input ref={eventDateRef} id="eventDate" name="eventDate" type="hidden" value={eventDate} required />
+        <input ref={eventDateRef} id="eventDate" name="eventDate" type="hidden" value={eventDate} />
         <div className="relative">
           <button
+            ref={eventDateButtonRef}
             type="button"
             onClick={() => setOpenPicker((v) => (v === "eventDate" ? null : "eventDate"))}
-            className={`input-luxe mt-0 flex w-full items-center justify-between text-left ${eventDate ? "text-zinc-900" : "text-zinc-500"} ${eventDateError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""}`}
+            onBlur={() => setTouched((prev) => ({ ...prev, eventDate: true }))}
+            className={`input-luxe mt-0 flex w-full items-center justify-between text-left transition-all ${eventDate ? "text-zinc-900" : "text-zinc-500"} ${showEventDateError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""} ${attentionField === "eventDate" ? "ring-2 ring-red-200" : ""}`}
           >
             <span>{displayDate(eventDate)}</span>
             <span aria-hidden className="text-zinc-500">
@@ -210,6 +256,7 @@ export function EventSchedulingFields({
                 onSelect={(value) => {
                   if (!value) return;
                   const iso = formatIsoFromDate(value);
+                  setTouched((prev) => ({ ...prev, eventDate: true }));
                   setEventDate(iso);
                   setOpenPicker(null);
                 }}
@@ -218,20 +265,24 @@ export function EventSchedulingFields({
             </div>
           ) : null}
         </div>
-        {eventDateError ? <p className="mt-2 text-sm text-red-700">{eventDateError}</p> : null}
+        <p className={`mt-2 min-h-5 text-sm text-red-700 transition-opacity ${showEventDateError ? "opacity-100" : "opacity-0"}`}>
+          {showEventDateError ? eventDateError : " "}
+        </p>
       </div>
 
       <div className="space-y-2" data-date-picker-root>
         <label htmlFor="eventTime" className="mb-2 block text-sm font-medium">
-          Event time
+          Event time <span className="text-zinc-500">*</span>
         </label>
-        <input id="eventTime" name="eventTime" type="hidden" required value={eventTime} />
+        <input id="eventTime" name="eventTime" type="hidden" value={eventTime} />
         <div className="relative">
           <button
+            ref={eventTimeButtonRef}
             id="eventTime"
             type="button"
             onClick={() => setOpenPicker((v) => (v === "eventTime" ? null : "eventTime"))}
-            className={`input-luxe mt-0 pr-10 ${eventTimeError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""}`}
+            onBlur={() => setTouched((prev) => ({ ...prev, eventTime: true }))}
+            className={`input-luxe mt-0 pr-10 transition-all ${showEventTimeError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""} ${attentionField === "eventTime" ? "ring-2 ring-red-200" : ""}`}
           >
             <span className={eventTime ? "text-zinc-900" : "text-zinc-500"}>{displayTime(eventTime)}</span>
             <span aria-hidden className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
@@ -299,6 +350,7 @@ export function EventSchedulingFields({
                     onClick={() => {
                       const next = to24HourTime(timeHour, timeMinute, timePeriod);
                       setEventTime(next);
+                      setTouched((prev) => ({ ...prev, eventTime: true }));
                       setOpenPicker(null);
                     }}
                     className="btn-primary px-3 py-1.5 text-xs"
@@ -311,25 +363,29 @@ export function EventSchedulingFields({
           ) : null}
         </div>
         <p className="mt-1 text-xs text-zinc-500">Use local time for the ceremony (for example, 6:30 PM).</p>
-        {eventTimeError ? <p className="mt-2 text-sm text-red-700">{eventTimeError}</p> : null}
+        <p className={`mt-2 min-h-5 text-sm text-red-700 transition-opacity ${showEventTimeError ? "opacity-100" : "opacity-0"}`}>
+          {showEventTimeError ? eventTimeError : " "}
+        </p>
       </div>
 
       <div className="space-y-2" data-date-picker-root>
         <label htmlFor="rsvpDeadline" className="mb-2 block text-sm font-medium">
-          RSVP deadline
+          RSVP deadline <span className="text-zinc-500">*</span>
         </label>
-        <input id="rsvpDeadline" name="rsvpDeadline" type="hidden" value={rsvpDeadline} required />
+        <input id="rsvpDeadline" name="rsvpDeadline" type="hidden" value={rsvpDeadline} />
         <div className="relative">
           <button
+            ref={deadlineButtonRef}
             type="button"
             onClick={() => {
               if (!eventDate) return;
               setOpenPicker((v) => (v === "rsvpDeadline" ? null : "rsvpDeadline"));
             }}
+            onBlur={() => setTouched((prev) => ({ ...prev, rsvpDeadline: true }))}
             disabled={!eventDate}
             className={`input-luxe mt-0 flex w-full items-center justify-between text-left ${rsvpDeadline ? "text-zinc-900" : "text-zinc-500"} disabled:cursor-not-allowed disabled:bg-zinc-100 ${
-              deadlineError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""
-            }`}
+              showDeadlineError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""
+            } ${attentionField === "rsvpDeadline" ? "ring-2 ring-red-200" : ""}`}
           >
             <span>{displayDate(rsvpDeadline)}</span>
             <span aria-hidden className="text-zinc-500">
@@ -347,6 +403,7 @@ export function EventSchedulingFields({
                 onSelect={(value) => {
                   if (!value) return;
                   setIsDeadlineTouched(true);
+                  setTouched((prev) => ({ ...prev, rsvpDeadline: true }));
                   setRsvpDeadline(formatIsoFromDate(value));
                   setOpenPicker(null);
                 }}
@@ -360,7 +417,9 @@ export function EventSchedulingFields({
             Select an event date first, then choose any RSVP deadline from today through the event day.
           </p>
         ) : null}
-        {deadlineError ? <p className="mt-2 text-sm text-red-700">{deadlineError}</p> : null}
+        <p className={`mt-2 min-h-5 text-sm text-red-700 transition-opacity ${showDeadlineError ? "opacity-100" : "opacity-0"}`}>
+          {showDeadlineError ? deadlineError : " "}
+        </p>
       </div>
     </>
   );

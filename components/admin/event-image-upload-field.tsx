@@ -43,12 +43,15 @@ export function EventImageUploadField({ initialImagePath = null, inputName = "im
       });
       const payload = (await response.json()) as { imagePath?: string; error?: string };
       if (!response.ok || !payload.imagePath) {
-        throw new Error(payload.error || "Image upload failed.");
+        if (response.status >= 500) {
+          throw new Error("Image upload failed. Please try again.");
+        }
+        throw new Error(payload.error || "Image upload failed. Please try again.");
       }
       setUploadedPath(payload.imagePath);
     } catch (uploadError) {
       setUploadedPath(initialImagePath);
-      setError(uploadError instanceof Error ? uploadError.message : "Image upload failed.");
+      setError(uploadError instanceof Error ? uploadError.message : "Image upload failed. Please try again.");
     } finally {
       setIsUploading(false);
       event.target.value = "";
