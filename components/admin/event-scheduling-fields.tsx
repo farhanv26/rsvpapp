@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DayPicker } from "react-day-picker";
+import type { Matcher } from "react-day-picker";
 
 type Props = {
   eventDateDefault?: string;
@@ -62,14 +63,19 @@ export function EventSchedulingFields({
   const todayDate = useMemo(() => parseIsoToDate(today), [today]);
   const selectedEventDate = useMemo(() => parseIsoToDate(eventDate), [eventDate]);
   const selectedDeadlineDate = useMemo(() => parseIsoToDate(rsvpDeadline), [rsvpDeadline]);
-  const eventDateDisabled = todayDate ? { before: todayDate } : undefined;
-  const deadlineDisabled =
-    todayDate || selectedEventDate
-      ? {
-          ...(todayDate ? { before: todayDate } : {}),
-          ...(selectedEventDate ? { after: selectedEventDate } : {}),
-        }
-      : undefined;
+  const eventDateDisabled: Matcher | undefined = todayDate ? { before: todayDate } : undefined;
+  const deadlineDisabled: Matcher | undefined = useMemo(() => {
+    if (todayDate && selectedEventDate) {
+      return { before: todayDate, after: selectedEventDate };
+    }
+    if (todayDate) {
+      return { before: todayDate };
+    }
+    if (selectedEventDate) {
+      return { after: selectedEventDate };
+    }
+    return undefined;
+  }, [todayDate, selectedEventDate]);
 
   const eventDateRequiredError = !eventDate ? "Event date is required." : null;
   const eventDatePastError = eventDate && eventDate < today ? "Event date cannot be in the past." : null;
