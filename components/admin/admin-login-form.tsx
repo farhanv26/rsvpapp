@@ -5,6 +5,8 @@ import { useFormStatus } from "react-dom";
 import { loginAdminAction } from "@/app/admin/login/actions";
 import { ADMIN_IDENTITIES } from "@/lib/admin-identities";
 
+type AdminUserName = (typeof ADMIN_IDENTITIES)[number]["name"];
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
@@ -21,8 +23,10 @@ export function AdminLoginForm({
   errorMessage: string | null;
   initialUser?: string;
 }) {
-  const fallbackUser = ADMIN_IDENTITIES.some((user) => user.name === initialUser) ? initialUser : "Farhan";
-  const [selectedUser, setSelectedUser] = useState<string>(fallbackUser);
+  const fallbackUser: AdminUserName = ADMIN_IDENTITIES.some((user) => user.name === initialUser)
+    ? (initialUser as AdminUserName)
+    : "Farhan";
+  const [selectedUser, setSelectedUser] = useState<AdminUserName>(fallbackUser);
   const [showPassword, setShowPassword] = useState(false);
 
   const roleLabel = useMemo(
@@ -43,7 +47,7 @@ export function AdminLoginForm({
           id="adminUser"
           name="adminUser"
           value={selectedUser}
-          onChange={(e) => setSelectedUser(e.target.value as (typeof USERS)[number]["name"])}
+          onChange={(e) => setSelectedUser(e.target.value as AdminUserName)}
           className="input-luxe mt-2"
         >
           {ADMIN_IDENTITIES.map((user) => (
