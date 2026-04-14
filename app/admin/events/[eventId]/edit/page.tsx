@@ -35,12 +35,13 @@ export default async function EditEventPage({ params }: Props) {
         <h1 className="headline-display mt-3 text-3xl">Edit wedding event</h1>
       </div>
 
-      <form action={updateEventAction} className="app-card space-y-5 p-6 sm:p-7">
+      <form action={updateEventAction} className="app-card space-y-6 p-6 sm:p-8">
         <input type="hidden" name="eventId" value={event.id} />
-        <section className="space-y-4">
+        <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <div>
             <p className="section-title">Event basics</p>
             <h2 className="mt-2 text-lg font-semibold text-zinc-900">Core identity</h2>
+            <p className="mt-1 text-sm text-zinc-600">Update the invite headline and names shown to guests.</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -91,7 +92,7 @@ export default async function EditEventPage({ params }: Props) {
           />
         </section>
 
-        <section className="space-y-4">
+        <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <div>
             <p className="section-title">Ceremony details</p>
             <h2 className="mt-2 text-lg font-semibold text-zinc-900">Location and messaging</h2>
@@ -157,9 +158,14 @@ export default async function EditEventPage({ params }: Props) {
           <EventImageUploadField initialImagePath={event.imagePath} />
         </section>
 
-        <button type="submit" className="btn-primary w-full">
-          Save Event Changes
-        </button>
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+          <Link href={`/admin/events/${event.id}`} className="btn-secondary w-full sm:w-auto">
+            Cancel
+          </Link>
+          <button type="submit" className="btn-primary w-full sm:w-auto sm:min-w-44">
+            Save Event Changes
+          </button>
+        </div>
       </form>
     </main>
   );

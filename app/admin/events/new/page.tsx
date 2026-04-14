@@ -14,11 +14,12 @@ export default function NewEventPage() {
         <p className="mt-2 text-sm text-zinc-600">Set the core details first, then add guests and invite links.</p>
       </div>
 
-      <form action={createEventAction} className="app-card space-y-5 p-6 sm:p-7">
-        <section className="space-y-4">
+      <form action={createEventAction} className="app-card space-y-6 p-6 sm:p-8">
+        <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <div>
             <p className="section-title">Event basics</p>
             <h2 className="mt-2 text-lg font-semibold text-zinc-900">Core identity</h2>
+            <p className="mt-1 text-sm text-zinc-600">Add details guests will see on their private invite page.</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -65,7 +66,7 @@ export default function NewEventPage() {
           <EventSchedulingFields />
         </section>
 
-        <section className="space-y-4">
+        <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <div>
             <p className="section-title">Ceremony details</p>
             <h2 className="mt-2 text-lg font-semibold text-zinc-900">Location and messaging</h2>
@@ -114,9 +115,14 @@ export default function NewEventPage() {
           <EventImageUploadField />
         </section>
 
-        <button type="submit" className="btn-primary w-full">
-          Create Event
-        </button>
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+          <Link href="/admin/events" className="btn-secondary w-full sm:w-auto">
+            Cancel
+          </Link>
+          <button type="submit" className="btn-primary w-full sm:w-auto sm:min-w-40">
+            Create Event
+          </button>
+        </div>
       </form>
     </main>
   );

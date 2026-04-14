@@ -56,14 +56,16 @@ export function EventImageUploadField({ initialImagePath = null, inputName = "im
   }
 
   const safeImageSrc = getSafeImageSrc(uploadedPath);
+  const hasImage = Boolean(safeImageSrc);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <input type="hidden" name={inputName} value={uploadedPath ?? ""} />
-      <div>
-        <label htmlFor="image" className="mb-2 block text-sm font-medium">
-          Invitation image (PNG/JPG, optional)
+      <div className="rounded-2xl border border-dashed border-[#dccfbb] bg-[#fffdfa] p-4">
+        <label htmlFor="image" className="mb-2 block text-sm font-semibold text-zinc-800">
+          Invitation image
         </label>
+        <p className="mb-3 text-xs text-zinc-600">PNG or JPG formats are supported.</p>
         <input
           ref={fileInputRef}
           id="image"
@@ -74,7 +76,7 @@ export function EventImageUploadField({ initialImagePath = null, inputName = "im
           disabled={isUploading}
           className="w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-base file:mr-3 file:rounded-xl file:border-0 file:bg-[#efe3d2] file:px-3 file:py-2 file:text-sm disabled:cursor-not-allowed disabled:opacity-60"
         />
-        <p className="mt-2 text-xs text-zinc-500">
+        <p className="mt-3 text-xs text-zinc-500">
           Max file size {EVENT_IMAGE_MAX_SIZE_LABEL}. Larger files should be compressed before upload.
         </p>
       </div>
@@ -89,11 +91,27 @@ export function EventImageUploadField({ initialImagePath = null, inputName = "im
         </div>
       ) : null}
 
-      {safeImageSrc ? (
+      {hasImage ? (
         <div className="rounded-2xl border border-[#e3d8c7] bg-[#f7f2e9] p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Preview</p>
+            <button
+              type="button"
+              onClick={() => {
+                setUploadedPath(null);
+                setError(null);
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = "";
+                }
+              }}
+              className="text-xs font-medium text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline"
+            >
+              Remove image
+            </button>
+          </div>
           <div className="relative h-52 w-full overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fffdfa]">
             <SafeEventImage
-              src={safeImageSrc}
+              src={safeImageSrc ?? ""}
               alt="Invitation preview"
               fill
               className="object-contain object-center"
