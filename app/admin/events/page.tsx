@@ -26,7 +26,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   const isSuper = isSuperAdmin(admin);
   const creators = ["Farhan", "Zulfikar", "Asif", "Javed", "Rafiya"] as const;
   const events: Array<{
-    ownerUserId: string;
+    ownerUserId: string | null;
     owner: { name: string } | null;
     id: string;
     title: string | null;
