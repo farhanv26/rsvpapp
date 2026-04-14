@@ -6,9 +6,12 @@ export const dynamic = "force-dynamic";
 export default async function AdminEventsPage() {
   const events: Array<{
     id: string;
-    title: string;
-    slug: string;
+    title: string | null;
+    slug: string | null;
     coupleNames: string | null;
+    imagePath: string | null;
+    eventDate: Date | null;
+    venue: string | null;
     _count: { guests: number };
     guests: Array<{
       attending: boolean | null;
@@ -38,18 +41,27 @@ export default async function AdminEventsPage() {
         },
       },
     });
-    if (Array.isArray(results)) {
-      events.push(...results);
-    } else {
-      console.error("[admin/events] unexpected non-array result from prisma.event.findMany", {
-        resultType: typeof results,
-      });
-      loadError = {
-        message: "Unexpected query result type from database",
-      };
-    }
+    if (Array.isArray(results)) events.push(...results);
 
     console.info("[admin/events] events loaded", { eventCount: events.length });
+    if (events.length > 0) {
+      const first = events[0];
+      console.info("[admin/events] first event shape", {
+        id: first?.id ?? null,
+        titleType: typeof first?.title,
+        slugType: typeof first?.slug,
+        coupleNamesType: typeof first?.coupleNames,
+        imagePathType: typeof first?.imagePath,
+        eventDateType: first?.eventDate instanceof Date ? "date" : typeof first?.eventDate,
+        venueType: typeof first?.venue,
+        guestsIsArray: Array.isArray(first?.guests),
+        guestsCount: Array.isArray(first?.guests) ? first.guests.length : null,
+        firstGuestKeys:
+          Array.isArray(first?.guests) && first.guests.length > 0
+            ? Object.keys(first.guests[0] ?? {})
+            : [],
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
@@ -67,6 +79,7 @@ export default async function AdminEventsPage() {
       message,
       stack,
       code: errorCode,
+      name: error instanceof Error ? error.name : "UnknownError",
       error,
     });
   }
@@ -112,6 +125,14 @@ export default async function AdminEventsPage() {
           <div className="grid gap-5 sm:grid-cols-2">
             {events.map((event) => {
               const guests = Array.isArray(event.guests) ? event.guests : [];
+              const safeTitle =
+                typeof event.title === "string" && event.title.trim().length > 0
+                  ? event.title.trim()
+                  : "Untitled event";
+              const safeSlug =
+                typeof event.slug === "string" && event.slug.trim().length > 0
+                  ? event.slug.trim()
+                  : "no-slug";
 
               let responded = 0;
               let attendingFamilies = 0;
@@ -164,12 +185,12 @@ export default async function AdminEventsPage() {
 
               return (
                 <article
-                  key={event.id}
+                  key={event.id ?? `${safeSlug}-${safeTitle}`}
                   className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-amber-900/10"
                 >
-                  <h2 className="text-xl font-semibold text-zinc-900">{coupleNames ?? event.title}</h2>
-                  {coupleNames ? <p className="mt-1 text-sm text-zinc-600">{event.title}</p> : null}
-                  <p className="mt-1 text-xs uppercase tracking-wide text-zinc-400">{event.slug}</p>
+                  <h2 className="text-xl font-semibold text-zinc-900">{coupleNames ?? safeTitle}</h2>
+                  {coupleNames ? <p className="mt-1 text-sm text-zinc-600">{safeTitle}</p> : null}
+                  <p className="mt-1 text-xs uppercase tracking-wide text-zinc-400">{safeSlug}</p>
                   <div className="mt-4 space-y-1.5 text-sm text-zinc-700">
                     <p>Guest families: {event._count?.guests ?? guests.length}</p>
                     <p>Families responded: {responded}</p>
@@ -179,7 +200,7 @@ export default async function AdminEventsPage() {
                     <p>Confirmed attendees: {confirmedAttendees}</p>
                   </div>
                   <Link
-                    href={`/admin/events/${event.id}`}
+                    href={`/admin/events/${event.id ?? ""}`}
                     className="mt-5 inline-flex rounded-xl border border-zinc-200 bg-zinc-50/80 px-4 py-2.5 text-sm font-medium text-zinc-800"
                   >
                     Open dashboard
