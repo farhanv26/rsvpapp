@@ -15,10 +15,10 @@ export async function loginAdminAction(formData: FormData) {
 
   const user = await prisma.user.findUnique({
     where: { name: adminUser },
-    select: { id: true, name: true, role: true, passwordHash: true },
+    select: { id: true, name: true, role: true, passwordHash: true, active: true },
   });
 
-  if (!user) {
+  if (!user || !user.active) {
     redirect(`/admin/login?error=invalid&user=${encodeURIComponent(adminUser)}`);
   }
   const validPassword = await compare(password, user.passwordHash);

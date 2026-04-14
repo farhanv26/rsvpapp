@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminLoginForm } from "@/components/admin/admin-login-form";
+import { getActiveUsersForLogin } from "@/lib/login-users";
 
 type Props = {
   searchParams: Promise<{ error?: string; user?: string }>;
@@ -7,6 +8,7 @@ type Props = {
 
 export default async function AdminLoginPage({ searchParams }: Props) {
   const { error, user } = await searchParams;
+  const users = await getActiveUsersForLogin();
 
   const message =
     error === "invalid"
@@ -25,7 +27,7 @@ export default async function AdminLoginPage({ searchParams }: Props) {
             Sign in to manage your events and guest lists.
           </p>
 
-          <AdminLoginForm errorMessage={message} initialUser={user} />
+          <AdminLoginForm errorMessage={message} initialUser={user} users={users} />
         </div>
 
         <p className="mt-6 text-center text-sm text-zinc-500">

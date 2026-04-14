@@ -1,9 +1,10 @@
-export type AdminRole = "super_admin" | "event_creator";
+import type { AdminRoleValue } from "@/lib/admin-roles";
 
-export const ADMIN_IDENTITIES: Array<{ name: string; role: AdminRole }> = [
-  { name: "Farhan", role: "super_admin" },
-  { name: "Zulfikar", role: "event_creator" },
-  { name: "Asif", role: "event_creator" },
-  { name: "Javed", role: "event_creator" },
-  { name: "Rafiya", role: "event_creator" },
-];
+/**
+ * Default bootstrap super admin for empty databases (`prisma db seed` only).
+ * Runtime user lists come from the database.
+ */
+export const BOOTSTRAP_SUPER_ADMIN: { name: string; role: AdminRoleValue } = {
+  name: "Farhan",
+  role: "super_admin",
+};

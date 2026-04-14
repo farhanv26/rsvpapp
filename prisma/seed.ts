@@ -1,32 +1,26 @@
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { generateSecureToken } from "../lib/security";
-import { ADMIN_IDENTITIES } from "../lib/admin-identities";
+import { BOOTSTRAP_SUPER_ADMIN } from "../lib/admin-identities";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const users = await Promise.all(
-    ADMIN_IDENTITIES.map(async (identity) =>
-      prisma.user.upsert({
-        where: { name: identity.name },
-        update: {
-          role: identity.role,
-          passwordHash: await hash(identity.name.toLowerCase(), 12),
-        },
-        create: {
-          name: identity.name,
-          role: identity.role,
-          passwordHash: await hash(identity.name.toLowerCase(), 12),
-        },
-      }),
-    ),
-  );
-
-  const farhan = users.find((user) => user.name === "Farhan");
-  if (!farhan) {
-    throw new Error("Farhan user seed failed.");
-  }
+  const identity = BOOTSTRAP_SUPER_ADMIN;
+  const farhan = await prisma.user.upsert({
+    where: { name: identity.name },
+    update: {
+      role: identity.role,
+      active: true,
+      passwordHash: await hash(identity.name.toLowerCase(), 12),
+    },
+    create: {
+      name: identity.name,
+      role: identity.role,
+      active: true,
+      passwordHash: await hash(identity.name.toLowerCase(), 12),
+    },
+  });
 
   await prisma.$executeRawUnsafe(
     `UPDATE "Event" SET "ownerUserId" = $1 WHERE "ownerUserId" IS NULL`,

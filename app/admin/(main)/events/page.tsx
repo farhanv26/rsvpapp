@@ -8,12 +8,13 @@ import { getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 type AdminEventsPageProps = {
-  searchParams?: Promise<{ deleted?: string; owner?: string; q?: string; status?: string }>;
+  searchParams?: Promise<{ deleted?: string; owner?: string; q?: string; status?: string; error?: string }>;
 };
 
 export default async function AdminEventsPage({ searchParams }: AdminEventsPageProps) {
   const params = searchParams ? await searchParams : undefined;
   const showDeletedNotice = params?.deleted === "1";
+  const showForbiddenNotice = params?.error === "forbidden";
   const ownerFilter = params?.owner?.trim() || "all";
   const creatorQuery = params?.q?.trim().toLowerCase() || "";
   const creatorStatusFilter = ["all", "open", "closing_soon", "closes_today", "closed"].includes(
@@ -24,7 +25,20 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   const admin = await requireCurrentAdminUser();
   const currentAdminName = admin.name;
   const isSuper = isSuperAdmin(admin);
-  const creators = ["Farhan", "Zulfikar", "Asif", "Javed", "Rafiya"] as const;
+  let creatorFilterNames: string[] = [];
+  let totalCreatorsStat = 0;
+  if (isSuper) {
+    const [nameRows, creatorCount] = await Promise.all([
+      prisma.user.findMany({
+        where: { active: true },
+        orderBy: { name: "asc" },
+        select: { name: true },
+      }),
+      prisma.user.count({ where: { active: true, role: "event_creator" } }),
+    ]);
+    creatorFilterNames = nameRows.map((row) => row.name);
+    totalCreatorsStat = creatorCount;
+  }
   const events: Array<{
     ownerUserId: string | null;
     owner: { name: string } | null;
@@ -171,6 +185,11 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
       })
     : visibleEvents;
   const renderedEvents = isSuper ? visibleEvents : creatorFilteredEvents;
+  const totalEventsInScope = events.length;
+  const isTrueEmptyList = totalEventsInScope === 0;
+  const isFilteredEmptyList = totalEventsInScope > 0 && renderedEvents.length === 0;
+  const hasActiveCreatorFilters = Boolean(creatorQuery) || creatorStatusFilter !== "all";
+  const hasActiveSuperOwnerFilter = isSuper && ownerFilter !== "all";
   const invitedFamilies = visibleEvents.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0);
   const confirmedAttendees = visibleEvents.reduce(
     (sum, event) =>
@@ -211,6 +230,14 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   return (
     <main className="min-h-screen">
       <div className="app-shell space-y-8">
+        {showForbiddenNotice ? (
+          <div
+            className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+            role="status"
+          >
+            You don&apos;t have access to that page.
+          </div>
+        ) : null}
         <div className="app-card p-6 sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div>
@@ -218,7 +245,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
               <h1 className="headline-display mt-2">Events overview</h1>
               {isSuper ? (
                 <>
-                  <p className="mt-3 text-lg font-semibold text-zinc-900">Welcome back, Farhan</p>
+                  <p className="mt-3 text-lg font-semibold text-zinc-900">Welcome back, {currentAdminName}</p>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
                     You have full access to all events, creators, and RSVP activity.
                   </p>
@@ -245,7 +272,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
         {isSuper ? (
           <div className="app-card-muted grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <OverviewStat label="Total events" value={visibleEvents.length} compact />
-            <OverviewStat label="Total creators" value={creators.length} compact />
+            <OverviewStat label="Total creators" value={totalCreatorsStat} compact />
             <OverviewStat label="Invited families" value={invitedFamilies} compact />
             <OverviewStat label="Confirmed attendees" value={confirmedAttendees} compact />
             <OverviewStat label="Pending responses" value={pendingResponses} compact />
@@ -269,9 +296,9 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
             <form className="flex items-center gap-2">
               <select name="owner" defaultValue={ownerFilter} className="input-luxe mt-0 w-52 py-2.5 text-sm">
                 <option value="all">All creators</option>
-                {creators.map((creator) => (
-                  <option key={creator} value={creator}>
-                    {creator}
+                {creatorFilterNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
                   </option>
                 ))}
               </select>
@@ -421,34 +448,54 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
               Retry loading events
             </Link>
           </div>
-        ) : renderedEvents.length === 0 ? (
+        ) : isFilteredEmptyList ? (
           <div className="app-card p-8 text-center sm:p-12">
-            {isSuper && ownerFilter !== "all" ? (
-              <>
-                <p className="section-title">No results</p>
-                <h2 className="headline-display mt-3 text-2xl sm:text-3xl">No events found for this creator</h2>
-                <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-                  Try selecting a different creator filter or switch back to all creators.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="section-title">{isSuper ? "No events yet" : "No events yet"}</p>
-                <h2 className="headline-display mt-3 text-2xl sm:text-3xl">
-                  {isSuper ? "Start your first celebration" : "You haven’t created any events yet"}
-                </h2>
-                <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-                  {isSuper
-                    ? "Create your first event to generate private guest links, track responses, and keep all RSVP activity organized."
-                    : "Create your first event to start inviting guests and tracking RSVP responses."}
-                </p>
-                <div className="mt-6">
-                  <Link href="/admin/events/new" className="btn-primary">
-                    Create your first event
-                  </Link>
-                </div>
-              </>
-            )}
+            <p className="section-title">No matches</p>
+            <h2 className="headline-display mt-3 text-2xl sm:text-3xl">No events matched your criteria</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+              {hasActiveSuperOwnerFilter ? (
+                <>
+                  You still have events in the workspace, but none are owned by{" "}
+                  <span className="font-semibold text-zinc-800">{ownerFilter}</span>. Try another owner or view all
+                  events.
+                </>
+              ) : hasActiveCreatorFilters ? (
+                <>
+                  You still have events on your account, but none match your current search or RSVP status filters.
+                  Clear filters to see everything again.
+                </>
+              ) : (
+                <>
+                  We couldn&apos;t find any events matching your current filters. Try widening your criteria or reset
+                  to the full list.
+                </>
+              )}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <Link href="/admin/events" className="btn-primary">
+                Clear filters
+              </Link>
+              <Link href="/admin/events/new" className="btn-secondary">
+                Create new event
+              </Link>
+            </div>
+          </div>
+        ) : isTrueEmptyList ? (
+          <div className="app-card p-8 text-center sm:p-12">
+            <p className="section-title">No events yet</p>
+            <h2 className="headline-display mt-3 text-2xl sm:text-3xl">
+              {isSuper ? "Start your first celebration" : "You haven’t created any events yet"}
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+              {isSuper
+                ? "Create your first event to generate private guest links, track responses, and keep all RSVP activity organized."
+                : "Create your first event to start inviting guests and tracking RSVP responses."}
+            </p>
+            <div className="mt-6">
+              <Link href="/admin/events/new" className="btn-primary">
+                Create your first event
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="grid gap-5 lg:grid-cols-2">
