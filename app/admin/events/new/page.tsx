@@ -68,6 +68,30 @@ export default function NewEventPage() {
 
         <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <div>
+            <p className="section-title">Appearance</p>
+            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Invitation theme</h2>
+            <p className="mt-1 text-sm text-zinc-600">Choose how the guest RSVP page is styled.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="app-card-muted flex cursor-pointer items-start gap-3 rounded-2xl border border-[#dccfbb] p-4">
+              <input type="radio" name="theme" value="modern" defaultChecked className="mt-1" />
+              <span>
+                <span className="block text-sm font-semibold text-zinc-900">Modern</span>
+                <span className="mt-1 block text-xs text-zinc-600">Clean neutral palette with refined contrast.</span>
+              </span>
+            </label>
+            <label className="app-card-muted flex cursor-pointer items-start gap-3 rounded-2xl border border-[#dccfbb] p-4">
+              <input type="radio" name="theme" value="floral" className="mt-1" />
+              <span>
+                <span className="block text-sm font-semibold text-zinc-900">Floral</span>
+                <span className="mt-1 block text-xs text-zinc-600">Soft blush, sage accents, and romantic framing.</span>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <section className="app-card-muted space-y-4 p-4 sm:p-5">
+          <div>
             <p className="section-title">Ceremony details</p>
             <h2 className="mt-2 text-lg font-semibold text-zinc-900">Location and messaging</h2>
           </div>

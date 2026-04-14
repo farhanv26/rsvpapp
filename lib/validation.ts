@@ -15,6 +15,7 @@ function startOfTodayLocal() {
 
 export const eventSchema = z.object({
   title: z.string().trim().min(1, "Event title is required."),
+  theme: z.enum(["modern", "floral"]).default("modern"),
   description: z.string().trim().optional(),
   coupleNames: z.string().trim().optional(),
   eventSubtitle: z.string().trim().optional(),

@@ -85,6 +85,7 @@ export default async function RsvpTokenPage({ params }: Props) {
       event: {
         select: {
           title: true,
+          theme: true,
           description: true,
           imagePath: true,
           coupleNames: true,
@@ -127,11 +128,16 @@ export default async function RsvpTokenPage({ params }: Props) {
   const hasCeremonyDetails = Boolean(ev.eventDate || ev.eventTime || ev.venue);
   const displayNames = ev.coupleNames?.trim() || ev.title;
   const showScriptNames = Boolean(ev.coupleNames?.trim());
+  const isFloral = ev.theme === "floral";
+  const panelClass = isFloral
+    ? "border-[#e7d6da] bg-[#fff9fb] shadow-[0_20px_55px_-40px_rgba(99,64,74,0.35)]"
+    : "border-[#e7dccb] bg-[#fffdfa] shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]";
+  const detailClass = isFloral ? "border-[#e7d6da] bg-[#fdf5f8]" : "border-[#e7dccb] bg-[#fbf8f2]";
 
   return (
     <main className="flex min-h-dvh flex-col justify-center px-4 py-8 sm:px-6">
       <div className="mx-auto w-full max-w-xl space-y-8">
-        <section className="rsvp-fade-up rounded-3xl border border-[#e7dccb] bg-[#fffdfa] p-5 shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)] sm:p-7">
+        <section className={`rsvp-fade-up rounded-3xl border p-5 sm:p-7 ${panelClass}`}>
           <div className="space-y-6 text-center">
             {safeImageSrc ? (
               <div className="mx-auto w-full max-w-[31rem]">
@@ -186,7 +192,7 @@ export default async function RsvpTokenPage({ params }: Props) {
               </div>
             ) : null}
 
-            <div className="mx-auto max-w-md rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-5 py-5 text-center">
+            <div className={`mx-auto max-w-md rounded-2xl border px-5 py-5 text-center ${detailClass}`}>
               <p className={`text-2xl text-zinc-900 ${script}`}>Dear {guest.guestName},</p>
               <p className="mt-3 text-base leading-relaxed text-zinc-700">
                 {hasResponded && guest.attending === false ? (

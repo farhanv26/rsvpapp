@@ -186,8 +186,8 @@ export function RsvpForm({
       ) : null}
     </form>
     {showConfirm ? (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/45 p-4 sm:items-center">
-        <div className="w-full max-w-md rounded-3xl border border-[#e7dccb] bg-[#fffdfa] p-6 shadow-xl">
+      <div className="modal-backdrop">
+        <div className="modal-panel">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Confirm RSVP</p>
           <p className="mt-3 text-base text-zinc-800">
             {attending === "yes"

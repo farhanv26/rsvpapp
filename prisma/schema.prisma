@@ -16,6 +16,7 @@ datasource db {
 model Event {
   id            String   @id @default(cuid())
   title         String
+  theme         String   @default("modern")
   slug          String   @unique
   description   String?
   imagePath     String?

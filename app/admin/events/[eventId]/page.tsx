@@ -114,14 +114,14 @@ export default async function EventDashboardPage({ params }: Props) {
                   {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(event.rsvpDeadline)}
                 </p>
                 <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                  className={`${
                     deadlineMeta?.status === "closed"
-                      ? "bg-zinc-200 text-zinc-800"
+                      ? "badge-neutral"
                       : deadlineMeta?.status === "closes_today"
-                        ? "bg-rose-100 text-rose-800"
+                        ? "badge-danger"
                         : deadlineMeta?.status === "closing_soon"
-                          ? "bg-amber-100 text-amber-900"
-                          : "bg-emerald-100 text-emerald-900"
+                          ? "badge-warning"
+                          : "badge-success"
                   }`}
                 >
                   {deadlineMeta?.status === "closed"
@@ -139,6 +139,11 @@ export default async function EventDashboardPage({ params }: Props) {
                 ) : null}
               </div>
             ) : null}
+            <div className="mt-2">
+              <span className="badge-neutral">
+                Theme: {event.theme === "floral" ? "Floral" : "Modern"}
+              </span>
+            </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Link

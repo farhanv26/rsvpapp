@@ -52,6 +52,7 @@ async function createUniqueSlug(baseTitle: string, eventId?: string) {
 export async function createEventAction(formData: FormData) {
   const parsed = eventSchema.safeParse({
     title: formData.get("title"),
+    theme: formData.get("theme") || "modern",
     description: formData.get("description") || undefined,
     coupleNames: formData.get("coupleNames") || undefined,
     eventSubtitle: formData.get("eventSubtitle") || undefined,
@@ -73,6 +74,7 @@ export async function createEventAction(formData: FormData) {
   const event = await prisma.event.create({
     data: {
       title: parsed.data.title,
+      theme: parsed.data.theme,
       description: parsed.data.description || null,
       slug,
       imagePath,
@@ -99,6 +101,7 @@ export async function updateEventAction(formData: FormData) {
 
   const parsed = eventSchema.safeParse({
     title: formData.get("title"),
+    theme: formData.get("theme") || "modern",
     description: formData.get("description") || undefined,
     coupleNames: formData.get("coupleNames") || undefined,
     eventSubtitle: formData.get("eventSubtitle") || undefined,
@@ -123,6 +126,7 @@ export async function updateEventAction(formData: FormData) {
     where: { id: eventId },
     data: {
       title: parsed.data.title,
+      theme: parsed.data.theme,
       description: parsed.data.description || null,
       slug,
       coupleNames: parsed.data.coupleNames || null,

@@ -54,8 +54,8 @@ export function DeleteEventButton({
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/45 p-4 sm:items-center">
-          <div className="w-full max-w-md rounded-3xl border border-[#e7dccb] bg-[#fffdfa] p-6 shadow-xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
               Confirm deletion
             </p>
@@ -73,12 +73,7 @@ export function DeleteEventButton({
             ) : null}
 
             <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={runDelete}
-                disabled={isPending}
-                className="inline-flex flex-1 items-center justify-center rounded-2xl border border-rose-700 bg-rose-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
+              <button type="button" onClick={runDelete} disabled={isPending} className="btn-danger flex-1">
                 {isPending ? "Deleting..." : "Delete Event"}
               </button>
               <button

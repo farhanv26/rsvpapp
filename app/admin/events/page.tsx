@@ -16,6 +16,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   const events: Array<{
     id: string;
     title: string | null;
+    theme: string | null;
     slug: string | null;
     coupleNames: string | null;
     imagePath: string | null;
@@ -270,16 +271,19 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <span className="badge-soft">{event._count?.guests ?? guests.length} families</span>
+                      <span className="badge-neutral">
+                        {event.theme === "floral" ? "Floral" : "Modern"}
+                      </span>
                       {deadlineLabel ? (
                         <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                          className={`${
                             deadlineMeta?.status === "closed"
-                              ? "bg-zinc-200 text-zinc-800"
+                              ? "badge-neutral"
                               : deadlineMeta?.status === "closes_today"
-                                ? "bg-rose-100 text-rose-800"
+                                ? "badge-danger"
                                 : deadlineMeta?.status === "closing_soon"
-                                  ? "bg-amber-100 text-amber-900"
-                                  : "bg-emerald-100 text-emerald-900"
+                                  ? "badge-warning"
+                                  : "badge-success"
                           }`}
                         >
                           {deadlineLabel}
