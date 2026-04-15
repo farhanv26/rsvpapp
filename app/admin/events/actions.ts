@@ -615,6 +615,7 @@ export async function logGuestWhatsappPreparedAction(eventId: string, guestId: s
   }
 
   const message = buildGuestWhatsAppInviteMessage({
+    guestId: guest.id,
     greeting: guest.greeting,
     guestName: guest.guestName,
     eventTitle: guest.event.title,
@@ -728,6 +729,7 @@ export async function sendGuestInviteEmailAction(eventId: string, guestId: strin
 
   const rsvpLink = buildGuestRsvpAbsoluteUrl(guest.token);
   const { inviteText, emailSubject } = buildGuestInviteCommunicationParts({
+    guestId: guest.id,
     greeting: guest.greeting,
     guestName: guest.guestName,
     eventTitle: guest.event.title,
@@ -1143,6 +1145,7 @@ export async function getGuestCommunicationPreviewAction(eventId: string, guestI
 
   const rsvpLink = buildGuestRsvpAbsoluteUrl(guest.token);
   const { inviteText, emailSubject, emailBody } = buildGuestInviteCommunicationParts({
+    guestId: guestId,
     greeting: guest.greeting,
     guestName: guest.guestName,
     eventTitle: guest.event.title,

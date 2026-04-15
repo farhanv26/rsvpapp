@@ -253,9 +253,12 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
                   "We are sorry you will not be able to attend, but we completely understand."
                 ) : (
                   <>
-                    We would be honored to celebrate with you. Your invitation includes up to{" "}
-                    <span className="font-semibold text-zinc-900">{guest.maxGuests}</span>{" "}
-                    {guest.maxGuests === 1 ? "guest" : "guests"}.
+                    <span className="block">We would be honored to celebrate with you.</span>
+                    <span className="mt-2 block">
+                      Your invitation includes up to{" "}
+                      <span className="font-semibold text-zinc-900">{guest.maxGuests}</span>{" "}
+                      {guest.maxGuests === 1 ? "guest" : "guests"}.
+                    </span>
                   </>
                 )}
               </p>

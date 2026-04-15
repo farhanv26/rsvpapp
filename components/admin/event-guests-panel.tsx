@@ -213,6 +213,15 @@ function inviteBadgeClass(g: GuestPanelGuest): string {
   return `${base} border border-[#e2d4bf] bg-[#f9f3e8] text-[#6a5434]`;
 }
 
+function compactStatusBadgeClass(kind: "status" | "invite" | "warning" | "meta" | "duplicate"): string {
+  const base = "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide";
+  if (kind === "status") return `${base} bg-violet-100 text-violet-900`;
+  if (kind === "invite") return `${base} bg-emerald-100 text-emerald-900`;
+  if (kind === "warning") return `${base} bg-amber-100 text-amber-900`;
+  if (kind === "duplicate") return `${base} bg-rose-100 text-rose-900`;
+  return `${base} bg-zinc-100 text-zinc-700`;
+}
+
 function guestRsvpUrl(siteUrl: string, token: string) {
   const path = `/rsvp/${token}`;
   if (!siteUrl) return path;
@@ -295,6 +304,7 @@ export function EventGuestsPanel({
   const [communicationPreviewGuestId, setCommunicationPreviewGuestId] = useState<string | null>(null);
   const [communicationBulkMeta, setCommunicationBulkMeta] = useState<{ count: number } | null>(null);
   const [commHistoryGuest, setCommHistoryGuest] = useState<{ id: string; name: string } | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const inviteCardPreviewByGuest = useMemo(() => {
     const map = new Map<string, { safeSrc: string | null; usingLine: string }>();
@@ -709,6 +719,7 @@ export function EventGuestsPanel({
     const bundles = selectedGuests.map((guest) => {
       const link = guestRsvpUrl(siteUrl, guest.token);
       const message = buildGuestWhatsAppInviteMessage({
+        guestId: guest.id,
         greeting: guest.greeting,
         guestName: guest.guestName,
         eventTitle,
@@ -745,311 +756,322 @@ export function EventGuestsPanel({
 
   return (
     <div id="event-guests" className="app-card scroll-mt-24 p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-semibold text-zinc-900">Guests</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            {guests.length} famil{guests.length === 1 ? "y" : "ies"} · Realtime search, sort, and bulk actions
-          </p>
-          <p className="mt-2 text-xs text-zinc-500">
-            Use the external-link icon on a row to open that guest&apos;s full RSVP page in a new tab (admin preview).
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {notInvitedCount > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => setInviteFilter("not_invited")}
-            >
-              Not invited ({notInvitedCount})
-            </button>
-          ) : null}
-          {notInvitedCount > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => {
-                setSendInvitesScopeOverride(remainingNotInvitedGuests);
-                setSendInvitesScopeMode("remaining");
-                setSendInvitesNonce((n) => n + 1);
-                setSendInvitesOpen(true);
-              }}
-            >
-              Send to remaining
-            </button>
-          ) : null}
-          {readyToSendCount > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => {
-                setSendInvitesScopeOverride(readyToSendGuests);
-                setSendInvitesScopeMode("ready");
-                setSendInvitesNonce((n) => n + 1);
-                setSendInvitesOpen(true);
-              }}
-            >
-              Send to ready guests
-            </button>
-          ) : null}
-          {readyToSendCount > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => {
-                setReadinessFilter("ready");
-                setInviteFilter("all");
-              }}
-            >
-              Show ready only
-            </button>
-          ) : null}
-          {missingContactGuests.length > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => {
-                setReadinessFilter("missing_contact");
-                setInviteFilter("all");
-              }}
-            >
-              Missing contact ({missingContactGuests.length})
-            </button>
-          ) : null}
-          {pendingFollowUpGuests.length > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => {
-                setFollowUpScopeOverride(pendingFollowUpGuests);
-                setFollowUpNonce((n) => n + 1);
-                setFollowUpModalOpen(true);
-              }}
-            >
-              Follow up with pending guests
-            </button>
-          ) : null}
-          {showSendRemindersThisViewButton ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => {
-                setFollowUpScopeOverride(null);
-                setFollowUpNonce((n) => n + 1);
-                setFollowUpModalOpen(true);
-              }}
-            >
-              Send reminders (this view)
-            </button>
-          ) : null}
-          {pendingFollowUpGuests.length > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => {
-                setFollowUpFilter("invited_no_response");
-                setInviteFilter("all");
-              }}
-            >
-              Show invited, no response
-            </button>
-          ) : null}
-          {duplicateGuestCount > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => {
-                setDuplicateFilter("has_duplicates");
-                setInviteFilter("all");
-              }}
-            >
-              Show duplicates only
-            </button>
-          ) : null}
-          {duplicateClusterCount > 0 ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              onClick={() => setReviewDuplicatesOpen(true)}
-            >
-              Review duplicates ({duplicateClusterCount})
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={filtered.length === 0}
-            onClick={() => {
-              setSendInvitesScopeOverride(null);
-              setSendInvitesScopeMode(null);
-              setSendInvitesNonce((n) => n + 1);
-              setSendInvitesOpen(true);
-            }}
-          >
-            Send invites
-          </button>
-        </div>
-        <div className="flex w-full flex-col gap-3 sm:max-w-4xl sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl font-semibold text-zinc-900">
+            Guests <span className="text-base font-medium text-zinc-500">({guests.length} famil{guests.length === 1 ? "y" : "ies"})</span>
+          </h2>
           <input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search guest name, group, notes, status..."
-            className="input-luxe mt-0 py-2.5 text-sm sm:min-w-72"
+            className="input-luxe mt-0 w-full py-2.5 text-sm sm:w-80"
           />
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as typeof sort)}
-            className="rounded-2xl border border-[#dccfbb] bg-white px-3 py-2.5 text-sm font-medium text-zinc-800"
-            aria-label="Sort guests"
-          >
-            <option value="updatedDesc">Last updated (latest)</option>
-            <option value="nameAsc">Name (A-Z)</option>
-            <option value="groupAsc">Category (A-Z)</option>
-            <option value="tableAsc">Table (A-Z)</option>
-            <option value="status">RSVP status</option>
-            <option value="maxGuestsDesc">Max guests (high to low)</option>
-          </select>
-          <button type="button" className="btn-secondary" onClick={clearFilters}>
-            Reset
-          </button>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={filtered.length === 0}
+              onClick={() => {
+                setSendInvitesScopeOverride(null);
+                setSendInvitesScopeMode(null);
+                setSendInvitesNonce((n) => n + 1);
+                setSendInvitesOpen(true);
+              }}
+            >
+              Send invites
+            </button>
+            {notInvitedCount > 0 ? (
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                onClick={() => {
+                  setSendInvitesScopeOverride(remainingNotInvitedGuests);
+                  setSendInvitesScopeMode("remaining");
+                  setSendInvitesNonce((n) => n + 1);
+                  setSendInvitesOpen(true);
+                }}
+              >
+                Send to remaining
+              </button>
+            ) : null}
+            {missingContactGuests.length > 0 ? (
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                onClick={() => {
+                  setReadinessFilter("missing_contact");
+                  setInviteFilter("all");
+                }}
+              >
+                Missing contact ({missingContactGuests.length})
+              </button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              className="rounded-2xl border border-[#dccfbb] bg-white px-3 py-2.5 text-sm font-medium text-zinc-800"
+              aria-label="Sort guests"
+            >
+              <option value="updatedDesc">Last updated (latest)</option>
+              <option value="nameAsc">Name (A-Z)</option>
+              <option value="groupAsc">Category (A-Z)</option>
+              <option value="tableAsc">Table (A-Z)</option>
+              <option value="status">RSVP status</option>
+              <option value="maxGuestsDesc">Max guests (high to low)</option>
+            </select>
+            <button type="button" className="btn-secondary" onClick={clearFilters}>
+              Reset
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {filterTabs.map((t) => (
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        {readyToSendCount > 0 ? (
           <button
-            key={t.id}
             type="button"
-            onClick={() => setFilter(t.id)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              filter === t.id ? "bg-[#3f2f1f] text-white" : "bg-[#f5efe4] text-zinc-700 hover:bg-[#ede3d1]"
-            }`}
+            className="btn-secondary text-sm"
+            onClick={() => {
+              setSendInvitesScopeOverride(readyToSendGuests);
+              setSendInvitesScopeMode("ready");
+              setSendInvitesNonce((n) => n + 1);
+              setSendInvitesOpen(true);
+            }}
           >
-            {t.label}
+            Send to ready guests
           </button>
-        ))}
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Invites</span>
-        <div className="flex flex-wrap gap-2">
-          {inviteFilterTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setInviteFilter(t.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                inviteFilter === t.id
-                  ? "bg-[#5c4a33] text-white"
-                  : "bg-[#f0e8da] text-zinc-600 hover:bg-[#e8dcc8]"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Duplicates</span>
-        <div className="flex flex-wrap gap-2">
-          {duplicateFilterTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setDuplicateFilter(t.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                duplicateFilter === t.id
-                  ? "bg-[#6b2d3c] text-white"
-                  : "bg-[#f5e8eb] text-zinc-600 hover:bg-[#ebd0d6]"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Follow-up</span>
-        <div className="flex flex-wrap gap-2">
-          {followUpFilterTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setFollowUpFilter(t.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                followUpFilter === t.id
-                  ? "bg-[#4a3d5c] text-white"
-                  : "bg-[#ebe6f2] text-zinc-600 hover:bg-[#ded8e8]"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Seating</span>
-        <label className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
-          <span className="shrink-0">Category</span>
-          <select
-            value={planningGroupFilter}
-            onChange={(e) => setPlanningGroupFilter(e.target.value)}
-            className="max-w-[12rem] rounded-full border border-[#dccfbb] bg-white px-3 py-1.5 text-xs font-medium text-zinc-800"
-            aria-label="Filter by category"
+        ) : null}
+        {readyToSendCount > 0 ? (
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={() => {
+              setReadinessFilter("ready");
+              setInviteFilter("all");
+            }}
           >
-            <option value="all">All categories</option>
-            <option value="__none__">No category</option>
-            {uniqueGroupLabels.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
-          <span className="shrink-0">Table</span>
-          <select
-            value={planningTableFilter}
-            onChange={(e) => setPlanningTableFilter(e.target.value)}
-            className="max-w-[12rem] rounded-full border border-[#dccfbb] bg-white px-3 py-1.5 text-xs font-medium text-zinc-800"
-            aria-label="Filter by table"
+            Show ready only
+          </button>
+        ) : null}
+        {pendingFollowUpGuests.length > 0 ? (
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={() => {
+              setFollowUpScopeOverride(pendingFollowUpGuests);
+              setFollowUpNonce((n) => n + 1);
+              setFollowUpModalOpen(true);
+            }}
           >
-            <option value="all">All tables</option>
-            <option value="unassigned">No table</option>
-            <option value="assigned">Has table</option>
-            {uniqueTableLabels.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+            Follow up with pending guests
+          </button>
+        ) : null}
+        {showSendRemindersThisViewButton ? (
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={() => {
+              setFollowUpScopeOverride(null);
+              setFollowUpNonce((n) => n + 1);
+              setFollowUpModalOpen(true);
+            }}
+          >
+            Send reminders (this view)
+          </button>
+        ) : null}
+        {pendingFollowUpGuests.length > 0 ? (
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={() => {
+              setFollowUpFilter("invited_no_response");
+              setInviteFilter("all");
+            }}
+          >
+            Show invited, no response
+          </button>
+        ) : null}
+        {duplicateGuestCount > 0 ? (
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={() => {
+              setDuplicateFilter("has_duplicates");
+              setInviteFilter("all");
+            }}
+          >
+            Show duplicates only
+          </button>
+        ) : null}
+        {duplicateClusterCount > 0 ? (
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={() => setReviewDuplicatesOpen(true)}
+          >
+            Review duplicates ({duplicateClusterCount})
+          </button>
+        ) : null}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Readiness</span>
-        <div className="flex flex-wrap gap-2">
-          {readinessFilterTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setReadinessFilter(t.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                readinessFilter === t.id
-                  ? "bg-[#2f4a3c] text-white"
-                  : "bg-[#e8efe9] text-zinc-600 hover:bg-[#d7e5da]"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+      <section className="mt-4 rounded-2xl border border-[#e7dccb] bg-[#fffdfa] p-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">RSVP status</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {filterTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setFilter(t.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    filter === t.id ? "bg-[#3f2f1f] text-white" : "bg-[#f5efe4] text-zinc-700 hover:bg-[#ede3d1]"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Invite status</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {inviteFilterTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setInviteFilter(t.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    inviteFilter === t.id
+                      ? "bg-[#5c4a33] text-white"
+                      : "bg-[#f0e8da] text-zinc-600 hover:bg-[#e8dcc8]"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="md:col-span-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Readiness</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {readinessFilterTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setReadinessFilter(t.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    readinessFilter === t.id
+                      ? "bg-[#2f4a3c] text-white"
+                      : "bg-[#e8efe9] text-zinc-600 hover:bg-[#d7e5da]"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div className="mt-4 border-t border-[#efe4d4] pt-3">
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            onClick={() => setShowAdvancedFilters((curr) => !curr)}
+          >
+            {showAdvancedFilters ? "Hide advanced filters" : "More filters"}
+          </button>
+        </div>
+
+        {showAdvancedFilters ? (
+          <div className="mt-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Follow-up</span>
+              <div className="flex flex-wrap gap-2">
+                {followUpFilterTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setFollowUpFilter(t.id)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                      followUpFilter === t.id
+                        ? "bg-[#4a3d5c] text-white"
+                        : "bg-[#ebe6f2] text-zinc-600 hover:bg-[#ded8e8]"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Duplicates</span>
+              <div className="flex flex-wrap gap-2">
+                {duplicateFilterTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setDuplicateFilter(t.id)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                      duplicateFilter === t.id
+                        ? "bg-[#6b2d3c] text-white"
+                        : "bg-[#f5e8eb] text-zinc-600 hover:bg-[#ebd0d6]"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Seating</span>
+              <label className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+                <span className="shrink-0">Category</span>
+                <select
+                  value={planningGroupFilter}
+                  onChange={(e) => setPlanningGroupFilter(e.target.value)}
+                  className="max-w-[12rem] rounded-full border border-[#dccfbb] bg-white px-3 py-1.5 text-xs font-medium text-zinc-800"
+                  aria-label="Filter by category"
+                >
+                  <option value="all">All categories</option>
+                  <option value="__none__">No category</option>
+                  {uniqueGroupLabels.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+                <span className="shrink-0">Table</span>
+                <select
+                  value={planningTableFilter}
+                  onChange={(e) => setPlanningTableFilter(e.target.value)}
+                  className="max-w-[12rem] rounded-full border border-[#dccfbb] bg-white px-3 py-1.5 text-xs font-medium text-zinc-800"
+                  aria-label="Filter by table"
+                >
+                  <option value="all">All tables</option>
+                  <option value="unassigned">No table</option>
+                  <option value="assigned">Has table</option>
+                  {uniqueTableLabels.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        ) : null}
+      </section>
 
       {hasGuests && notInvitedCount > 0 ? (
         <p className="mt-2 text-xs text-zinc-500">
@@ -1386,41 +1408,32 @@ export function EventGuestsPanel({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-[#e7dccb]">
-            <div className="max-h-[34rem] min-w-[1780px] overflow-auto">
-              <table className="w-full border-collapse text-left">
+          <div className="overflow-hidden rounded-2xl border border-[#e7dccb]">
+            <div className="max-h-[34rem] overflow-auto">
+              <table className="w-full table-fixed border-collapse text-left">
                 <thead className="sticky top-0 z-10 bg-[#f7efe2]">
                   <tr className="border-b border-[#e1d5c3] text-xs uppercase tracking-[0.12em] text-zinc-600">
-                    <th className="w-12 px-3 py-3">
-                      <input
-                        type="checkbox"
-                        checked={allVisibleSelected}
-                        onChange={toggleAllVisible}
-                        aria-label="Select all visible guests"
-                      />
+                    <th className="w-[36%] px-3 py-3">
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleAllVisible}
+                          aria-label="Select all visible guests"
+                        />
+                        <span>Guest</span>
+                      </label>
                     </th>
-                    <th className="px-3 py-3">Guest Name</th>
-                    <th className="px-3 py-3 w-[7.5rem]">Duplicate</th>
-                    <th className="px-3 py-3 w-[5.5rem] text-center" title="Invite card preview and full RSVP page">
-                      Invite
-                    </th>
-                    <th className="px-3 py-3">Greeting</th>
-                    <th className="px-3 py-3">Max Guests</th>
-                    <th className="px-3 py-3">RSVP Status</th>
-                    <th className="px-3 py-3">Readiness</th>
-                    <th className="px-3 py-3">Follow-up</th>
-                    <th className="px-3 py-3">Invite status</th>
-                    <th className="px-3 py-3">Attending Count</th>
-                    <th className="px-3 py-3">Category</th>
-                    <th className="px-3 py-3">Table</th>
-                    <th className="px-3 py-3">Last Updated</th>
-                    <th className="px-3 py-3 text-right">Actions</th>
+                    <th className="w-[24%] px-3 py-3">Status</th>
+                    <th className="w-[18%] px-3 py-3">Invite</th>
+                    <th className="w-[22%] px-3 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white">
                   {filtered.map((guest) => {
                     const link = guestRsvpUrl(siteUrl, guest.token);
                     const inviteMessage = buildGuestWhatsAppInviteMessage({
+                      guestId: guest.id,
                       greeting: guest.greeting,
                       guestName: guest.guestName,
                       eventTitle,
@@ -1432,6 +1445,23 @@ export function EventGuestsPanel({
                     const dupStrength = duplicateStrengthMap.get(guest.id) ?? "none";
                     const dupLabel = duplicateBadgeLabel(dupStrength);
                     const isEditing = editingGuestId === guest.id;
+                    const statusBadges = [
+                      { label: statusLabel(st).toUpperCase(), kind: "status" as const },
+                      { label: guest.respondedAt ? "RESPONDED" : "NOT RESPONDED", kind: "meta" as const },
+                      ...(readiness.id === "missing_contact"
+                        ? [{ label: "MISSING CONTACT", kind: "warning" as const }]
+                        : []),
+                      ...(readiness.id === "missing_email"
+                        ? [{ label: "MISSING EMAIL", kind: "warning" as const }]
+                        : []),
+                      ...(followUp.id === "invited_no_response"
+                        ? [{ label: "AWAITING RSVP", kind: "warning" as const }]
+                        : []),
+                      ...(!guest.invitedAt ? [{ label: "NOT INVITED", kind: "meta" as const }] : []),
+                      ...(dupLabel ? [{ label: dupLabel.toUpperCase(), kind: "duplicate" as const }] : []),
+                    ];
+                    const visibleStatusBadges = statusBadges.slice(0, 4);
+                    const hiddenStatusCount = Math.max(0, statusBadges.length - visibleStatusBadges.length);
 
                     return (
                       <tr
@@ -1439,89 +1469,41 @@ export function EventGuestsPanel({
                         className="border-b border-[#f0e7d9] text-sm text-zinc-700 transition hover:bg-[#fcf8f1]"
                       >
                         <td className="px-3 py-3 align-top">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(guest.id)}
-                            onChange={(e) => toggleGuestSelection(guest.id, e.target.checked)}
-                            aria-label={`Select ${guest.guestName}`}
-                          />
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <p className="font-semibold text-zinc-900">{guest.guestName}</p>
-                          {(guest.phone || guest.email || guest.notes || guest.hostMessage) ? (
-                            <p className="mt-1 max-w-xs text-xs text-zinc-500">
-                              {[guest.phone, guest.email, guest.hostMessage ? `Message: ${guest.hostMessage}` : null, guest.notes]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </p>
-                          ) : null}
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          {dupLabel ? (
-                            <span className={duplicateBadgeClass(dupStrength) ?? ""} title={dupLabel}>
-                              {dupLabel}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-zinc-300">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 align-top text-center">
-                          <div className="flex flex-wrap items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#e7dccb] bg-[#fcf8f1] text-zinc-600 transition hover:border-[#d4c4a8] hover:bg-[#f5ecdd] hover:text-zinc-900"
-                              title={inviteCardPreviewByGuest.get(guest.id)?.usingLine ?? "Resolved invite card"}
-                              aria-label="Resolved invite card preview"
-                              onClick={() => setPreviewGuestId(guest.id)}
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
-                                <path
-                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 20h12a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#e7dccb] bg-[#fcf8f1] text-zinc-600 transition hover:border-[#d4c4a8] hover:bg-[#f5ecdd] hover:text-zinc-900"
-                              title="Open full RSVP page as this guest (new tab)"
-                              aria-label="Preview guest RSVP page"
-                              onClick={() => {
-                                const url = `${guestRsvpUrl(siteUrl, guest.token)}?preview=1`;
-                                window.open(url, "_blank", "noopener,noreferrer");
-                              }}
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
-                                <path
-                                  d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5a2.25 2.25 0 002.25-2.25V10.5M10.5 13.5L21 3m0 0h-6.75M21 3v6.75"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </button>
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(guest.id)}
+                              onChange={(e) => toggleGuestSelection(guest.id, e.target.checked)}
+                              aria-label={`Select ${guest.guestName}`}
+                              className="mt-1"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-zinc-900">{guest.guestName}</p>
+                              <p className="mt-1 text-xs text-zinc-600">
+                                {guest.greeting || "Assalamu Alaikum"} · {guest.maxGuests} guest
+                                {guest.maxGuests === 1 ? "" : "s"}
+                              </p>
+                              {(guest.phone || guest.email) ? (
+                                <p className="mt-1 truncate text-[11px] text-zinc-500">
+                                  {[guest.phone, guest.email].filter(Boolean).join(" · ")}
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
                         </td>
-                        <td className="px-3 py-3 align-top text-xs text-zinc-600">{guest.greeting || "Assalamu Alaikum"}</td>
-                        <td className="px-3 py-3 align-top tabular-nums">{guest.maxGuests}</td>
                         <td className="px-3 py-3 align-top">
-                          <span className={statusBadgeClass(st)}>{statusLabel(st)}</span>
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <span className={readinessBadgeClass(readiness.id)} title={readiness.label}>
-                            {readiness.label}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <span className={followUpBadgeClass(followUp.id)} title={followUp.label}>
-                            {followUp.id === "invited_no_response" ? "Awaiting RSVP" : followUp.label}
-                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {visibleStatusBadges.map((badge) => (
+                              <span key={badge.label} className={compactStatusBadgeClass(badge.kind)}>
+                                {badge.label}
+                              </span>
+                            ))}
+                            {hiddenStatusCount > 0 ? (
+                              <span className={compactStatusBadgeClass("meta")}>+{hiddenStatusCount} more</span>
+                            ) : null}
+                          </div>
                           {followUp.id === "invited_no_response" && guest.lastReminderAt ? (
-                            <span className="mt-0.5 block text-[10px] text-zinc-400">
+                            <span className="mt-1 block text-[10px] text-zinc-400">
                               Reminder {formatDate(guest.lastReminderAt)}
                             </span>
                           ) : null}
@@ -1542,27 +1524,46 @@ export function EventGuestsPanel({
                               {formatDate(communicationLastByGuest[guest.id].at)}
                             </span>
                           ) : null}
+                          <div className="mt-2 flex items-center gap-1">
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#e7dccb] bg-[#fcf8f1] text-zinc-600 transition hover:border-[#d4c4a8] hover:bg-[#f5ecdd] hover:text-zinc-900"
+                              title={inviteCardPreviewByGuest.get(guest.id)?.usingLine ?? "Resolved invite card"}
+                              aria-label="Resolved invite card preview"
+                              onClick={() => setPreviewGuestId(guest.id)}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                                <path
+                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 20h12a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#e7dccb] bg-[#fcf8f1] text-zinc-600 transition hover:border-[#d4c4a8] hover:bg-[#f5ecdd] hover:text-zinc-900"
+                              title="Open guest RSVP page"
+                              aria-label="Preview guest RSVP page"
+                              onClick={() => {
+                                const url = `${guestRsvpUrl(siteUrl, guest.token)}?preview=1`;
+                                window.open(url, "_blank", "noopener,noreferrer");
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                                <path
+                                  d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5a2.25 2.25 0 002.25-2.25V10.5M10.5 13.5L21 3m0 0h-6.75M21 3v6.75"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                          </div>
                         </td>
-                        <td className="px-3 py-3 align-top tabular-nums">{guest.attendingCount ?? 0}</td>
-                        <td className="px-3 py-3 align-top">
-                          {guest.group?.trim() ? (
-                            <span className="badge-soft max-w-[10rem] truncate" title={guest.group}>
-                              {guest.group}
-                            </span>
-                          ) : (
-                            <span className="text-zinc-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 align-top text-xs">
-                          {guest.tableName?.trim() ? (
-                            <span className="badge-soft border border-indigo-200/80 bg-indigo-50/80 text-indigo-950 max-w-[10rem] truncate">
-                              {guest.tableName}
-                            </span>
-                          ) : (
-                            <span className="text-zinc-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 align-top text-xs text-zinc-600">{formatDate(guest.updatedAt)}</td>
                         <td className="px-3 py-3 align-top">
                           <div className="flex flex-wrap justify-end gap-2">
                             <button

@@ -126,6 +126,7 @@ export function SendInvitesModal({
     if (!sampleGuest) return "";
     const build = isReminder ? buildGuestRsvpReminderMessage : buildGuestWhatsAppInviteMessage;
     return build({
+      guestId: sampleGuest.id,
       greeting: sampleGuest.greeting,
       guestName: sampleGuest.guestName,
       eventTitle,
@@ -138,6 +139,7 @@ export function SendInvitesModal({
     if (!waGuest) return "";
     const build = isReminder ? buildGuestRsvpReminderMessage : buildGuestWhatsAppInviteMessage;
     return build({
+      guestId: waGuest.id,
       greeting: waGuest.greeting,
       guestName: waGuest.guestName,
       eventTitle,
@@ -161,6 +163,7 @@ export function SendInvitesModal({
     const bundles = sortedGuests.map((guest) => {
       const link = guestRsvpUrl(siteUrl, guest.token);
       const message = build({
+        guestId: guest.id,
         greeting: guest.greeting,
         guestName: guest.guestName,
         eventTitle,

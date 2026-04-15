@@ -21,16 +21,20 @@ export type GuestInviteMessageParts = {
 
 /** Invite email + shared WhatsApp text from the same RSVP link (single source of truth). */
 export function buildGuestInviteCommunicationParts(input: {
+  guestId?: string;
   greeting: string | null;
   guestName: string;
   eventTitle: string;
   rsvpLink: string;
+  customMessage?: string | null;
 }): GuestInviteMessageParts {
   const inviteText = buildGuestWhatsAppInviteMessage({
+    guestId: input.guestId,
     greeting: input.greeting,
     guestName: input.guestName,
     eventTitle: input.eventTitle,
     rsvpLink: input.rsvpLink,
+    customMessage: input.customMessage,
   });
   const emailSubject = buildGuestInviteEmailSubject(input.eventTitle, input.guestName);
   const emailBody = buildGuestInviteEmailBody(inviteText);

@@ -93,6 +93,7 @@ export function EventRsvpShare({
   const inviteMessage = useMemo(() => {
     if (!selected || !link) return "";
     return buildGuestWhatsAppInviteMessage({
+      guestId: selected.id,
       greeting: selected.greeting,
       guestName: selected.guestName,
       eventTitle,

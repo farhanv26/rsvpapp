@@ -6,6 +6,7 @@ import { EventRsvpShare } from "@/components/admin/event-rsvp-share";
 import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
+import { EventSectionNav } from "@/components/admin/event-section-nav";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { countInvitedAwaitingRsvp } from "@/lib/guest-followup";
@@ -318,7 +319,19 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           </div>
         </header>
 
-        <section className="app-card overflow-hidden">
+        <EventSectionNav
+          items={[
+            { id: "dashboard-overview", label: "Overview" },
+            { id: "dashboard-readiness", label: "Readiness" },
+            { id: "dashboard-seating", label: "Seating" },
+            { id: "dashboard-activity", label: "Activity" },
+            { id: "dashboard-communications", label: "Communications" },
+            { id: "event-guests", label: "Guests" },
+            { id: "dashboard-report", label: "Report" },
+          ]}
+        />
+
+        <section id="dashboard-overview" className="app-card scroll-mt-24 overflow-hidden">
           {safeImageSrc ? (
             <div className="p-5 sm:p-7">
               <EventImageLightbox
@@ -419,7 +432,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
         ) : null}
 
         {totalFamilies > 0 ? (
-          <section className="app-card p-5 sm:p-6">
+          <section id="dashboard-readiness" className="app-card scroll-mt-24 p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact &amp; invite readiness</p>
             <p className="mt-1 text-sm text-zinc-600">
               Who can be invited now, who still needs contact details, and who has already responded.
@@ -464,7 +477,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
         ) : null}
 
         {totalFamilies > 0 ? (
-          <section className="app-card p-5 sm:p-6">
+          <section id="dashboard-seating" className="app-card scroll-mt-24 p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Seating &amp; groups</p>
             <p className="mt-1 text-sm text-zinc-600">
               Categories, table labels, and who still needs assignments.
@@ -560,7 +573,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           </section>
         ) : null}
 
-        <section className="app-card p-6 sm:p-8">
+        <section id="dashboard-report" className="app-card scroll-mt-24 p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-zinc-900">Add one guest</h2>
           <p className="mt-1 text-sm text-zinc-600">
             Optional: category (e.g. Bride side), table, contact, and notes.
@@ -640,7 +653,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
 
         <GuestCsvImport eventId={event.id} />
 
-        <section className="app-card p-6 sm:p-8">
+        <section id="dashboard-activity" className="app-card scroll-mt-24 p-6 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-semibold text-zinc-900">Event activity</h2>
             <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">{eventAuditActivity.length} items</span>
@@ -706,7 +719,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
         </section>
 
         {totalFamilies > 0 ? (
-          <section className="app-card p-5 sm:p-6">
+          <section id="dashboard-communications" className="app-card scroll-mt-24 p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Communications (logged)</p>
             <p className="mt-2 text-sm text-zinc-700">
               <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.totalLogs}</span> actions
