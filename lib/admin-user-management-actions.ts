@@ -4,13 +4,18 @@ import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSuperAdmin } from "@/lib/admin-auth";
+import { logAuditActivity } from "@/lib/audit-log";
 import { prisma } from "@/lib/prisma";
 
 const roleSchema = z.enum(["super_admin", "event_creator"]);
 
+function firstNamePassword(name: string) {
+  const first = name.trim().split(/\s+/)[0] ?? "";
+  return first.toLowerCase();
+}
+
 const createSchema = z.object({
   name: z.string().trim().min(1, "Name is required.").max(80),
-  password: z.string().min(8, "Password must be at least 8 characters."),
   role: roleSchema,
 });
 
@@ -18,10 +23,7 @@ const updateSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1, "Name is required.").max(80).optional(),
   role: roleSchema.optional(),
-  newPassword: z.union([
-    z.literal(""),
-    z.string().min(8, "New password must be at least 8 characters."),
-  ]),
+  resetPassword: z.union([z.literal("0"), z.literal("1")]).optional(),
 });
 
 const transferSchema = z.object({
@@ -54,21 +56,31 @@ export async function createUserAction(
   _prev: UserManageResult | undefined,
   formData: FormData,
 ): Promise<UserManageResult> {
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
   const parsed = createSchema.safeParse({
     name: formData.get("name"),
-    password: formData.get("password"),
     role: formData.get("role"),
   });
   if (!parsed.success) {
     const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
     return { ok: false, error: "Fix the highlighted fields.", fieldErrors };
   }
-  const { name, password, role } = parsed.data;
-  const passwordHash = await hash(password, 12);
+  const { name, role } = parsed.data;
+  const derivedPassword = firstNamePassword(name);
+  const passwordHash = await hash(derivedPassword, 12);
   try {
-    await prisma.user.create({
+    const created = await prisma.user.create({
       data: { name, passwordHash, role, active: true },
+    });
+    await logAuditActivity({
+      userId: admin.id,
+      userName: admin.name,
+      actionType: "user_created",
+      entityType: "User",
+      entityId: created.id,
+      entityName: created.name,
+      message: `${admin.name} created user "${created.name}" (${role === "super_admin" ? "Super Admin" : "Event Creator"}).`,
+      metadata: { role: created.role, active: created.active },
     });
   } catch (e: unknown) {
     const code =
@@ -87,19 +99,18 @@ export async function updateUserAction(
   _prev: UserManageResult | undefined,
   formData: FormData,
 ): Promise<UserManageResult> {
-  await requireSuperAdmin();
-  const rawPassword = String(formData.get("newPassword") ?? "");
+  const admin = await requireSuperAdmin();
   const parsed = updateSchema.safeParse({
     id: formData.get("id"),
     name: formData.get("name") || undefined,
     role: formData.get("role") || undefined,
-    newPassword: rawPassword,
+    resetPassword: String(formData.get("resetPassword") || "0") as "0" | "1",
   });
   if (!parsed.success) {
     const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
     return { ok: false, error: "Fix the highlighted fields.", fieldErrors };
   }
-  const { id, name, role, newPassword } = parsed.data;
+  const { id, name, role, resetPassword } = parsed.data;
   const target = await prisma.user.findUnique({ where: { id } });
   if (!target) {
     return { ok: false, error: "User not found." };
@@ -118,8 +129,9 @@ export async function updateUserAction(
     }
     data.role = role;
   }
-  if (newPassword && newPassword.length >= 8) {
-    data.passwordHash = await hash(newPassword, 12);
+  if (resetPassword === "1") {
+    const nextName = data.name ?? target.name;
+    data.passwordHash = await hash(firstNamePassword(nextName), 12);
   }
 
   if (Object.keys(data).length === 0) {
@@ -127,10 +139,33 @@ export async function updateUserAction(
   }
 
   try {
-    await prisma.user.update({
+    const updated = await prisma.user.update({
       where: { id },
       data,
     });
+    if (role !== undefined && role !== target.role) {
+      await logAuditActivity({
+        userId: admin.id,
+        userName: admin.name,
+        actionType: "user_role_updated",
+        entityType: "User",
+        entityId: updated.id,
+        entityName: updated.name,
+        message: `${admin.name} changed "${updated.name}" role from ${target.role} to ${updated.role}.`,
+        metadata: { from: target.role, to: updated.role },
+      });
+    }
+    if (resetPassword === "1") {
+      await logAuditActivity({
+        userId: admin.id,
+        userName: admin.name,
+        actionType: "user_password_reset",
+        entityType: "User",
+        entityId: updated.id,
+        entityName: updated.name,
+        message: `${admin.name} reset password for "${updated.name}".`,
+      });
+    }
   } catch (e: unknown) {
     const code =
       typeof e === "object" && e !== null && "code" in e ? (e as { code?: string }).code : undefined;
@@ -149,7 +184,7 @@ export async function transferEventsAction(
   _prev: UserManageResult | undefined,
   formData: FormData,
 ): Promise<UserManageResult> {
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
   const parsed = transferSchema.safeParse({
     fromUserId: formData.get("fromUserId"),
     toUserId: formData.get("toUserId"),
@@ -171,6 +206,16 @@ export async function transferEventsAction(
   await prisma.event.updateMany({
     where: { ownerUserId: fromUserId },
     data: { ownerUserId: toUserId },
+  });
+  await logAuditActivity({
+    userId: admin.id,
+    userName: admin.name,
+    actionType: "event_ownership_transferred",
+    entityType: "Event",
+    entityId: fromUserId,
+    entityName: "Ownership transfer",
+    message: `${admin.name} transferred all events from "${from.name}" to "${to.name}".`,
+    metadata: { fromUserId, toUserId, fromName: from.name, toName: to.name },
   });
   revalidatePath("/admin/users");
   revalidatePath("/admin/events");
@@ -232,6 +277,17 @@ export async function deactivateUserAction(
     await prisma.user.update({ where: { id: userId }, data: { active: false } });
   }
 
+  await logAuditActivity({
+    userId: admin.id,
+    userName: admin.name,
+    actionType: "user_deactivated",
+    entityType: "User",
+    entityId: target.id,
+    entityName: target.name,
+    message: `${admin.name} deactivated user "${target.name}".`,
+    metadata: { transferredEvents: eventCount, transferToUserId: transferToUserId ?? null },
+  });
+
   revalidatePath("/admin/users");
   revalidatePath("/admin/login");
   revalidatePath("/admin/events");
@@ -259,18 +315,39 @@ export async function deleteUserAction(
   if (!target) {
     return { ok: false, error: "User not found." };
   }
-  if (target._count.events > 0) {
-    return {
-      ok: false,
-      error: `Cannot delete: this user still owns ${target._count.events} event(s). Transfer ownership first, or deactivate instead.`,
-    };
+  const allowSuperAdminDelete = String(formData.get("allowSuperAdminDelete") || "") === "1";
+  if (target.role === "super_admin" && !allowSuperAdminDelete) {
+    return { ok: false, error: "Super admin deletion requires explicit confirmation." };
   }
   if (target.role === "super_admin" && (await countOtherActiveSuperAdmins(userId)) < 1) {
     return { ok: false, error: "Cannot delete the only active super admin." };
   }
 
-  await prisma.user.delete({ where: { id: userId } });
+  const deletedSummary = {
+    id: target.id,
+    name: target.name,
+    role: target.role,
+    eventsOwned: target._count.events,
+  };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.delete({ where: { id: userId } });
+  });
+  await logAuditActivity({
+    userId: admin.id,
+    userName: admin.name,
+    actionType: "user_deleted",
+    entityType: "User",
+    entityId: deletedSummary.id,
+    entityName: deletedSummary.name,
+    message: `${admin.name} deleted user "${deletedSummary.name}".`,
+    metadata: {
+      role: deletedSummary.role,
+      eventsOwned: deletedSummary.eventsOwned,
+    },
+  });
   revalidatePath("/admin/users");
+  revalidatePath("/admin/events");
   revalidatePath("/admin/login");
   return { ok: true };
 }

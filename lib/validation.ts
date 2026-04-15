@@ -82,6 +82,7 @@ export const eventSchema = z.object({
 export const guestSchema = z
   .object({
     guestName: z.string().trim().min(1, "Guest name is required."),
+    greeting: z.string().trim().max(80, "Greeting must be 80 characters or less.").optional(),
     maxGuests: z.coerce.number().int().min(1, "Max guests must be at least 1."),
     group: z.string().trim().optional(),
     notes: z.string().trim().optional(),
@@ -103,6 +104,7 @@ export const rsvpSchema = z
     attending: z.enum(["yes", "no"]),
     attendingCount: z.coerce.number().int().optional(),
     maxGuests: z.coerce.number().int().min(1),
+  hostMessage: z.string().trim().max(500, "Message must be 500 characters or less.").optional(),
   })
   .superRefine((value, ctx) => {
     if (value.attending === "yes") {

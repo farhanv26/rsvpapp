@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DeleteEventButton } from "@/components/admin/delete-event-button";
 import { SafeEventImage } from "@/components/safe-event-image";
+import { CreatorRealtimeFilters, SuperAdminOwnerFilter } from "@/components/admin/admin-events-filters";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
@@ -16,7 +17,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   const showDeletedNotice = params?.deleted === "1";
   const showForbiddenNotice = params?.error === "forbidden";
   const ownerFilter = params?.owner?.trim() || "all";
-  const creatorQuery = params?.q?.trim().toLowerCase() || "";
+  const liveQuery = params?.q?.trim().toLowerCase() || "";
   const creatorStatusFilter = ["all", "open", "closing_soon", "closes_today", "closed"].includes(
     params?.status ?? "",
   )
@@ -66,17 +67,17 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   } = null;
   let recentActivity: Array<{
     id: string;
-    description: string;
+    message: string;
     createdAt: Date;
-    guest: { guestName: string } | null;
-    event: { title: string } | null;
+    userName: string;
+    actionType: string;
   }> = [];
   let creatorRecentActivity: Array<{
     id: string;
-    description: string;
+    message: string;
     createdAt: Date;
-    guest: { guestName: string } | null;
-    event: { title: string } | null;
+    userName: string;
+    actionType: string;
   }> = [];
 
   try {
@@ -99,16 +100,12 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
     });
     if (Array.isArray(results)) events.push(...results);
     if (isSuper) {
-      recentActivity = await prisma.rsvpActivity.findMany({
+      recentActivity = await prisma.auditActivity.findMany({
         orderBy: { createdAt: "desc" },
         take: 8,
-        include: {
-          guest: { select: { guestName: true } },
-          event: { select: { title: true } },
-        },
       });
     } else if (results.length > 0) {
-      creatorRecentActivity = await prisma.rsvpActivity.findMany({
+      creatorRecentActivity = await prisma.auditActivity.findMany({
         where: {
           eventId: {
             in: results.map((event) => event.id),
@@ -116,10 +113,6 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
         },
         orderBy: { createdAt: "desc" },
         take: 6,
-        include: {
-          guest: { select: { guestName: true } },
-          event: { select: { title: true } },
-        },
       });
     }
 
@@ -168,16 +161,29 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
     const eventAny = event as unknown as { owner?: { name?: string | null }; ownerName?: string | null };
     return eventAny.owner?.name || eventAny.ownerName || "Unassigned";
   };
-  const visibleEvents =
+  const visibleEventsRaw =
     isSuper && ownerFilter !== "all"
       ? events.filter((event) => ownerLabelOf(event) === ownerFilter)
       : events;
+  const visibleEvents = visibleEventsRaw.filter((event) => {
+    if (!liveQuery) return true;
+    const title = event.title?.toLowerCase() ?? "";
+    const couple = event.coupleNames?.toLowerCase() ?? "";
+    const slug = event.slug?.toLowerCase() ?? "";
+    const owner = ownerLabelOf(event).toLowerCase();
+    return (
+      title.includes(liveQuery) ||
+      couple.includes(liveQuery) ||
+      slug.includes(liveQuery) ||
+      owner.includes(liveQuery)
+    );
+  });
   const creatorFilteredEvents = !isSuper
     ? visibleEvents.filter((event) => {
         const safeTitle = event.title?.toLowerCase() ?? "";
         const safeCouple = event.coupleNames?.toLowerCase() ?? "";
-        const matchesQuery = creatorQuery
-          ? safeTitle.includes(creatorQuery) || safeCouple.includes(creatorQuery)
+        const matchesQuery = liveQuery
+          ? safeTitle.includes(liveQuery) || safeCouple.includes(liveQuery)
           : true;
         const status = getRsvpDeadlineMeta(event.rsvpDeadline)?.status ?? "open";
         const matchesStatus = creatorStatusFilter === "all" ? true : status === creatorStatusFilter;
@@ -188,9 +194,13 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   const totalEventsInScope = events.length;
   const isTrueEmptyList = totalEventsInScope === 0;
   const isFilteredEmptyList = totalEventsInScope > 0 && renderedEvents.length === 0;
-  const hasActiveCreatorFilters = Boolean(creatorQuery) || creatorStatusFilter !== "all";
+  const hasActiveCreatorFilters = Boolean(liveQuery) || creatorStatusFilter !== "all";
   const hasActiveSuperOwnerFilter = isSuper && ownerFilter !== "all";
   const invitedFamilies = visibleEvents.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0);
+  const respondedFamilies = visibleEvents.reduce(
+    (sum, event) => sum + (Array.isArray(event.guests) ? event.guests.filter((guest) => Boolean(guest.respondedAt)).length : 0),
+    0,
+  );
   const confirmedAttendees = visibleEvents.reduce(
     (sum, event) =>
       sum +
@@ -199,11 +209,21 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
         : 0),
     0,
   );
+  const totalMaxInvitedAll = visibleEvents.reduce(
+    (sum, event) =>
+      sum +
+      (Array.isArray(event.guests)
+        ? event.guests.reduce((guestSum, guest) => guestSum + (guest.maxGuests ?? 0), 0)
+        : 0),
+    0,
+  );
   const pendingResponses = visibleEvents.reduce(
     (sum, event) =>
       sum + (Array.isArray(event.guests) ? event.guests.filter((guest) => !guest.respondedAt).length : 0),
     0,
   );
+  const responseRate = invitedFamilies > 0 ? respondedFamilies / invitedFamilies : 0;
+  const attendanceRate = totalMaxInvitedAll > 0 ? confirmedAttendees / totalMaxInvitedAll : 0;
   const closingSoonCount = visibleEvents.filter((event) => {
     const meta = getRsvpDeadlineMeta(event.rsvpDeadline);
     return meta?.status === "closing_soon" || meta?.status === "closes_today";
@@ -287,25 +307,20 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
           </div>
         )}
 
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <OverviewStat label="Response rate" value={`${Math.round(responseRate * 100)}%`} />
+          <OverviewStat label="Attendance rate" value={`${Math.round(attendanceRate * 100)}%`} />
+          <OverviewStat label="Responded families" value={respondedFamilies} />
+          <OverviewStat label="Max invited" value={totalMaxInvitedAll} />
+        </div>
+
         {isSuper ? (
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="section-title">Creator filter</p>
               <p className="mt-1 text-sm text-zinc-600">Filter all events by creator owner.</p>
             </div>
-            <form className="flex items-center gap-2">
-              <select name="owner" defaultValue={ownerFilter} className="input-luxe mt-0 w-52 py-2.5 text-sm">
-                <option value="all">All creators</option>
-                {creatorFilterNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              <button type="submit" className="btn-secondary">
-                Apply
-              </button>
-            </form>
+            <SuperAdminOwnerFilter owner={ownerFilter} q={liveQuery} ownerOptions={creatorFilterNames} />
           </div>
         ) : null}
 
@@ -316,28 +331,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                 <p className="section-title">My events</p>
                 <p className="mt-1 text-sm text-zinc-600">Find and manage your events quickly.</p>
               </div>
-              <form className="flex flex-wrap items-center gap-2">
-                <input
-                  name="q"
-                  defaultValue={creatorQuery}
-                  placeholder="Search event title or couple names"
-                  className="input-luxe mt-0 w-64 py-2.5 text-sm"
-                />
-                <select
-                  name="status"
-                  defaultValue={creatorStatusFilter}
-                  className="input-luxe mt-0 w-44 py-2.5 text-sm"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="open">Open</option>
-                  <option value="closing_soon">Closing soon</option>
-                  <option value="closes_today">Closes today</option>
-                  <option value="closed">Closed</option>
-                </select>
-                <button type="submit" className="btn-secondary">
-                  Apply
-                </button>
-              </form>
+              <CreatorRealtimeFilters q={liveQuery} status={creatorStatusFilter} />
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
@@ -368,10 +362,9 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                         key={activity.id}
                         className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-3"
                       >
-                        <p className="text-sm text-zinc-800">
-                          <span className="font-semibold">{activity.guest?.guestName ?? "Guest"}</span>{" "}
-                          {activity.description} for{" "}
-                          <span className="font-semibold">{activity.event?.title ?? "an event"}</span>
+                        <p className="text-sm text-zinc-800">{activity.message}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500">
+                          {activity.userName} · {formatActionLabel(activity.actionType)}
                         </p>
                         <p className="mt-1 text-xs text-zinc-500">
                           {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
@@ -414,9 +407,10 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                   {recentActivity.map((activity) => (
                     <article key={activity.id} className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-3">
                       <p className="text-sm text-zinc-800">
-                        <span className="font-semibold">{activity.guest?.guestName ?? "Guest"}</span>{" "}
-                        {activity.description} for{" "}
-                        <span className="font-semibold">{activity.event?.title ?? "an event"}</span>
+                        {activity.message}
+                      </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.12em] text-zinc-500">
+                        {activity.userName} · {formatActionLabel(activity.actionType)}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
                         {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
@@ -597,9 +591,6 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <span className="badge-soft">{event._count?.guests ?? guests.length} families</span>
-                      <span className="badge-neutral">
-                        {event.theme === "floral" ? "Floral" : "Modern"}
-                      </span>
                       {deadlineLabel ? (
                         <span
                           className={`${
@@ -715,4 +706,12 @@ function MiniStat({ label, value }: { label: string; value: number | string }) {
       <p className="mt-1 text-lg font-semibold tabular-nums text-zinc-900">{value}</p>
     </div>
   );
+}
+
+function formatActionLabel(value: string) {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

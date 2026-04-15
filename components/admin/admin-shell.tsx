@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AdminAccountMenu } from "@/components/admin/admin-account-menu";
+import { AdminNotificationBell } from "@/components/admin/admin-notification-bell";
 
 type ShellUser = {
   name: string;
@@ -22,8 +23,10 @@ export function AdminShell({
   }
 
   const showUsersNav = user.role === "super_admin";
+  const showActivityNav = user.role === "super_admin";
   const eventsActive = path.startsWith("/admin/events");
   const usersActive = path.startsWith("/admin/users");
+  const activityActive = path.startsWith("/admin/activity");
 
   return (
     <>
@@ -58,10 +61,25 @@ export function AdminShell({
                     Users
                   </Link>
                 ) : null}
+                {showActivityNav ? (
+                  <Link
+                    href="/admin/activity"
+                    className={
+                      activityActive
+                        ? "rounded-full bg-white/90 px-3.5 py-1.5 text-sm font-semibold text-zinc-900 shadow-sm ring-1 ring-[#e2d4bf]"
+                        : "rounded-full px-3.5 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-white/60 hover:text-zinc-900"
+                    }
+                  >
+                    Activity
+                  </Link>
+                ) : null}
               </nav>
             </div>
           </div>
-          <AdminAccountMenu user={user} />
+          <div className="flex items-center gap-2">
+            <AdminNotificationBell />
+            <AdminAccountMenu user={user} />
+          </div>
         </div>
       </div>
       {children}

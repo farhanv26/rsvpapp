@@ -85,7 +85,6 @@ export default async function RsvpTokenPage({ params }: Props) {
       event: {
         select: {
           title: true,
-          theme: true,
           description: true,
           imagePath: true,
           coupleNames: true,
@@ -128,11 +127,8 @@ export default async function RsvpTokenPage({ params }: Props) {
   const hasCeremonyDetails = Boolean(ev.eventDate || ev.eventTime || ev.venue);
   const displayNames = ev.coupleNames?.trim() || ev.title;
   const showScriptNames = Boolean(ev.coupleNames?.trim());
-  const isFloral = ev.theme === "floral";
-  const panelClass = isFloral
-    ? "border-[#e7d6da] bg-[#fff9fb] shadow-[0_20px_55px_-40px_rgba(99,64,74,0.35)]"
-    : "border-[#e7dccb] bg-[#fffdfa] shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]";
-  const detailClass = isFloral ? "border-[#e7d6da] bg-[#fdf5f8]" : "border-[#e7dccb] bg-[#fbf8f2]";
+  const panelClass = "border-[#e7dccb] bg-[#fffdfa] shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]";
+  const detailClass = "border-[#e7dccb] bg-[#fbf8f2]";
 
   return (
     <main className="flex min-h-dvh flex-col justify-center px-4 py-8 sm:px-6">
@@ -227,6 +223,7 @@ export default async function RsvpTokenPage({ params }: Props) {
               respondedAtLabel={formatDateTime(guest.respondedAt)}
               attending={guest.attending}
               attendingCount={guest.attendingCount}
+              hostMessage={(guest as unknown as { hostMessage?: string | null }).hostMessage ?? null}
               canEdit={!isRsvpClosed}
             />
           ) : (

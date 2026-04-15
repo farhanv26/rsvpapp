@@ -9,6 +9,7 @@ type Props = {
   respondedAtLabel: string;
   attending: boolean | null;
   attendingCount: number | null;
+  hostMessage: string | null;
   canEdit: boolean;
 };
 
@@ -18,6 +19,7 @@ export function RsvpResponsePanel({
   respondedAtLabel,
   attending,
   attendingCount,
+  hostMessage,
   canEdit,
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
@@ -29,6 +31,8 @@ export function RsvpResponsePanel({
         maxGuests={maxGuests}
         isLocked={false}
         initialAttending={attending ? "yes" : "no"}
+        initialAttendingCount={attendingCount}
+        initialHostMessage={hostMessage}
         onCancelEdit={() => setIsEditing(false)}
       />
     );
@@ -49,6 +53,12 @@ export function RsvpResponsePanel({
         )}
       </p>
       <p className="mt-6 text-xs uppercase tracking-[0.16em] text-zinc-500">Recorded {respondedAtLabel}</p>
+      {hostMessage ? (
+        <div className="mx-auto mt-6 max-w-md rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-4 text-left">
+          <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">Message to host</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{hostMessage}</p>
+        </div>
+      ) : null}
       {canEdit ? (
         <button type="button" onClick={() => setIsEditing(true)} className="btn-secondary mt-5">
           Edit RSVP

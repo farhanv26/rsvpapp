@@ -7,6 +7,7 @@ import {
   selectRowsForImport,
 } from "@/lib/csv-guests";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
+import { logAuditActivity } from "@/lib/audit-log";
 import { prisma } from "@/lib/prisma";
 import { generateSecureToken } from "@/lib/security";
 
@@ -17,12 +18,12 @@ async function ensureCsvEventAccess(eventId: string) {
     select: { id: true, ownerUserId: true },
   });
   if (!event) {
-    return { error: "Event not found.", event: null };
+    return { error: "Event not found.", event: null, admin: null };
   }
   if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
-    return { error: "You are not allowed to import guests for this event.", event: null };
+    return { error: "You are not allowed to import guests for this event.", event: null, admin: null };
   }
-  return { error: null, event };
+  return { error: null, event, admin };
 }
 
 export async function previewGuestCsvAction(eventId: string, csvText: string) {
@@ -96,6 +97,7 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
         data: {
           eventId,
           guestName: row.guestName,
+          greeting: row.greeting?.trim() || "Assalamu Alaikum",
           maxGuests: row.maxGuests,
           group: row.group?.trim() || null,
           notes: row.notes?.trim() || null,
@@ -106,6 +108,25 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
       }),
     ),
   );
+
+  if (access.admin) {
+    await logAuditActivity({
+      eventId,
+      userId: access.admin.id,
+      userName: access.admin.name,
+      actionType: "guest_bulk_imported",
+      entityType: "Guest",
+      entityId: eventId,
+      entityName: "CSV import",
+      message: `${access.admin.name} imported ${toCreate.length} guest(s) from CSV.`,
+      metadata: {
+        created: toCreate.length,
+        skippedInvalid,
+        skippedDuplicateInDb,
+        skippedDuplicateInFile,
+      },
+    });
+  }
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath("/admin/events");

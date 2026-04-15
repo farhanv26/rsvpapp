@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createGuestAction } from "@/app/admin/events/actions";
 import { DeleteEventButton } from "@/components/admin/delete-event-button";
+import { EventRsvpShare } from "@/components/admin/event-rsvp-share";
 import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
@@ -11,13 +12,17 @@ import { getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/ut
 
 type Props = {
   params: Promise<{ eventId: string }>;
+  searchParams?: Promise<{ activityQ?: string; activityAction?: string }>;
 };
 
 export const dynamic = "force-dynamic";
 
-export default async function EventDashboardPage({ params }: Props) {
+export default async function EventDashboardPage({ params, searchParams }: Props) {
   const admin = await requireCurrentAdminUser();
   const { eventId } = await params;
+  const activityParams = searchParams ? await searchParams : undefined;
+  const activityQ = activityParams?.activityQ?.trim() || "";
+  const activityAction = activityParams?.activityAction?.trim() || "all";
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -62,10 +67,13 @@ export default async function EventDashboardPage({ params }: Props) {
     (sum, guest) => sum + (guest.attendingCount ?? 0),
     0,
   );
+  const responseRate = totalFamilies > 0 ? totalResponded / totalFamilies : 0;
+  const attendanceRate = totalMaximumInvited > 0 ? totalConfirmedAttendees / totalMaximumInvited : 0;
 
   const guestsSerialized = event.guests.map((g) => ({
     id: g.id,
     guestName: g.guestName,
+    greeting: (g as unknown as { greeting?: string | null }).greeting ?? "Assalamu Alaikum",
     maxGuests: g.maxGuests,
     token: g.token,
     attending: g.attending,
@@ -73,9 +81,11 @@ export default async function EventDashboardPage({ params }: Props) {
     respondedAt: g.respondedAt?.toISOString() ?? null,
     group: g.group,
     notes: g.notes,
+    hostMessage: (g as unknown as { hostMessage?: string | null }).hostMessage ?? null,
     phone: g.phone,
     email: g.email,
     createdAt: g.createdAt.toISOString(),
+    updatedAt: g.updatedAt.toISOString(),
   }));
   const safeImageSrc = getSafeImageSrc(event.imagePath);
   console.info("[event-image] admin detail render src", {
@@ -84,6 +94,42 @@ export default async function EventDashboardPage({ params }: Props) {
     safeImageSrc,
   });
   const deadlineMeta = getRsvpDeadlineMeta(event.rsvpDeadline);
+  const eventAuditActivity = await prisma.auditActivity.findMany({
+    where: {
+      eventId: event.id,
+      ...(activityAction !== "all" ? { actionType: activityAction } : {}),
+      ...(activityQ
+        ? {
+            OR: [
+              { message: { contains: activityQ, mode: "insensitive" } },
+              { userName: { contains: activityQ, mode: "insensitive" } },
+              { entityName: { contains: activityQ, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 80,
+  });
+  const eventActivityActionOptions = [
+    "all",
+    "event_updated",
+    "guest_created",
+    "guest_updated",
+    "guest_deleted",
+    "guest_bulk_deleted",
+    "guest_bulk_imported",
+    "rsvp_submitted",
+    "rsvp_updated",
+    "communication_email_queued",
+    "communication_email_sent",
+    "communication_email_failed",
+    "communication_email_guest_sent",
+    "communication_email_guest_failed",
+    "communication_email_guest_skipped",
+    "communication_whatsapp_prepared",
+    "communication_whatsapp_bulk_prepared",
+  ];
 
   return (
     <main className="min-h-screen">
@@ -145,11 +191,6 @@ export default async function EventDashboardPage({ params }: Props) {
                 ) : null}
               </div>
             ) : null}
-            <div className="mt-2">
-              <span className="badge-neutral">
-                Theme: {event.theme === "floral" ? "Floral" : "Modern"}
-              </span>
-            </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Link
@@ -158,6 +199,15 @@ export default async function EventDashboardPage({ params }: Props) {
             >
               Edit event
             </Link>
+            <EventRsvpShare
+              eventTitle={event.title}
+              guests={guestsSerialized.map((g) => ({
+                id: g.id,
+                guestName: g.guestName,
+                token: g.token,
+                greeting: g.greeting,
+              }))}
+            />
             <DeleteEventButton
               eventId={event.id}
               redirectToListOnSuccess
@@ -199,6 +249,8 @@ export default async function EventDashboardPage({ params }: Props) {
             value={totalAttendingFamilies}
             sub={`${totalDeclinedFamilies} declined`}
           />
+          <StatCard label="Response rate" value={`${Math.round(responseRate * 100)}%`} />
+          <StatCard label="Attendance rate" value={`${Math.round(attendanceRate * 100)}%`} />
         </section>
 
         {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
@@ -252,6 +304,16 @@ export default async function EventDashboardPage({ params }: Props) {
               />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
+              Greeting
+              <input
+                name="greeting"
+                type="text"
+                defaultValue="Assalamu Alaikum"
+                className="input-luxe"
+                placeholder="Assalamu Alaikum"
+              />
+            </label>
+            <label className="block text-sm font-medium text-zinc-700">
               Group / side
               <input name="group" type="text" className="input-luxe" />
             </label>
@@ -278,15 +340,31 @@ export default async function EventDashboardPage({ params }: Props) {
         <GuestCsvImport eventId={event.id} />
 
         <section className="app-card p-6 sm:p-8">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold text-zinc-900">Recent RSVP updates</h2>
-            <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">
-              {event.rsvpActivities.length} items
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold text-zinc-900">Event activity</h2>
+            <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">{eventAuditActivity.length} items</span>
           </div>
-          {event.rsvpActivities.length === 0 ? (
+          <form method="get" className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]">
+            <input
+              name="activityQ"
+              defaultValue={activityQ}
+              placeholder="Search activity..."
+              className="input-luxe mt-0"
+            />
+            <select name="activityAction" defaultValue={activityAction} className="input-luxe mt-0">
+              {eventActivityActionOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="btn-secondary">
+              Filter
+            </button>
+          </form>
+          {eventAuditActivity.length === 0 ? (
             <p className="mt-4 rounded-2xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-4 py-6 text-sm text-zinc-600">
-              No RSVP updates yet.
+              No activity matched your filters yet.
             </p>
           ) : (
             <div className="mt-4 space-y-3">
@@ -303,13 +381,16 @@ export default async function EventDashboardPage({ params }: Props) {
                   </p>
                 </article>
               ) : null}
-              {event.rsvpActivities.map((activity) => (
+              {eventAuditActivity.map((activity) => (
                 <article
                   key={activity.id}
                   className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-3"
                 >
                   <p className="text-sm font-medium text-zinc-900">
-                    {activity.guest?.guestName ?? "Guest"} · {activity.description}
+                    {activity.message}
+                  </p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">
+                    {activity.userName} · {formatActionLabel(activity.actionType)}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {new Intl.DateTimeFormat("en-US", {
@@ -332,6 +413,14 @@ export default async function EventDashboardPage({ params }: Props) {
       </div>
     </main>
   );
+}
+
+function formatActionLabel(value: string) {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function StatCard({

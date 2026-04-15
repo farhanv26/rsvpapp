@@ -4,6 +4,7 @@ import { z } from "zod";
 export const guestImportRowSchema = z
   .object({
     guestName: z.string().trim().min(1, "guestName is required"),
+    greeting: z.string().trim().max(80, "greeting must be 80 characters or less").optional(),
     maxGuests: z.coerce.number().int().min(1, "maxGuests must be at least 1"),
     group: z.string().trim().optional(),
     notes: z.string().optional(),
@@ -33,6 +34,7 @@ function mapHeaderToField(header: string): string | null {
     maxguests: "maxGuests",
     "max guests": "maxGuests",
     group: "group",
+    greeting: "greeting",
     notes: "notes",
     phone: "phone",
     email: "email",
@@ -142,6 +144,7 @@ export function previewGuestCsv(
       guestName: obj.guestName ?? "",
       maxGuests: obj.maxGuests === "" ? undefined : obj.maxGuests,
       group: obj.group || undefined,
+      greeting: obj.greeting || undefined,
       notes: obj.notes || undefined,
       phone: obj.phone || undefined,
       email: obj.email || undefined,

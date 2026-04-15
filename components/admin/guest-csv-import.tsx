@@ -66,7 +66,7 @@ export function GuestCsvImport({ eventId }: Props) {
           <p className="mt-1 text-sm text-zinc-600">
             Required columns: <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">guestName</code>,{" "}
             <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">maxGuests</code>. Optional:{" "}
-            <code className="text-xs">group</code>, <code className="text-xs">notes</code>,{" "}
+            <code className="text-xs">greeting</code>, <code className="text-xs">group</code>, <code className="text-xs">notes</code>,{" "}
             <code className="text-xs">phone</code>, <code className="text-xs">email</code>.
           </p>
         </div>
@@ -112,7 +112,7 @@ export function GuestCsvImport({ eventId }: Props) {
               setSuccess(null);
             }}
             rows={6}
-            placeholder={`guestName,maxGuests,group,notes\nThe Valli Family,4,Family,,`}
+            placeholder={`guestName,greeting,maxGuests,group,notes\nThe Valli Family,Assalamu Alaikum,4,Family,,`}
             className="w-full rounded-xl border border-[#dccfbb] bg-white px-4 py-3 font-mono text-sm text-zinc-900 placeholder:text-zinc-400"
           />
           <p className="mt-2 text-xs text-zinc-500">Tip: drag and drop your CSV file into this area.</p>
@@ -187,6 +187,7 @@ export function GuestCsvImport({ eventId }: Props) {
                 <tr>
                   <th className="px-3 py-2 font-medium">#</th>
                   <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="hidden px-3 py-2 font-medium md:table-cell">Greeting</th>
                   <th className="px-3 py-2 font-medium">Max</th>
                   <th className="hidden px-3 py-2 font-medium sm:table-cell">Group</th>
                   <th className="px-3 py-2 font-medium">Status</th>
@@ -197,6 +198,7 @@ export function GuestCsvImport({ eventId }: Props) {
                   <tr key={row.lineNumber} className={row.data ? "" : "bg-red-50/50"}>
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-500">{row.lineNumber}</td>
                     <td className="px-3 py-2 font-medium text-zinc-900">{row.data?.guestName ?? "—"}</td>
+                    <td className="hidden px-3 py-2 text-zinc-600 md:table-cell">{row.data?.greeting ?? "Assalamu Alaikum"}</td>
                     <td className="px-3 py-2">{row.data?.maxGuests ?? "—"}</td>
                     <td className="hidden px-3 py-2 text-zinc-600 sm:table-cell">{row.data?.group ?? "—"}</td>
                     <td className="px-3 py-2">

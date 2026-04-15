@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { loginAdminAction } from "@/app/admin/login/actions";
 import { formatAdminRoleLabel } from "@/lib/admin-roles";
@@ -27,6 +27,12 @@ export function AdminLoginForm({
     initialUser && users.some((u) => u.name === initialUser) ? initialUser : users[0]?.name ?? "";
   const [selectedUser, setSelectedUser] = useState(safeInitial);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (initialUser && users.some((u) => u.name === initialUser)) {
+      setSelectedUser(initialUser);
+    }
+  }, [initialUser, users]);
 
   const roleLabel = useMemo(() => {
     const match = users.find((u) => u.name === selectedUser);

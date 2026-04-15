@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { logAuditActivity } from "@/lib/audit-log";
+import { dispatchEventCommunication } from "@/lib/communications";
 import { rsvpSchema } from "@/lib/validation";
 
 export async function submitRsvpAction(formData: FormData) {
@@ -23,6 +25,8 @@ export async function submitRsvpAction(formData: FormData) {
       event: {
         select: {
           rsvpDeadline: true,
+          title: true,
+          ownerUserId: true,
         },
       },
     },
@@ -46,6 +50,7 @@ export async function submitRsvpAction(formData: FormData) {
     attending: formData.get("attending"),
     attendingCount: formData.get("attendingCount") || undefined,
     maxGuests: guest.maxGuests,
+    hostMessage: formData.get("hostMessage") || undefined,
   });
 
   if (!parsed.success) {
@@ -62,6 +67,7 @@ export async function submitRsvpAction(formData: FormData) {
       attending: nextAttending,
       attendingCount: nextAttendingCount,
       respondedAt: now,
+      hostMessage: parsed.data.hostMessage?.trim() || null,
     },
   });
 
@@ -99,6 +105,45 @@ export async function submitRsvpAction(formData: FormData) {
       guestId: guest.id,
       type,
       description,
+    },
+  });
+
+  await logAuditActivity({
+    eventId: guest.eventId,
+    userId: null,
+    userName: guest.guestName,
+    actionType: wasResponded ? "rsvp_updated" : "rsvp_submitted",
+    entityType: "RSVP",
+    entityId: guest.id,
+    entityName: guest.guestName,
+    message: wasResponded
+      ? `${guest.guestName} updated RSVP (${nextAttending ? `${nextAttendingCount ?? 0} attending` : "declined"}).`
+      : `${guest.guestName} submitted RSVP (${nextAttending ? `${nextAttendingCount ?? 0} attending` : "declined"}).`,
+    metadata: {
+      attending: nextAttending,
+      attendingCount: nextAttendingCount ?? 0,
+      changeType: type,
+      respondedAt: now.toISOString(),
+    },
+  });
+  await dispatchEventCommunication({
+    trigger: wasResponded ? "rsvp_updated" : "rsvp_submitted",
+    eventId: guest.eventId,
+    entityType: "RSVP",
+    entityId: guest.id,
+    title: wasResponded
+      ? `RSVP updated for ${guest.guestName}`
+      : `New RSVP submitted for ${guest.guestName}`,
+    description: nextAttending ? `${nextAttendingCount ?? 0} attending.` : "Declined invitation.",
+    guestName: guest.guestName,
+    attendingLabel: nextAttending ? "Attending" : "Declined",
+    attendingCount: nextAttendingCount,
+    hostMessage: parsed.data.hostMessage?.trim() || null,
+    actorName: guest.guestName,
+    metadata: {
+      eventTitle: guest.event.title,
+      respondedAt: now.toISOString(),
+      changeType: type,
     },
   });
 

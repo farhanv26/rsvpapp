@@ -225,21 +225,9 @@ export function UserManagementPanel({ initialUsers }: { initialUsers: UserRowSer
               <input id="create-name" name="name" required className="input-luxe mt-1.5 w-full" placeholder="Unique display name" />
               <FieldError messages={createState && !createState.ok ? createState.fieldErrors?.name : undefined} />
             </div>
-            <div>
-              <label className="text-sm font-medium text-zinc-700" htmlFor="create-password">
-                Password
-              </label>
-              <input
-                id="create-password"
-                name="password"
-                type="password"
-                required
-                autoComplete="new-password"
-                className="input-luxe mt-1.5 w-full"
-                placeholder="At least 8 characters"
-              />
-              <FieldError messages={createState && !createState.ok ? createState.fieldErrors?.password : undefined} />
-            </div>
+            <p className="rounded-xl border border-[#ebe4d6] bg-[#f9f4eb]/70 px-3 py-2 text-xs text-zinc-600">
+              Password is auto-set to this user&apos;s lowercase first name (for example, Farhan → farhan).
+            </p>
             <div>
               <label className="text-sm font-medium text-zinc-700" htmlFor="create-role">
                 Role
@@ -296,20 +284,17 @@ export function UserManagementPanel({ initialUsers }: { initialUsers: UserRowSer
                 <option value="super_admin">Super Admin</option>
               </select>
             </div>
-            <div>
-              <label className="text-sm font-medium text-zinc-700" htmlFor="edit-password">
-                New password (optional)
-              </label>
-              <input
-                id="edit-password"
-                name="newPassword"
-                type="password"
-                autoComplete="new-password"
-                className="input-luxe mt-1.5 w-full"
-                placeholder="Leave blank to keep current"
-              />
-              <FieldError messages={updateState && !updateState.ok ? updateState.fieldErrors?.newPassword : undefined} />
-            </div>
+            <p className="rounded-xl border border-[#ebe4d6] bg-[#f9f4eb]/70 px-3 py-2 text-xs text-zinc-600">
+              Passwords use lowercase first-name format.
+            </p>
+            <button
+              type="submit"
+              name="resetPassword"
+              value="1"
+              className="btn-secondary mt-2 text-xs"
+            >
+              Reset password to lowercase first name
+            </button>
             {updateState && !updateState.ok && updateState.error ? (
               <p className="text-sm text-rose-700">{updateState.error}</p>
             ) : null}
@@ -410,8 +395,14 @@ export function UserManagementPanel({ initialUsers }: { initialUsers: UserRowSer
           <form action={deleteAction} className="space-y-4">
             <input type="hidden" name="userId" value={deleteTarget.id} />
             <p className="text-sm text-zinc-600">
-              Deleting removes the account from the database permanently. Only allowed when the user owns no events.
+              This permanently deletes the user and all owned events, guests, RSVP responses, and activity logs.
             </p>
+            {deleteTarget.role === "super_admin" ? (
+              <label className="flex items-center gap-2 text-sm text-zinc-700">
+                <input type="checkbox" name="allowSuperAdminDelete" value="1" />
+                I understand this deletes a super admin account.
+              </label>
+            ) : null}
             {deleteState && !deleteState.ok ? <p className="text-sm text-rose-700">{deleteState.error}</p> : null}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="btn-secondary" onClick={() => setDeleteTarget(null)}>

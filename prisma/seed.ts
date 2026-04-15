@@ -5,6 +5,11 @@ import { BOOTSTRAP_SUPER_ADMIN } from "../lib/admin-identities";
 
 const prisma = new PrismaClient();
 
+function firstNamePassword(name: string) {
+  const first = name.trim().split(/\s+/)[0] ?? "";
+  return first.toLowerCase();
+}
+
 async function main() {
   const identity = BOOTSTRAP_SUPER_ADMIN;
   const farhan = await prisma.user.upsert({
@@ -12,13 +17,13 @@ async function main() {
     update: {
       role: identity.role,
       active: true,
-      passwordHash: await hash(identity.name.toLowerCase(), 12),
+      passwordHash: await hash(firstNamePassword(identity.name), 12),
     },
     create: {
       name: identity.name,
       role: identity.role,
       active: true,
-      passwordHash: await hash(identity.name.toLowerCase(), 12),
+      passwordHash: await hash(firstNamePassword(identity.name), 12),
     },
   });
 

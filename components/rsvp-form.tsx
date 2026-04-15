@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { submitRsvpAction } from "@/app/rsvp/[token]/actions";
 
 type RsvpFormProps = {
@@ -8,6 +9,8 @@ type RsvpFormProps = {
   maxGuests: number;
   isLocked: boolean;
   initialAttending?: "yes" | "no";
+  initialAttendingCount?: number | null;
+  initialHostMessage?: string | null;
   onCancelEdit?: () => void;
 };
 
@@ -19,11 +22,20 @@ export function RsvpForm({
   maxGuests,
   isLocked,
   initialAttending = "yes",
+  initialAttendingCount = null,
+  initialHostMessage = null,
   onCancelEdit,
 }: RsvpFormProps) {
+  const router = useRouter();
   const [attending, setAttending] = useState<"yes" | "no">(initialAttending);
-  const [attendingCount, setAttendingCount] = useState(0);
+  const [attendingCount, setAttendingCount] = useState(() => {
+    if (initialAttending === "yes" && typeof initialAttendingCount === "number") {
+      return Math.min(maxGuests, Math.max(0, initialAttendingCount));
+    }
+    return 0;
+  });
   const [error, setError] = useState<string | null>(null);
+  const [hostMessage, setHostMessage] = useState(initialHostMessage ?? "");
   const [showConfirm, setShowConfirm] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -41,8 +53,12 @@ export function RsvpForm({
         if (attending === "yes") {
           formData.set("attendingCount", String(attendingCount));
         }
+        if (hostMessage.trim()) {
+          formData.set("hostMessage", hostMessage.trim());
+        }
         await submitRsvpAction(formData);
-        window.location.reload();
+        setShowConfirm(false);
+        router.refresh();
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Could not submit RSVP.";
@@ -166,6 +182,20 @@ export function RsvpForm({
         </div>
       ) : null}
 
+      <div className="mt-8 rounded-2xl border border-[#e7dccb] bg-white px-4 py-4">
+        <p className="text-center text-sm font-medium text-zinc-800">Message to host (optional)</p>
+        <p className="mt-1 text-center text-xs text-zinc-500">Share a quick note with your hosts.</p>
+        <textarea
+          value={hostMessage}
+          onChange={(e) => setHostMessage(e.target.value)}
+          maxLength={500}
+          rows={3}
+          className="mt-3 w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#b28944] focus:ring-2 focus:ring-[#b28944]/20"
+          placeholder="Write a message…"
+        />
+        <p className="mt-2 text-right text-[11px] text-zinc-500">{hostMessage.length}/500</p>
+      </div>
+
       {error ? (
         <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-sm text-red-700" role="alert">
           {error}
@@ -191,8 +221,8 @@ export function RsvpForm({
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Confirm RSVP</p>
           <p className="mt-3 text-base text-zinc-800">
             {attending === "yes"
-              ? `You are confirming your presence with ${attendingCount} guest(s).`
-              : "You are declining the invitation."}
+              ? `You’re confirming attendance for ${attendingCount} guest(s).`
+              : "You’re letting your hosts know you can’t make it."}
           </p>
           <div className="mt-6 flex gap-3">
             <button
