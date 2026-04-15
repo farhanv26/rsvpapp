@@ -8,6 +8,8 @@ import {
   deleteGuestAction,
   logBulkWhatsappPreparedAction,
   logGuestWhatsappPreparedAction,
+  markGuestsInvitedAction,
+  recordGuestManualRsvpAction,
   sendBulkGuestInviteEmailsAction,
   sendGuestInviteEmailAction,
   updateGuestAction,
@@ -16,7 +18,6 @@ import { ReviewDuplicatesModal } from "@/components/admin/review-duplicates-moda
 import { SendInvitesModal } from "@/components/admin/send-invites-modal";
 import {
   getGuestFollowUpState,
-  followUpBadgeClass,
   isInvitedAwaitingRsvp,
   matchesFollowUpFilter,
   type GuestFollowUpId,
@@ -32,7 +33,6 @@ import {
 import {
   getGuestReadiness,
   matchesReadinessFilter,
-  readinessBadgeClass,
   type GuestReadinessId,
 } from "@/lib/guest-readiness";
 import { buildGuestWhatsAppInviteMessage, getWhatsAppShareUrl } from "@/lib/whatsapp";
@@ -76,10 +76,11 @@ type Props = {
   communicationLastByGuest?: Record<string, { channel: string; at: string }>;
 };
 
-function statusOf(g: GuestPanelGuest): "pending" | "attending" | "declined" {
-  if (!g.respondedAt) return "pending";
-  if (g.attending === true) return "attending";
-  return "declined";
+function guestPrimaryStatus(g: GuestPanelGuest): "attending" | "declined" | "invited" | "not_invited" {
+  if (g.respondedAt && g.attending === true) return "attending";
+  if (g.respondedAt && g.attending !== true) return "declined";
+  if (g.invitedAt) return "invited";
+  return "not_invited";
 }
 
 function formatDate(iso: string | null) {
@@ -90,23 +91,22 @@ function formatDate(iso: string | null) {
   }).format(new Date(iso));
 }
 
-function statusLabel(status: ReturnType<typeof statusOf>) {
-  if (status === "pending") return "Pending";
+function statusLabel(status: ReturnType<typeof guestPrimaryStatus>) {
   if (status === "attending") return "Attending";
-  return "Declined";
+  if (status === "declined") return "Declined";
+  if (status === "invited") return "Invited";
+  return "Not Invited";
 }
 
-function statusBadgeClass(status: ReturnType<typeof statusOf>) {
-  if (status === "pending") return "badge-neutral";
-  if (status === "attending") return "badge-success";
-  return "badge-danger";
-}
-
-const filterTabs: { id: "all" | "pending" | "attending" | "declined"; label: string }[] = [
+const filterTabs: {
+  id: "all" | "attending" | "declined" | "invited" | "not_invited";
+  label: string;
+}[] = [
   { id: "all", label: "All" },
-  { id: "pending", label: "Pending" },
   { id: "attending", label: "Attending" },
   { id: "declined", label: "Declined" },
+  { id: "invited", label: "Invited" },
+  { id: "not_invited", label: "Not Invited" },
 ];
 
 type InviteFilterId = "all" | "not_invited" | "invited" | "invited_whatsapp" | "invited_email";
@@ -304,6 +304,14 @@ export function EventGuestsPanel({
   const [communicationPreviewGuestId, setCommunicationPreviewGuestId] = useState<string | null>(null);
   const [communicationBulkMeta, setCommunicationBulkMeta] = useState<{ count: number } | null>(null);
   const [commHistoryGuest, setCommHistoryGuest] = useState<{ id: string; name: string } | null>(null);
+  const [manualRsvpGuestId, setManualRsvpGuestId] = useState<string | null>(null);
+  const [manualRsvpAttending, setManualRsvpAttending] = useState<"yes" | "no">("yes");
+  const [manualRsvpCount, setManualRsvpCount] = useState<string>("1");
+  const [manualRsvpAttendeeNames, setManualRsvpAttendeeNames] = useState("");
+  const [manualRsvpNote, setManualRsvpNote] = useState("");
+  const [manualRsvpMarkInvited, setManualRsvpMarkInvited] = useState(true);
+  const [manualRsvpSaving, setManualRsvpSaving] = useState(false);
+  const [manualRsvpError, setManualRsvpError] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const inviteCardPreviewByGuest = useMemo(() => {
@@ -358,7 +366,7 @@ export function EventGuestsPanel({
           g.phone,
           g.email,
           g.tableName,
-          statusLabel(statusOf(g)),
+          statusLabel(guestPrimaryStatus(g)),
           g.invitedAt ? "invited" : "not sent",
           inviteBadgeLabel(g),
           r.label,
@@ -368,6 +376,8 @@ export function EventGuestsPanel({
           duplicateBadgeLabel(duplicateStrengthMap.get(g.id) ?? "none"),
           "duplicate",
           "possible duplicate",
+          "invited",
+          "not invited",
           "not sent",
           "whatsapp sent",
           "email sent",
@@ -383,7 +393,7 @@ export function EventGuestsPanel({
     }
 
     if (filter !== "all") {
-      list = list.filter((g) => statusOf(g) === filter);
+      list = list.filter((g) => guestPrimaryStatus(g) === filter);
     }
 
     return list;
@@ -455,12 +465,13 @@ export function EventGuestsPanel({
           return a.guestName.localeCompare(b.guestName);
         }
         case "status": {
-          const order: Record<ReturnType<typeof statusOf>, number> = {
+          const order: Record<ReturnType<typeof guestPrimaryStatus>, number> = {
             attending: 0,
-            pending: 1,
-            declined: 2,
+            declined: 1,
+            invited: 2,
+            not_invited: 3,
           };
-          const statusDiff = order[statusOf(a)] - order[statusOf(b)];
+          const statusDiff = order[guestPrimaryStatus(a)] - order[guestPrimaryStatus(b)];
           if (statusDiff !== 0) return statusDiff;
           return a.guestName.localeCompare(b.guestName);
         }
@@ -601,6 +612,11 @@ export function EventGuestsPanel({
           ? `${selectedCount} selected guest${selectedCount === 1 ? "" : "s"}`
           : `${filtered.length} guest${filtered.length === 1 ? "" : "s"} in current view (no rows selected — using filtered list)`;
 
+  const manualRsvpGuest = useMemo(
+    () => guests.find((g) => g.id === manualRsvpGuestId) ?? null,
+    [guests, manualRsvpGuestId],
+  );
+
   function clearFilters() {
     setQ("");
     setFilter("all");
@@ -611,6 +627,16 @@ export function EventGuestsPanel({
     setPlanningGroupFilter("all");
     setPlanningTableFilter("all");
     setSort("updatedDesc");
+  }
+
+  function openManualRsvpModal(guest: GuestPanelGuest) {
+    setManualRsvpGuestId(guest.id);
+    setManualRsvpAttending("yes");
+    setManualRsvpCount(String(Math.max(1, guest.attendingCount ?? 1)));
+    setManualRsvpAttendeeNames("");
+    setManualRsvpNote("");
+    setManualRsvpMarkInvited(!guest.invitedAt);
+    setManualRsvpError(null);
   }
 
   function toggleAllVisible() {
@@ -660,7 +686,7 @@ export function EventGuestsPanel({
           guest.group ?? "",
           guest.tableName ?? "",
           String(guest.maxGuests),
-          statusLabel(statusOf(guest)),
+          statusLabel(guestPrimaryStatus(guest)),
           getGuestReadiness(guest).label,
           getGuestFollowUpState(guest).label,
           duplicateBadgeLabel(duplicateStrengthMap.get(guest.id) ?? "none") ?? "",
@@ -1134,6 +1160,17 @@ export function EventGuestsPanel({
             <button
               type="button"
               className="btn-secondary"
+              onClick={async () => {
+                await markGuestsInvitedAction(eventId, [...selectedIds], "manual");
+                router.refresh();
+              }}
+              disabled={selectedCount === 0}
+            >
+              Mark selected invited
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
               title="Preview message for the first selected guest (each guest gets individualized text)"
               onClick={() => {
                 const first = [...selectedIds][0];
@@ -1265,7 +1302,7 @@ export function EventGuestsPanel({
                 "Family invite (true/false)",
               ],
               ...source.map((guest) => {
-                const st = statusOf(guest);
+                const st = guestPrimaryStatus(guest);
                 const link = guestRsvpUrl(siteUrl, guest.token);
                 const attendingBool = st === "attending";
                 return [
@@ -1299,7 +1336,7 @@ export function EventGuestsPanel({
           type="button"
           className="btn-secondary"
           onClick={() => {
-            const confirmed = filtered.filter((g) => statusOf(g) === "attending");
+            const confirmed = filtered.filter((g) => guestPrimaryStatus(g) === "attending");
             const rows = [
               [
                 "Guest Name",
@@ -1321,7 +1358,7 @@ export function EventGuestsPanel({
                 guest.group ?? "",
                 guest.tableName ?? "",
                 String(guest.maxGuests),
-                statusLabel(statusOf(guest)),
+                statusLabel(guestPrimaryStatus(guest)),
                 String(guest.attendingCount ?? 0),
                 formatDate(guest.respondedAt),
                 guest.hostMessage ?? "",
@@ -1439,26 +1476,20 @@ export function EventGuestsPanel({
                       eventTitle,
                       rsvpLink: link,
                     });
-                    const st = statusOf(guest);
+                    const st = guestPrimaryStatus(guest);
                     const readiness = getGuestReadiness(guest);
-                    const followUp = getGuestFollowUpState(guest);
-                    const dupStrength = duplicateStrengthMap.get(guest.id) ?? "none";
-                    const dupLabel = duplicateBadgeLabel(dupStrength);
                     const isEditing = editingGuestId === guest.id;
                     const statusBadges = [
                       { label: statusLabel(st).toUpperCase(), kind: "status" as const },
-                      { label: guest.respondedAt ? "RESPONDED" : "NOT RESPONDED", kind: "meta" as const },
                       ...(readiness.id === "missing_contact"
                         ? [{ label: "MISSING CONTACT", kind: "warning" as const }]
                         : []),
                       ...(readiness.id === "missing_email"
                         ? [{ label: "MISSING EMAIL", kind: "warning" as const }]
                         : []),
-                      ...(followUp.id === "invited_no_response"
-                        ? [{ label: "AWAITING RSVP", kind: "warning" as const }]
+                      ...(readiness.id === "missing_phone"
+                        ? [{ label: "MISSING PHONE", kind: "warning" as const }]
                         : []),
-                      ...(!guest.invitedAt ? [{ label: "NOT INVITED", kind: "meta" as const }] : []),
-                      ...(dupLabel ? [{ label: dupLabel.toUpperCase(), kind: "duplicate" as const }] : []),
                     ];
                     const visibleStatusBadges = statusBadges.slice(0, 4);
                     const hiddenStatusCount = Math.max(0, statusBadges.length - visibleStatusBadges.length);
@@ -1502,7 +1533,7 @@ export function EventGuestsPanel({
                               <span className={compactStatusBadgeClass("meta")}>+{hiddenStatusCount} more</span>
                             ) : null}
                           </div>
-                          {followUp.id === "invited_no_response" && guest.lastReminderAt ? (
+                          {st === "invited" && guest.lastReminderAt ? (
                             <span className="mt-1 block text-[10px] text-zinc-400">
                               Reminder {formatDate(guest.lastReminderAt)}
                             </span>
@@ -1573,6 +1604,25 @@ export function EventGuestsPanel({
                               onClick={() => setCommHistoryGuest({ id: guest.id, name: guest.guestName })}
                             >
                               Comm history
+                            </button>
+                            {!guest.invitedAt ? (
+                              <button
+                                type="button"
+                                className="btn-secondary px-3 py-1.5 text-xs"
+                                onClick={async () => {
+                                  await markGuestsInvitedAction(eventId, [guest.id], "manual");
+                                  router.refresh();
+                                }}
+                              >
+                                Mark invited
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="btn-secondary px-3 py-1.5 text-xs"
+                              onClick={() => openManualRsvpModal(guest)}
+                            >
+                              Record RSVP
                             </button>
                             <button
                               type="button"
@@ -1794,6 +1844,132 @@ export function EventGuestsPanel({
           </div>
         )}
       </div>
+
+      {manualRsvpGuest ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45"
+            aria-label="Close manual RSVP dialog"
+            onClick={() => {
+              if (!manualRsvpSaving) setManualRsvpGuestId(null);
+            }}
+          />
+          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-[#e7dccb] bg-[#fffdfa] p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Record RSVP</p>
+                <h3 className="mt-1 text-lg font-semibold text-zinc-900">{manualRsvpGuest.guestName}</h3>
+                <p className="mt-1 text-xs text-zinc-600">
+                  Admin-recorded response for offline replies (phone, family, in-person).
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary px-3 py-1.5 text-xs"
+                disabled={manualRsvpSaving}
+                onClick={() => setManualRsvpGuestId(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm text-zinc-700">
+                Decision
+                <select
+                  value={manualRsvpAttending}
+                  onChange={(e) => setManualRsvpAttending(e.target.value as "yes" | "no")}
+                  className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                >
+                  <option value="yes">Attending</option>
+                  <option value="no">Declining</option>
+                </select>
+              </label>
+              <label className="text-sm text-zinc-700">
+                Attending count
+                <input
+                  type="number"
+                  min={0}
+                  max={manualRsvpGuest.maxGuests}
+                  value={manualRsvpAttending === "yes" ? manualRsvpCount : "0"}
+                  disabled={manualRsvpAttending === "no"}
+                  onChange={(e) => setManualRsvpCount(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="sm:col-span-2 text-sm text-zinc-700">
+                Attendee names (optional)
+                <input
+                  type="text"
+                  value={manualRsvpAttendeeNames}
+                  onChange={(e) => setManualRsvpAttendeeNames(e.target.value)}
+                  placeholder="e.g. Ahmad, Aisyah, Grandma"
+                  className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="sm:col-span-2 text-sm text-zinc-700">
+                Notes (optional)
+                <textarea
+                  value={manualRsvpNote}
+                  onChange={(e) => setManualRsvpNote(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Confirmed by phone call."
+                  className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              {!manualRsvpGuest.invitedAt ? (
+                <label className="sm:col-span-2 inline-flex items-start gap-2 text-sm text-zinc-700">
+                  <input
+                    type="checkbox"
+                    checked={manualRsvpMarkInvited}
+                    onChange={(e) => setManualRsvpMarkInvited(e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-[#dccfbb]"
+                  />
+                  Also mark as invited (manual)
+                </label>
+              ) : null}
+            </div>
+
+            {manualRsvpError ? (
+              <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {manualRsvpError}
+              </p>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={manualRsvpSaving}
+                onClick={async () => {
+                  setManualRsvpError(null);
+                  setManualRsvpSaving(true);
+                  try {
+                    await recordGuestManualRsvpAction({
+                      eventId,
+                      guestId: manualRsvpGuest.id,
+                      attending: manualRsvpAttending,
+                      attendingCount: manualRsvpAttending === "yes" ? Number(manualRsvpCount || "0") : 0,
+                      attendeeNames: manualRsvpAttendeeNames,
+                      note: manualRsvpNote,
+                      markInvitedIfMissing: manualRsvpMarkInvited,
+                    });
+                    setManualRsvpGuestId(null);
+                    router.refresh();
+                  } catch (error) {
+                    setManualRsvpError(error instanceof Error ? error.message : "Could not record RSVP.");
+                  } finally {
+                    setManualRsvpSaving(false);
+                  }
+                }}
+              >
+                {manualRsvpSaving ? "Saving..." : "Save RSVP"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <CommunicationPreviewModal
         open={communicationPreviewGuestId !== null}

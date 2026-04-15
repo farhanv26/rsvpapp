@@ -1111,6 +1111,130 @@ export async function markGuestsInvitedAction(
   return { ok: true, updated: result.count };
 }
 
+export async function recordGuestManualRsvpAction(input: {
+  eventId: string;
+  guestId: string;
+  attending: "yes" | "no";
+  attendingCount?: number | null;
+  attendeeNames?: string | null;
+  note?: string | null;
+  markInvitedIfMissing?: boolean;
+}) {
+  const { admin } = await ensureEventAccess(input.eventId, "manage");
+  const guest = await prisma.guest.findFirst({
+    where: { id: input.guestId, eventId: input.eventId },
+    select: {
+      id: true,
+      guestName: true,
+      maxGuests: true,
+      invitedAt: true,
+      attending: true,
+      attendingCount: true,
+      respondedAt: true,
+    },
+  });
+  if (!guest) {
+    throw new Error("Guest not found for this event.");
+  }
+
+  const nextAttending = input.attending === "yes";
+  const nextAttendingCount = nextAttending ? Number(input.attendingCount ?? 0) : 0;
+  if (nextAttending && (!Number.isFinite(nextAttendingCount) || nextAttendingCount < 1 || nextAttendingCount > guest.maxGuests)) {
+    throw new Error(`Attending count must be between 1 and ${guest.maxGuests}.`);
+  }
+
+  const attendeeNames = input.attendeeNames?.trim() || null;
+  const note = input.note?.trim() || null;
+  const now = new Date();
+  const shouldMarkInvited = Boolean(input.markInvitedIfMissing && !guest.invitedAt);
+
+  await prisma.guest.update({
+    where: { id: guest.id },
+    data: {
+      attending: nextAttending,
+      attendingCount: nextAttending ? nextAttendingCount : null,
+      respondedAt: now,
+      ...(shouldMarkInvited
+        ? {
+            invitedAt: now,
+            inviteChannelLastUsed: "manual",
+            inviteCount: { increment: 1 },
+          }
+        : {}),
+    },
+  });
+
+  const details: string[] = ["Recorded manually by admin"];
+  if (attendeeNames) details.push(`Attendees: ${attendeeNames}`);
+  if (note) details.push(`Note: ${note}`);
+
+  const wasResponded = Boolean(guest.respondedAt);
+  await prisma.rsvpActivity.create({
+    data: {
+      eventId: input.eventId,
+      guestId: guest.id,
+      type: wasResponded ? "admin_updated_rsvp" : "admin_recorded_rsvp",
+      description: nextAttending
+        ? `${admin.name} recorded RSVP for ${guest.guestName}: attending (${nextAttendingCount}).`
+        : `${admin.name} recorded RSVP for ${guest.guestName}: declined.`,
+    },
+  });
+
+  await logAuditActivity({
+    eventId: input.eventId,
+    userId: admin.id,
+    userName: admin.name,
+    actionType: wasResponded ? "rsvp_updated" : "rsvp_submitted",
+    entityType: "RSVP",
+    entityId: guest.id,
+    entityName: guest.guestName,
+    message: `${admin.name} recorded RSVP manually for "${guest.guestName}" (${nextAttending ? `${nextAttendingCount} attending` : "declined"}).`,
+    metadata: {
+      manual: true,
+      attending: nextAttending,
+      attendingCount: nextAttending ? nextAttendingCount : 0,
+      attendeeNames,
+      note,
+      markedInvited: shouldMarkInvited,
+      respondedAt: now.toISOString(),
+    },
+  });
+
+  await dispatchEventCommunication({
+    trigger: wasResponded ? "rsvp_updated" : "rsvp_submitted",
+    eventId: input.eventId,
+    entityType: "RSVP",
+    entityId: guest.id,
+    title: `Manual RSVP recorded for ${guest.guestName}`,
+    description: nextAttending ? `${nextAttendingCount} attending.` : "Declined invitation.",
+    guestName: guest.guestName,
+    attendingLabel: nextAttending ? "Attending" : "Declined",
+    attendingCount: nextAttending ? nextAttendingCount : null,
+    actorName: admin.name,
+    metadata: {
+      manual: true,
+      attendeeNames,
+      note,
+      respondedAt: now.toISOString(),
+    },
+  });
+
+  await logGuestCommunication({
+    eventId: input.eventId,
+    guestId: guest.id,
+    userId: admin.id,
+    actorName: admin.name,
+    channel: "manual",
+    actionKey: "manual_rsvp_recorded",
+    label: nextAttending ? "RSVP recorded manually (attending)" : "RSVP recorded manually (declined)",
+    detail: details.join(" · "),
+    success: true,
+  });
+
+  revalidatePath(`/admin/events/${input.eventId}`);
+  return { ok: true as const };
+}
+
 export type GuestCommunicationPreviewPayload = {
   guestName: string;
   greeting: string;
