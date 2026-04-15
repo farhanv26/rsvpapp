@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createEventAction } from "@/app/admin/events/actions";
 import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
+import { EventInviteVariantsFields } from "@/components/admin/event-invite-variants-fields";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 import { requireCurrentAdminUser } from "@/lib/admin-auth";
 
@@ -116,6 +117,8 @@ export default async function NewEventPage() {
           </div>
           <EventImageUploadField />
         </section>
+
+        <EventInviteVariantsFields />
 
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Link href="/admin/events" className="btn-secondary w-full sm:w-auto">

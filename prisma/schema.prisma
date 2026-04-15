@@ -29,10 +29,17 @@ model Event {
   eventTime     String?
   venue         String?
   welcomeMessage String?
+  genericCardImage String?
+  cardImage1       String?
+  cardImage2       String?
+  cardImage3       String?
+  cardImage4       String?
+  familyCardImage  String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   guests        Guest[]
   rsvpActivities RsvpActivity[]
+  communicationLogs GuestCommunicationLog[]
 
   @@index([ownerUserId, createdAt(sort: Desc)])
 }
@@ -46,6 +53,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   events       Event[]
+  guestCommunicationLogs GuestCommunicationLog[]
 
   @@index([active, name])
 }
@@ -97,18 +105,46 @@ model Guest {
   attendingCount Int?
   respondedAt    DateTime?
   group          String?
+  tableName      String?
   notes          String?
   hostMessage    String?
+  isFamilyInvite Boolean  @default(false)
   phone          String?
   email          String?
+  invitedAt              DateTime?
+  inviteChannelLastUsed  String?
+  inviteCount            Int      @default(0)
+  lastReminderAt         DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   rsvpActivities RsvpActivity[]
+  communicationLogs GuestCommunicationLog[]
 
   @@index([eventId])
   @@index([token])
+}
+
+model GuestCommunicationLog {
+  id        String   @id @default(cuid())
+  eventId   String
+  guestId   String
+  userId    String?
+  actorName String?
+  channel   String
+  actionKey String
+  label     String
+  detail    String?
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([guestId, createdAt(sort: Desc)])
+  @@index([eventId, createdAt(sort: Desc)])
 }
 
 model RsvpActivity {

@@ -37,6 +37,11 @@ export function buildAbsoluteUrl(pathname: string) {
   return pathname;
 }
 
+/** Absolute RSVP URL for a guest token (server-safe; uses `getPublicSiteUrl`). */
+export function buildGuestRsvpAbsoluteUrl(token: string) {
+  return buildAbsoluteUrl(`/rsvp/${token}`);
+}
+
 /** Guards Image src values so malformed DB values do not crash rendering. */
 export function getSafeImageSrc(value: string | null | undefined) {
   if (!value) {

@@ -1,6 +1,9 @@
 import { RsvpForm } from "@/components/rsvp-form";
 import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { RsvpResponsePanel } from "@/components/rsvp-response-panel";
+import Link from "next/link";
+import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
+import { resolveInviteCardImage } from "@/lib/invite-card-resolution";
 import { formatDateTime, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
@@ -9,6 +12,7 @@ const serif = "font-[family-name:var(--font-wedding-serif),Georgia,serif]";
 
 type Props = {
   params: Promise<{ token: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function CeremonyDetails({
@@ -77,16 +81,31 @@ function DetailLine({
   );
 }
 
-export default async function RsvpTokenPage({ params }: Props) {
+export default async function RsvpTokenPage({ params, searchParams }: Props) {
   const { token } = await params;
+  const sp = searchParams ? await searchParams : {};
+  const previewParam = sp.preview;
+  const previewRequested =
+    previewParam === "1" ||
+    previewParam === "true" ||
+    (Array.isArray(previewParam) && previewParam[0] === "1");
+
   const guest = await prisma.guest.findUnique({
     where: { token },
     include: {
       event: {
         select: {
+          id: true,
+          ownerUserId: true,
           title: true,
           description: true,
           imagePath: true,
+          genericCardImage: true,
+          cardImage1: true,
+          cardImage2: true,
+          cardImage3: true,
+          cardImage4: true,
+          familyCardImage: true,
           coupleNames: true,
           eventSubtitle: true,
           eventDate: true,
@@ -114,12 +133,31 @@ export default async function RsvpTokenPage({ params }: Props) {
     );
   }
 
-  const hasResponded = Boolean(guest.respondedAt);
+  const admin = previewRequested ? await getOptionalAdminUser() : null;
   const ev = guest.event;
-  const safeImageSrc = getSafeImageSrc(ev.imagePath);
+  const previewMode =
+    Boolean(previewRequested) &&
+    admin !== null &&
+    (isSuperAdmin(admin) || ev.ownerUserId === admin.id);
+
+  const hasResponded = Boolean(guest.respondedAt);
+  const resolvedCard = resolveInviteCardImage(
+    {
+      imagePath: ev.imagePath,
+      genericCardImage: ev.genericCardImage,
+      cardImage1: ev.cardImage1,
+      cardImage2: ev.cardImage2,
+      cardImage3: ev.cardImage3,
+      cardImage4: ev.cardImage4,
+      familyCardImage: ev.familyCardImage,
+    },
+    { maxGuests: guest.maxGuests, isFamilyInvite: guest.isFamilyInvite },
+  );
+  const safeImageSrc = getSafeImageSrc(resolvedCard.rawPath);
   console.info("[event-image] rsvp render src", {
     token,
-    rawImagePath: ev.imagePath,
+    rawImagePath: resolvedCard.rawPath,
+    variant: resolvedCard.variantLabel,
     safeImageSrc,
   });
   const deadlineMeta = getRsvpDeadlineMeta(ev.rsvpDeadline);
@@ -132,7 +170,27 @@ export default async function RsvpTokenPage({ params }: Props) {
 
   return (
     <main className="flex min-h-dvh flex-col justify-center px-4 py-8 sm:px-6">
-      <div className="mx-auto w-full max-w-xl space-y-8">
+      {previewMode ? (
+        <div className="fixed inset-x-0 top-0 z-50 border-b border-amber-200/90 bg-amber-50/95 px-4 py-3 text-center shadow-sm backdrop-blur-sm">
+          <p className="text-sm font-medium text-amber-950">
+            Previewing RSVP as <span className="font-semibold">{guest.guestName}</span>
+            <span className="mx-2 text-amber-800/80">·</span>
+            <Link
+              href={`/admin/events/${ev.id}`}
+              className="font-medium text-amber-900 underline decoration-amber-700/50 underline-offset-2 hover:text-amber-950"
+            >
+              Back to event
+            </Link>
+          </p>
+          <p className="mt-1 text-xs text-amber-900/85">
+            This is an admin preview. RSVP actions are disabled so you don&apos;t change this guest&apos;s response by
+            mistake.
+          </p>
+        </div>
+      ) : null}
+      <div
+        className={`mx-auto w-full max-w-xl space-y-8 ${previewMode ? "pt-[4.5rem]" : ""}`}
+      >
         <section className={`rsvp-fade-up rounded-3xl border p-5 sm:p-7 ${panelClass}`}>
           <div className="space-y-6 text-center">
             {safeImageSrc ? (
@@ -225,9 +283,15 @@ export default async function RsvpTokenPage({ params }: Props) {
               attendingCount={guest.attendingCount}
               hostMessage={(guest as unknown as { hostMessage?: string | null }).hostMessage ?? null}
               canEdit={!isRsvpClosed}
+              previewMode={previewMode}
             />
           ) : (
-            <RsvpForm token={token} maxGuests={guest.maxGuests} isLocked={hasResponded} />
+            <RsvpForm
+              token={token}
+              maxGuests={guest.maxGuests}
+              isLocked={hasResponded}
+              previewMode={previewMode}
+            />
           )}
         </section>
       </div>

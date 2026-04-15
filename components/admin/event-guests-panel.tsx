@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   bulkDeleteGuestsAction,
+  bulkUpdateGuestPlanningAction,
   deleteGuestAction,
   logBulkWhatsappPreparedAction,
   logGuestWhatsappPreparedAction,
@@ -10,7 +12,35 @@ import {
   sendGuestInviteEmailAction,
   updateGuestAction,
 } from "@/app/admin/events/actions";
+import { ReviewDuplicatesModal } from "@/components/admin/review-duplicates-modal";
+import { SendInvitesModal } from "@/components/admin/send-invites-modal";
+import {
+  getGuestFollowUpState,
+  followUpBadgeClass,
+  isInvitedAwaitingRsvp,
+  matchesFollowUpFilter,
+  type GuestFollowUpId,
+} from "@/lib/guest-followup";
+import {
+  buildDuplicateStrengthMap,
+  countDuplicateClusters,
+  countGuestsInDuplicateClusters,
+  matchesDuplicateStrengthFilter,
+  type DuplicateFilterId,
+  type DuplicateStrength,
+} from "@/lib/guest-duplicates";
+import {
+  getGuestReadiness,
+  matchesReadinessFilter,
+  readinessBadgeClass,
+  type GuestReadinessId,
+} from "@/lib/guest-readiness";
 import { buildGuestWhatsAppInviteMessage, getWhatsAppShareUrl } from "@/lib/whatsapp";
+import { CommunicationPreviewModal } from "@/components/admin/communication-preview-modal";
+import { GuestCommunicationHistoryModal } from "@/components/admin/guest-communication-history-modal";
+import { GuestInviteCardPreviewModal } from "@/components/admin/guest-invite-card-preview-modal";
+import { inviteCardUsingLabel, resolveInviteCardImage, type InviteCardEventInput } from "@/lib/invite-card-resolution";
+import { getSafeImageSrc } from "@/lib/utils";
 
 export type GuestPanelGuest = {
   id: string;
@@ -22,12 +52,18 @@ export type GuestPanelGuest = {
   attendingCount: number | null;
   respondedAt: string | null;
   group: string | null;
+  tableName: string | null;
   notes: string | null;
   hostMessage: string | null;
   phone: string | null;
   email: string | null;
+  invitedAt: string | null;
+  inviteChannelLastUsed: string | null;
+  inviteCount: number;
+  lastReminderAt: string | null;
   createdAt: string;
   updatedAt: string;
+  isFamilyInvite: boolean;
 };
 
 type Props = {
@@ -35,6 +71,9 @@ type Props = {
   eventTitle: string;
   guests: GuestPanelGuest[];
   siteUrl: string;
+  inviteCardEvent: InviteCardEventInput;
+  /** Latest communication log per guest (from server) for subtle table hints */
+  communicationLastByGuest?: Record<string, { channel: string; at: string }>;
 };
 
 function statusOf(g: GuestPanelGuest): "pending" | "attending" | "declined" {
@@ -69,6 +108,110 @@ const filterTabs: { id: "all" | "pending" | "attending" | "declined"; label: str
   { id: "attending", label: "Attending" },
   { id: "declined", label: "Declined" },
 ];
+
+type InviteFilterId = "all" | "not_invited" | "invited" | "invited_whatsapp" | "invited_email";
+
+const inviteFilterTabs: { id: InviteFilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "not_invited", label: "Not Invited Yet" },
+  { id: "invited", label: "Invited" },
+  { id: "invited_whatsapp", label: "WhatsApp" },
+  { id: "invited_email", label: "Email" },
+];
+
+type ReadinessFilterId = "all" | GuestReadinessId;
+
+const readinessFilterTabs: { id: ReadinessFilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "ready", label: "Ready to Send" },
+  { id: "missing_phone", label: "Missing Phone" },
+  { id: "missing_email", label: "Missing Email" },
+  { id: "missing_contact", label: "Missing Contact" },
+  { id: "already_invited", label: "Already Invited" },
+  { id: "responded", label: "Responded" },
+];
+
+type FollowUpFilterId = "all" | GuestFollowUpId;
+
+const followUpFilterTabs: { id: FollowUpFilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "invited_no_response", label: "Invited, No Response" },
+  { id: "responded", label: "Responded" },
+  { id: "not_invited_yet", label: "Not Invited Yet" },
+];
+
+const duplicateFilterTabs: { id: DuplicateFilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "has_duplicates", label: "Duplicates / Possible" },
+  { id: "clean", label: "Clean" },
+];
+
+function duplicateBadgeClass(strength: DuplicateStrength): string | null {
+  if (strength === "none") return null;
+  const base =
+    "mt-1 inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight";
+  if (strength === "strong") return `${base} border border-rose-200/90 bg-rose-50 text-rose-900`;
+  return `${base} border border-orange-200/80 bg-orange-50/90 text-orange-950`;
+}
+
+function duplicateBadgeLabel(strength: DuplicateStrength): string | null {
+  if (strength === "none") return null;
+  if (strength === "strong") return "Duplicate";
+  return "Possible duplicate";
+}
+
+function guestMatchesPlanningFilters(
+  g: GuestPanelGuest,
+  planningGroupFilter: string,
+  planningTableFilter: string,
+): boolean {
+  if (planningGroupFilter !== "all") {
+    const gr = g.group?.trim() ?? "";
+    if (planningGroupFilter === "__none__") {
+      if (gr.length > 0) return false;
+    } else if (gr !== planningGroupFilter) {
+      return false;
+    }
+  }
+  if (planningTableFilter !== "all") {
+    const tb = g.tableName?.trim() ?? "";
+    if (planningTableFilter === "unassigned") {
+      if (tb.length > 0) return false;
+    } else if (planningTableFilter === "assigned") {
+      if (tb.length === 0) return false;
+    } else if (tb !== planningTableFilter) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function inviteBadgeLabel(g: GuestPanelGuest): string {
+  if (!g.invitedAt) return "Not Sent";
+  const ch = g.inviteChannelLastUsed;
+  if (ch === "whatsapp") return "WhatsApp Sent";
+  if (ch === "email") return "Email Sent";
+  if (ch === "manual") return "Marked";
+  return "Invited";
+}
+
+function lastCommChannelLabel(channel: string): string {
+  if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "email") return "Email";
+  if (channel === "manual") return "Manual";
+  return channel;
+}
+
+function inviteBadgeClass(g: GuestPanelGuest): string {
+  const base =
+    "inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-semibold leading-tight";
+  if (!g.invitedAt) return `${base} bg-zinc-100 text-zinc-700`;
+  const ch = g.inviteChannelLastUsed;
+  if (ch === "whatsapp") return `${base} bg-emerald-100 text-emerald-900`;
+  if (ch === "email") return `${base} bg-sky-100 text-sky-900`;
+  if (ch === "manual") return `${base} border border-[#e2d4bf] bg-[#f9f3e8] text-[#5c4a33]`;
+  return `${base} border border-[#e2d4bf] bg-[#f9f3e8] text-[#6a5434]`;
+}
 
 function guestRsvpUrl(siteUrl: string, token: string) {
   const path = `/rsvp/${token}`;
@@ -112,10 +255,32 @@ function downloadCsv(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props) {
+export function EventGuestsPanel({
+  eventId,
+  eventTitle,
+  guests,
+  siteUrl,
+  inviteCardEvent,
+  communicationLastByGuest = {},
+}: Props) {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<(typeof filterTabs)[number]["id"]>("all");
-  const [sort, setSort] = useState<"nameAsc" | "status" | "maxGuestsDesc" | "updatedDesc">("updatedDesc");
+  const [inviteFilter, setInviteFilter] = useState<InviteFilterId>("all");
+  const [readinessFilter, setReadinessFilter] = useState<ReadinessFilterId>("all");
+  const [followUpFilter, setFollowUpFilter] = useState<FollowUpFilterId>("all");
+  const [duplicateFilter, setDuplicateFilter] = useState<DuplicateFilterId>("all");
+  const [planningGroupFilter, setPlanningGroupFilter] = useState<string>("all");
+  const [planningTableFilter, setPlanningTableFilter] = useState<string>("all");
+  const [reviewDuplicatesOpen, setReviewDuplicatesOpen] = useState(false);
+  const [sendInvitesScopeOverride, setSendInvitesScopeOverride] = useState<GuestPanelGuest[] | null>(null);
+  const [sendInvitesScopeMode, setSendInvitesScopeMode] = useState<null | "remaining" | "ready">(null);
+  const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
+  const [followUpScopeOverride, setFollowUpScopeOverride] = useState<GuestPanelGuest[] | null>(null);
+  const [followUpNonce, setFollowUpNonce] = useState(0);
+  const [sort, setSort] = useState<
+    "nameAsc" | "status" | "maxGuestsDesc" | "updatedDesc" | "groupAsc" | "tableAsc"
+  >("updatedDesc");
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copiedMessageGuestId, setCopiedMessageGuestId] = useState<string | null>(null);
@@ -124,13 +289,82 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
   const [emailSendingGuestId, setEmailSendingGuestId] = useState<string | null>(null);
   const [emailSentGuestId, setEmailSentGuestId] = useState<string | null>(null);
   const [bulkEmailStatus, setBulkEmailStatus] = useState<string | null>(null);
+  const [sendInvitesOpen, setSendInvitesOpen] = useState(false);
+  const [sendInvitesNonce, setSendInvitesNonce] = useState(0);
+  const [previewGuestId, setPreviewGuestId] = useState<string | null>(null);
+  const [communicationPreviewGuestId, setCommunicationPreviewGuestId] = useState<string | null>(null);
+  const [communicationBulkMeta, setCommunicationBulkMeta] = useState<{ count: number } | null>(null);
+  const [commHistoryGuest, setCommHistoryGuest] = useState<{ id: string; name: string } | null>(null);
 
-  const filtered = useMemo(() => {
+  const inviteCardPreviewByGuest = useMemo(() => {
+    const map = new Map<string, { safeSrc: string | null; usingLine: string }>();
+    for (const g of guests) {
+      const r = resolveInviteCardImage(inviteCardEvent, {
+        maxGuests: g.maxGuests,
+        isFamilyInvite: g.isFamilyInvite,
+      });
+      map.set(g.id, {
+        safeSrc: getSafeImageSrc(r.rawPath),
+        usingLine: inviteCardUsingLabel(r),
+      });
+    }
+    return map;
+  }, [guests, inviteCardEvent]);
+
+  const duplicateStrengthMap = useMemo(() => buildDuplicateStrengthMap(guests), [guests]);
+
+  const duplicateGuestCount = useMemo(() => countGuestsInDuplicateClusters(guests), [guests]);
+  const duplicateClusterCount = useMemo(() => countDuplicateClusters(guests), [guests]);
+
+  const uniqueGroupLabels = useMemo(() => {
+    const s = new Set<string>();
+    for (const g of guests) {
+      const v = g.group?.trim();
+      if (v) s.add(v);
+    }
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [guests]);
+
+  const uniqueTableLabels = useMemo(() => {
+    const s = new Set<string>();
+    for (const g of guests) {
+      const v = g.tableName?.trim();
+      if (v) s.add(v);
+    }
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [guests]);
+
+  const withoutInviteFilter = useMemo(() => {
     let list = [...guests];
     const query = q.trim().toLowerCase();
     if (query) {
       list = list.filter((g) => {
-        const hay = [g.guestName, g.greeting, g.group, g.notes, g.phone, g.email, statusLabel(statusOf(g))]
+        const r = getGuestReadiness(g);
+        const hay = [
+          g.guestName,
+          g.greeting,
+          g.group,
+          g.notes,
+          g.phone,
+          g.email,
+          g.tableName,
+          statusLabel(statusOf(g)),
+          g.invitedAt ? "invited" : "not sent",
+          inviteBadgeLabel(g),
+          r.label,
+          r.id,
+          getGuestFollowUpState(g).label,
+          getGuestFollowUpState(g).id,
+          duplicateBadgeLabel(duplicateStrengthMap.get(g.id) ?? "none"),
+          "duplicate",
+          "possible duplicate",
+          "not sent",
+          "whatsapp sent",
+          "email sent",
+          "marked",
+          "ready",
+          "responded",
+        ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -142,10 +376,74 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
       list = list.filter((g) => statusOf(g) === filter);
     }
 
+    return list;
+  }, [guests, q, filter, duplicateStrengthMap]);
+
+  const afterInviteFilter = useMemo(() => {
+    let list = [...withoutInviteFilter];
+
+    if (inviteFilter === "not_invited") {
+      list = list.filter((g) => !g.invitedAt);
+    } else if (inviteFilter === "invited") {
+      list = list.filter((g) => Boolean(g.invitedAt));
+    } else if (inviteFilter === "invited_whatsapp") {
+      list = list.filter((g) => Boolean(g.invitedAt) && g.inviteChannelLastUsed === "whatsapp");
+    } else if (inviteFilter === "invited_email") {
+      list = list.filter((g) => Boolean(g.invitedAt) && g.inviteChannelLastUsed === "email");
+    }
+
+    return list;
+  }, [withoutInviteFilter, inviteFilter]);
+
+  const afterReadinessFilter = useMemo(() => {
+    if (readinessFilter === "all") {
+      return afterInviteFilter;
+    }
+    return afterInviteFilter.filter((g) => matchesReadinessFilter(g, readinessFilter));
+  }, [afterInviteFilter, readinessFilter]);
+
+  const afterFollowUpFilter = useMemo(() => {
+    if (followUpFilter === "all") {
+      return afterReadinessFilter;
+    }
+    return afterReadinessFilter.filter((g) => matchesFollowUpFilter(g, followUpFilter));
+  }, [afterReadinessFilter, followUpFilter]);
+
+  const afterDuplicateFilter = useMemo(() => {
+    if (duplicateFilter === "all") {
+      return afterFollowUpFilter;
+    }
+    return afterFollowUpFilter.filter((g) =>
+      matchesDuplicateStrengthFilter(duplicateStrengthMap.get(g.id) ?? "none", duplicateFilter),
+    );
+  }, [afterFollowUpFilter, duplicateFilter, duplicateStrengthMap]);
+
+  const afterPlanningFilter = useMemo(() => {
+    return afterDuplicateFilter.filter((g) =>
+      guestMatchesPlanningFilters(g, planningGroupFilter, planningTableFilter),
+    );
+  }, [afterDuplicateFilter, planningGroupFilter, planningTableFilter]);
+
+  const filtered = useMemo(() => {
+    const list = [...afterPlanningFilter];
     list.sort((a, b) => {
       switch (sort) {
         case "nameAsc":
           return a.guestName.localeCompare(b.guestName);
+        case "groupAsc": {
+          const ga = (a.group?.trim() || "").toLowerCase();
+          const gb = (b.group?.trim() || "").toLowerCase();
+          const c = ga.localeCompare(gb);
+          if (c !== 0) return c;
+          return a.guestName.localeCompare(b.guestName);
+        }
+        case "tableAsc": {
+          const ta = (a.tableName?.trim() || "").toLowerCase();
+          const tb = (b.tableName?.trim() || "").toLowerCase();
+          const c = ta.localeCompare(tb);
+          if (c !== 0) return c;
+          return a.guestName.localeCompare(b.guestName);
+        }
         case "status": {
           const order: Record<ReturnType<typeof statusOf>, number> = {
             attending: 0,
@@ -165,7 +463,7 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
     });
 
     return list;
-  }, [guests, q, filter, sort]);
+  }, [afterPlanningFilter, sort]);
 
   const selectedGuests = useMemo(
     () => filtered.filter((guest) => selectedIds.has(guest.id)),
@@ -179,11 +477,129 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
   const hasGuests = guests.length > 0;
   const trueEmpty = !hasGuests;
   const filteredEmpty = hasGuests && filtered.length === 0;
+  const searchOrRsvpEmpty = hasGuests && withoutInviteFilter.length === 0;
+  const inviteFilterOnlyEmpty =
+    hasGuests &&
+    withoutInviteFilter.length > 0 &&
+    afterInviteFilter.length === 0 &&
+    inviteFilter !== "all";
+  const readinessFilterOnlyEmpty =
+    hasGuests &&
+    afterInviteFilter.length > 0 &&
+    afterReadinessFilter.length === 0 &&
+    readinessFilter !== "all";
+  const followUpFilterOnlyEmpty =
+    hasGuests &&
+    afterReadinessFilter.length > 0 &&
+    afterFollowUpFilter.length === 0 &&
+    followUpFilter !== "all";
+  const duplicateFilterOnlyEmpty =
+    hasGuests &&
+    afterFollowUpFilter.length > 0 &&
+    afterDuplicateFilter.length === 0 &&
+    duplicateFilter !== "all";
+  const planningFilterOnlyEmpty =
+    hasGuests &&
+    afterDuplicateFilter.length > 0 &&
+    afterPlanningFilter.length === 0 &&
+    (planningGroupFilter !== "all" || planningTableFilter !== "all");
   const allVisibleSelected = filtered.length > 0 && filtered.every((guest) => selectedIds.has(guest.id));
+
+  const notInvitedCount = useMemo(
+    () => guests.filter((g) => !g.invitedAt).length,
+    [guests],
+  );
+
+  const remainingNotInvitedGuests = useMemo(
+    () => guests.filter((g) => !g.invitedAt),
+    [guests],
+  );
+
+  const readyToSendGuests = useMemo(
+    () => guests.filter((g) => getGuestReadiness(g).id === "ready"),
+    [guests],
+  );
+
+  const readyToSendCount = readyToSendGuests.length;
+
+  const missingContactGuests = useMemo(
+    () => guests.filter((g) => getGuestReadiness(g).id === "missing_contact"),
+    [guests],
+  );
+
+  const pendingFollowUpGuests = useMemo(
+    () => guests.filter((g) => isInvitedAwaitingRsvp(g)),
+    [guests],
+  );
+
+  const followUpModalGuests = useMemo(() => {
+    if (followUpScopeOverride) return followUpScopeOverride;
+    if (selectedCount > 0) return selectedGuests.filter((g) => isInvitedAwaitingRsvp(g));
+    return filtered.filter((g) => isInvitedAwaitingRsvp(g));
+  }, [followUpScopeOverride, selectedCount, selectedGuests, filtered]);
+
+  const followUpScopeDescription = useMemo(() => {
+    if (followUpScopeOverride) {
+      return `${followUpScopeOverride.length} guest${followUpScopeOverride.length === 1 ? "" : "s"} invited — awaiting RSVP`;
+    }
+    if (selectedCount > 0) {
+      const n = selectedGuests.filter((g) => isInvitedAwaitingRsvp(g)).length;
+      return `${n} selected guest${n === 1 ? "" : "s"} eligible for reminders (invited, no response)`;
+    }
+    const n = filtered.filter((g) => isInvitedAwaitingRsvp(g)).length;
+    return `${n} guest${n === 1 ? "" : "s"} in current view (invited, no response yet)`;
+  }, [followUpScopeOverride, selectedCount, selectedGuests, filtered]);
+
+  const showSendRemindersThisViewButton = useMemo(() => {
+    const eligibleInView = filtered.filter((g) => isInvitedAwaitingRsvp(g)).length;
+    const viewIsNarrowed =
+      q.trim() !== "" ||
+      filter !== "all" ||
+      inviteFilter !== "all" ||
+      readinessFilter !== "all" ||
+      followUpFilter !== "all" ||
+      duplicateFilter !== "all" ||
+      planningGroupFilter !== "all" ||
+      planningTableFilter !== "all" ||
+      selectedCount > 0;
+    return eligibleInView > 0 && viewIsNarrowed;
+  }, [
+    filtered,
+    q,
+    filter,
+    inviteFilter,
+    readinessFilter,
+    followUpFilter,
+    duplicateFilter,
+    planningGroupFilter,
+    planningTableFilter,
+    selectedCount,
+  ]);
+
+  const inviteScopeGuests = useMemo(() => {
+    if (sendInvitesScopeOverride) return sendInvitesScopeOverride;
+    if (selectedCount > 0) return selectedGuests;
+    return filtered;
+  }, [sendInvitesScopeOverride, selectedCount, selectedGuests, filtered]);
+
+  const inviteScopeDescription =
+    sendInvitesScopeOverride && sendInvitesScopeMode === "remaining"
+      ? `${sendInvitesScopeOverride.length} guest${sendInvitesScopeOverride.length === 1 ? "" : "s"} not invited yet (remaining)`
+      : sendInvitesScopeOverride && sendInvitesScopeMode === "ready"
+        ? `${sendInvitesScopeOverride.length} guest${sendInvitesScopeOverride.length === 1 ? "" : "s"} ready to send (phone & email on file)`
+        : selectedCount > 0
+          ? `${selectedCount} selected guest${selectedCount === 1 ? "" : "s"}`
+          : `${filtered.length} guest${filtered.length === 1 ? "" : "s"} in current view (no rows selected — using filtered list)`;
 
   function clearFilters() {
     setQ("");
     setFilter("all");
+    setInviteFilter("all");
+    setReadinessFilter("all");
+    setFollowUpFilter("all");
+    setDuplicateFilter("all");
+    setPlanningGroupFilter("all");
+    setPlanningTableFilter("all");
     setSort("updatedDesc");
   }
 
@@ -205,43 +621,75 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
     });
   }
 
-  function exportGuests(mode: "all" | "filtered" | "selected") {
-    const source =
-      mode === "all" ? guests : mode === "filtered" ? filtered : filtered.filter((g) => selectedIds.has(g.id));
-
-    const rows = [
+  function buildGuestExportRows(source: GuestPanelGuest[]) {
+    return [
       [
         "Guest Name",
         "Greeting",
-        "Group",
+        "Category (group)",
+        "Table",
         "Max Guests",
         "RSVP Status",
+        "Readiness",
+        "Follow-up",
+        "Duplicate",
         "Attending Count",
         "Response Time",
         "Message to host",
         "Email",
         "Phone",
         "Notes",
+        "Invited At",
+        "Invite channel",
+        "Family invite",
       ],
       ...source.map((guest) => {
         return [
           guest.guestName,
           guest.greeting || "Assalamu Alaikum",
           guest.group ?? "",
+          guest.tableName ?? "",
           String(guest.maxGuests),
           statusLabel(statusOf(guest)),
+          getGuestReadiness(guest).label,
+          getGuestFollowUpState(guest).label,
+          duplicateBadgeLabel(duplicateStrengthMap.get(guest.id) ?? "none") ?? "",
           String(guest.attendingCount ?? 0),
           formatDate(guest.respondedAt),
           guest.hostMessage ?? "",
           guest.email ?? "",
           guest.phone ?? "",
           guest.notes ?? "",
+          guest.invitedAt ? formatDate(guest.invitedAt) : "",
+          guest.inviteChannelLastUsed ?? "",
+          guest.isFamilyInvite ? "Yes" : "No",
         ];
       }),
     ];
+  }
 
+  function exportGuests(mode: "all" | "filtered" | "selected") {
+    const source =
+      mode === "all" ? guests : mode === "filtered" ? filtered : filtered.filter((g) => selectedIds.has(g.id));
     const suffix = mode === "all" ? "all" : mode === "filtered" ? "filtered" : "selected";
-    downloadCsv(`guests-${suffix}.csv`, rows);
+    downloadCsv(`guests-${suffix}.csv`, buildGuestExportRows(source));
+  }
+
+  function exportGuestsWithoutTable() {
+    const source = guests.filter((g) => !g.tableName?.trim());
+    downloadCsv("guests-no-table.csv", buildGuestExportRows(source));
+  }
+
+  function exportGuestsForTableLabel(tableLabel: string) {
+    const source = guests.filter((g) => (g.tableName?.trim() ?? "") === tableLabel);
+    const safe = tableLabel.replace(/[^\w\-]+/g, "_").slice(0, 40) || "table";
+    downloadCsv(`guests-table-${safe}.csv`, buildGuestExportRows(source));
+  }
+
+  function exportGuestsForGroupLabel(groupLabel: string) {
+    const source = guests.filter((g) => (g.group?.trim() ?? "") === groupLabel);
+    const safe = groupLabel.replace(/[^\w\-]+/g, "_").slice(0, 40) || "group";
+    downloadCsv(`guests-group-${safe}.csv`, buildGuestExportRows(source));
   }
 
   async function copyBulkLinks() {
@@ -289,19 +737,158 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
       setBulkEmailStatus(
         `Sent ${result.sent}. Skipped ${result.skippedMissingEmail}. Failed ${result.failed}.`,
       );
+      router.refresh();
     } catch {
       setBulkEmailStatus("Could not send bulk email invites right now.");
     }
   }
 
   return (
-    <div className="app-card p-6">
+    <div id="event-guests" className="app-card scroll-mt-24 p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <h2 className="text-xl font-semibold text-zinc-900">Guests</h2>
           <p className="mt-1 text-sm text-zinc-600">
             {guests.length} famil{guests.length === 1 ? "y" : "ies"} · Realtime search, sort, and bulk actions
           </p>
+          <p className="mt-2 text-xs text-zinc-500">
+            Use the external-link icon on a row to open that guest&apos;s full RSVP page in a new tab (admin preview).
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {notInvitedCount > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => setInviteFilter("not_invited")}
+            >
+              Not invited ({notInvitedCount})
+            </button>
+          ) : null}
+          {notInvitedCount > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setSendInvitesScopeOverride(remainingNotInvitedGuests);
+                setSendInvitesScopeMode("remaining");
+                setSendInvitesNonce((n) => n + 1);
+                setSendInvitesOpen(true);
+              }}
+            >
+              Send to remaining
+            </button>
+          ) : null}
+          {readyToSendCount > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setSendInvitesScopeOverride(readyToSendGuests);
+                setSendInvitesScopeMode("ready");
+                setSendInvitesNonce((n) => n + 1);
+                setSendInvitesOpen(true);
+              }}
+            >
+              Send to ready guests
+            </button>
+          ) : null}
+          {readyToSendCount > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setReadinessFilter("ready");
+                setInviteFilter("all");
+              }}
+            >
+              Show ready only
+            </button>
+          ) : null}
+          {missingContactGuests.length > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setReadinessFilter("missing_contact");
+                setInviteFilter("all");
+              }}
+            >
+              Missing contact ({missingContactGuests.length})
+            </button>
+          ) : null}
+          {pendingFollowUpGuests.length > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setFollowUpScopeOverride(pendingFollowUpGuests);
+                setFollowUpNonce((n) => n + 1);
+                setFollowUpModalOpen(true);
+              }}
+            >
+              Follow up with pending guests
+            </button>
+          ) : null}
+          {showSendRemindersThisViewButton ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setFollowUpScopeOverride(null);
+                setFollowUpNonce((n) => n + 1);
+                setFollowUpModalOpen(true);
+              }}
+            >
+              Send reminders (this view)
+            </button>
+          ) : null}
+          {pendingFollowUpGuests.length > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setFollowUpFilter("invited_no_response");
+                setInviteFilter("all");
+              }}
+            >
+              Show invited, no response
+            </button>
+          ) : null}
+          {duplicateGuestCount > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setDuplicateFilter("has_duplicates");
+                setInviteFilter("all");
+              }}
+            >
+              Show duplicates only
+            </button>
+          ) : null}
+          {duplicateClusterCount > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => setReviewDuplicatesOpen(true)}
+            >
+              Review duplicates ({duplicateClusterCount})
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={filtered.length === 0}
+            onClick={() => {
+              setSendInvitesScopeOverride(null);
+              setSendInvitesScopeMode(null);
+              setSendInvitesNonce((n) => n + 1);
+              setSendInvitesOpen(true);
+            }}
+          >
+            Send invites
+          </button>
         </div>
         <div className="flex w-full flex-col gap-3 sm:max-w-4xl sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <input
@@ -319,6 +906,8 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
           >
             <option value="updatedDesc">Last updated (latest)</option>
             <option value="nameAsc">Name (A-Z)</option>
+            <option value="groupAsc">Category (A-Z)</option>
+            <option value="tableAsc">Table (A-Z)</option>
             <option value="status">RSVP status</option>
             <option value="maxGuestsDesc">Max guests (high to low)</option>
           </select>
@@ -343,7 +932,166 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
         ))}
       </div>
 
-      <div className="mt-4 text-sm text-zinc-500">Showing {filtered.length} of {guests.length}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Invites</span>
+        <div className="flex flex-wrap gap-2">
+          {inviteFilterTabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setInviteFilter(t.id)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                inviteFilter === t.id
+                  ? "bg-[#5c4a33] text-white"
+                  : "bg-[#f0e8da] text-zinc-600 hover:bg-[#e8dcc8]"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Duplicates</span>
+        <div className="flex flex-wrap gap-2">
+          {duplicateFilterTabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setDuplicateFilter(t.id)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                duplicateFilter === t.id
+                  ? "bg-[#6b2d3c] text-white"
+                  : "bg-[#f5e8eb] text-zinc-600 hover:bg-[#ebd0d6]"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Follow-up</span>
+        <div className="flex flex-wrap gap-2">
+          {followUpFilterTabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setFollowUpFilter(t.id)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                followUpFilter === t.id
+                  ? "bg-[#4a3d5c] text-white"
+                  : "bg-[#ebe6f2] text-zinc-600 hover:bg-[#ded8e8]"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Seating</span>
+        <label className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+          <span className="shrink-0">Category</span>
+          <select
+            value={planningGroupFilter}
+            onChange={(e) => setPlanningGroupFilter(e.target.value)}
+            className="max-w-[12rem] rounded-full border border-[#dccfbb] bg-white px-3 py-1.5 text-xs font-medium text-zinc-800"
+            aria-label="Filter by category"
+          >
+            <option value="all">All categories</option>
+            <option value="__none__">No category</option>
+            {uniqueGroupLabels.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+          <span className="shrink-0">Table</span>
+          <select
+            value={planningTableFilter}
+            onChange={(e) => setPlanningTableFilter(e.target.value)}
+            className="max-w-[12rem] rounded-full border border-[#dccfbb] bg-white px-3 py-1.5 text-xs font-medium text-zinc-800"
+            aria-label="Filter by table"
+          >
+            <option value="all">All tables</option>
+            <option value="unassigned">No table</option>
+            <option value="assigned">Has table</option>
+            {uniqueTableLabels.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Readiness</span>
+        <div className="flex flex-wrap gap-2">
+          {readinessFilterTabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setReadinessFilter(t.id)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                readinessFilter === t.id
+                  ? "bg-[#2f4a3c] text-white"
+                  : "bg-[#e8efe9] text-zinc-600 hover:bg-[#d7e5da]"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {hasGuests && notInvitedCount > 0 ? (
+        <p className="mt-2 text-xs text-zinc-500">
+          {notInvitedCount} guest{notInvitedCount === 1 ? " has" : "s have"} not been invited yet.
+        </p>
+      ) : null}
+      {hasGuests && readyToSendCount > 0 ? (
+        <p className="mt-1 text-xs text-zinc-500">
+          {readyToSendCount} guest{readyToSendCount === 1 ? " is" : "s are"} ready to send (phone and email on file).
+        </p>
+      ) : null}
+      {hasGuests && missingContactGuests.length > 0 ? (
+        <p className="mt-1 text-xs text-zinc-500">
+          {missingContactGuests.length} guest{missingContactGuests.length === 1 ? " has" : "s have"} no phone or email — add
+          contact to send invites.
+        </p>
+      ) : null}
+      {hasGuests && duplicateGuestCount > 0 ? (
+        <p className="mt-1 text-xs text-zinc-500">
+          {duplicateGuestCount} guest{duplicateGuestCount === 1 ? "" : "s"} in {duplicateClusterCount} duplicate
+          group{duplicateClusterCount === 1 ? "" : "s"} (same name, phone, or email).
+        </p>
+      ) : null}
+
+      <div className="mt-3 text-sm text-zinc-500">
+        Showing {filtered.length} of {guests.length}
+        {inviteFilter !== "all" ? (
+          <span className="text-zinc-400"> · invite filter active</span>
+        ) : null}
+        {readinessFilter !== "all" ? (
+          <span className="text-zinc-400"> · readiness filter active</span>
+        ) : null}
+        {followUpFilter !== "all" ? (
+          <span className="text-zinc-400"> · follow-up filter active</span>
+        ) : null}
+        {duplicateFilter !== "all" ? (
+          <span className="text-zinc-400"> · duplicate filter active</span>
+        ) : null}
+        {planningGroupFilter !== "all" || planningTableFilter !== "all" ? (
+          <span className="text-zinc-400"> · seating filter active</span>
+        ) : null}
+      </div>
 
       {selectedCount > 0 ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d9ccb6] bg-[#f8f1e5] px-4 py-3">
@@ -364,12 +1112,82 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
             <button
               type="button"
               className="btn-secondary"
+              title="Preview message for the first selected guest (each guest gets individualized text)"
+              onClick={() => {
+                const first = [...selectedIds][0];
+                if (first) {
+                  setCommunicationBulkMeta({ count: selectedCount });
+                  setCommunicationPreviewGuestId(first);
+                }
+              }}
+            >
+              Preview message ({selectedCount} selected)
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
               onClick={sendBulkEmailInvites}
               disabled={selectedWithEmail.length === 0}
               title={selectedWithEmail.length === 0 ? "No selected guests have an email address" : undefined}
             >
               Send email invites ({selectedWithEmail.length})
             </button>
+            <form action={bulkUpdateGuestPlanningAction} className="flex flex-wrap items-center gap-1">
+              <input type="hidden" name="eventId" value={eventId} />
+              <input type="hidden" name="guestIds" value={[...selectedIds].join(",")} />
+              <input type="hidden" name="mode" value="assignGroup" />
+              <input
+                name="value"
+                type="text"
+                placeholder="Category"
+                className="w-28 rounded-xl border border-[#dccfbb] bg-white px-2 py-1.5 text-xs"
+                aria-label="Category to assign"
+              />
+              <button type="submit" className="btn-secondary text-xs">
+                Set category
+              </button>
+            </form>
+            <form action={bulkUpdateGuestPlanningAction} className="flex flex-wrap items-center gap-1">
+              <input type="hidden" name="eventId" value={eventId} />
+              <input type="hidden" name="guestIds" value={[...selectedIds].join(",")} />
+              <input type="hidden" name="mode" value="assignTable" />
+              <input
+                name="value"
+                type="text"
+                placeholder="Table"
+                className="w-28 rounded-xl border border-[#dccfbb] bg-white px-2 py-1.5 text-xs"
+                aria-label="Table to assign"
+              />
+              <button type="submit" className="btn-secondary text-xs">
+                Set table
+              </button>
+            </form>
+            <form
+              action={bulkUpdateGuestPlanningAction}
+              onSubmit={(e) => {
+                if (!confirm(`Clear category for ${selectedCount} guest(s)?`)) e.preventDefault();
+              }}
+            >
+              <input type="hidden" name="eventId" value={eventId} />
+              <input type="hidden" name="guestIds" value={[...selectedIds].join(",")} />
+              <input type="hidden" name="mode" value="clearGroup" />
+              <button type="submit" className="btn-secondary text-xs">
+                Clear category
+              </button>
+            </form>
+            <form
+              action={bulkUpdateGuestPlanningAction}
+              onSubmit={(e) => {
+                if (!confirm(`Clear table for ${selectedCount} guest(s)?`)) e.preventDefault();
+              }}
+            >
+              <input type="hidden" name="eventId" value={eventId} />
+              <input type="hidden" name="guestIds" value={[...selectedIds].join(",")} />
+              <input type="hidden" name="mode" value="clearTable" />
+              <button type="submit" className="btn-secondary text-xs">
+                Clear table
+              </button>
+            </form>
             <form
               action={bulkDeleteGuestsAction}
               onSubmit={(e) => {
@@ -409,7 +1227,8 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                 "Greeting",
                 "Token",
                 "RSVP Link",
-                "Group",
+                "Category",
+                "Table",
                 "Max Guests",
                 "Attending (true/false)",
                 "Attending Count",
@@ -419,6 +1238,9 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                 "Email",
                 "Phone",
                 "Notes",
+                "Invited At (ISO)",
+                "Invite channel",
+                "Family invite (true/false)",
               ],
               ...source.map((guest) => {
                 const st = statusOf(guest);
@@ -430,6 +1252,7 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                   guest.token,
                   link,
                   guest.group ?? "",
+                  guest.tableName ?? "",
                   String(guest.maxGuests),
                   String(attendingBool),
                   String(guest.attendingCount ?? 0),
@@ -439,6 +1262,9 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                   guest.email ?? "",
                   guest.phone ?? "",
                   guest.notes ?? "",
+                  guest.invitedAt ?? "",
+                  guest.inviteChannelLastUsed ?? "",
+                  String(guest.isFamilyInvite),
                 ];
               }),
             ];
@@ -456,7 +1282,8 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
               [
                 "Guest Name",
                 "Greeting",
-                "Group",
+                "Category",
+                "Table",
                 "Max Guests",
                 "RSVP Status",
                 "Attending Count",
@@ -470,6 +1297,7 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                 guest.guestName,
                 guest.greeting || "Assalamu Alaikum",
                 guest.group ?? "",
+                guest.tableName ?? "",
                 String(guest.maxGuests),
                 statusLabel(statusOf(guest)),
                 String(guest.attendingCount ?? 0),
@@ -488,6 +1316,45 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
         <button type="button" className="btn-secondary" onClick={() => exportGuests("filtered")}>
           Export filtered CSV
         </button>
+        <button type="button" className="btn-secondary" onClick={exportGuestsWithoutTable}>
+          Export no table
+        </button>
+        {uniqueTableLabels.length > 0 ? (
+          <span className="flex flex-wrap items-center gap-1">
+            <span className="text-xs text-zinc-500">By table:</span>
+            {uniqueTableLabels.slice(0, 6).map((t) => (
+              <button
+                key={t}
+                type="button"
+                className="btn-secondary text-xs py-1"
+                onClick={() => exportGuestsForTableLabel(t)}
+              >
+                {t.length > 14 ? `${t.slice(0, 14)}…` : t}
+              </button>
+            ))}
+            {uniqueTableLabels.length > 6 ? (
+              <span className="text-xs text-zinc-400">+{uniqueTableLabels.length - 6} more</span>
+            ) : null}
+          </span>
+        ) : null}
+        {uniqueGroupLabels.length > 0 ? (
+          <span className="flex flex-wrap items-center gap-1">
+            <span className="text-xs text-zinc-500">By category:</span>
+            {uniqueGroupLabels.slice(0, 4).map((g) => (
+              <button
+                key={g}
+                type="button"
+                className="btn-secondary text-xs py-1"
+                onClick={() => exportGuestsForGroupLabel(g)}
+              >
+                {g.length > 12 ? `${g.slice(0, 12)}…` : g}
+              </button>
+            ))}
+            {uniqueGroupLabels.length > 4 ? (
+              <span className="text-xs text-zinc-400">+{uniqueGroupLabels.length - 4} more</span>
+            ) : null}
+          </span>
+        ) : null}
       </div>
 
       <div className="mt-4">
@@ -497,14 +1364,30 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
           </p>
         ) : filteredEmpty ? (
           <div className="app-card-muted border border-dashed px-4 py-8 text-center text-sm text-zinc-600">
-            <p>No guests matched your search criteria.</p>
+            <p>
+              {searchOrRsvpEmpty
+                ? "No guests matched your search criteria."
+                : inviteFilterOnlyEmpty
+                  ? "No guests matched your current invite filter."
+                  : readinessFilterOnlyEmpty
+                    ? "No guests matched your current readiness filter."
+                    : followUpFilterOnlyEmpty
+                      ? followUpFilter === "invited_no_response"
+                        ? "No guests currently need follow-up."
+                        : "No guests matched your current follow-up filter."
+                      : duplicateFilterOnlyEmpty
+                        ? "No guests matched your current duplicate filter."
+                        : planningFilterOnlyEmpty
+                          ? "No guests matched your current seating or category filters."
+                          : "No guests matched your search criteria."}
+            </p>
             <button type="button" onClick={clearFilters} className="btn-secondary mt-4">
               Clear filters
             </button>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-[#e7dccb]">
-            <div className="max-h-[34rem] min-w-[1050px] overflow-auto">
+            <div className="max-h-[34rem] min-w-[1780px] overflow-auto">
               <table className="w-full border-collapse text-left">
                 <thead className="sticky top-0 z-10 bg-[#f7efe2]">
                   <tr className="border-b border-[#e1d5c3] text-xs uppercase tracking-[0.12em] text-zinc-600">
@@ -517,11 +1400,19 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                       />
                     </th>
                     <th className="px-3 py-3">Guest Name</th>
+                    <th className="px-3 py-3 w-[7.5rem]">Duplicate</th>
+                    <th className="px-3 py-3 w-[5.5rem] text-center" title="Invite card preview and full RSVP page">
+                      Invite
+                    </th>
                     <th className="px-3 py-3">Greeting</th>
                     <th className="px-3 py-3">Max Guests</th>
                     <th className="px-3 py-3">RSVP Status</th>
+                    <th className="px-3 py-3">Readiness</th>
+                    <th className="px-3 py-3">Follow-up</th>
+                    <th className="px-3 py-3">Invite status</th>
                     <th className="px-3 py-3">Attending Count</th>
-                    <th className="px-3 py-3">Group / Tag</th>
+                    <th className="px-3 py-3">Category</th>
+                    <th className="px-3 py-3">Table</th>
                     <th className="px-3 py-3">Last Updated</th>
                     <th className="px-3 py-3 text-right">Actions</th>
                   </tr>
@@ -536,6 +1427,10 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                       rsvpLink: link,
                     });
                     const st = statusOf(guest);
+                    const readiness = getGuestReadiness(guest);
+                    const followUp = getGuestFollowUpState(guest);
+                    const dupStrength = duplicateStrengthMap.get(guest.id) ?? "none";
+                    const dupLabel = duplicateBadgeLabel(dupStrength);
                     const isEditing = editingGuestId === guest.id;
 
                     return (
@@ -561,18 +1456,135 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                             </p>
                           ) : null}
                         </td>
+                        <td className="px-3 py-3 align-top">
+                          {dupLabel ? (
+                            <span className={duplicateBadgeClass(dupStrength) ?? ""} title={dupLabel}>
+                              {dupLabel}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-zinc-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 align-top text-center">
+                          <div className="flex flex-wrap items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#e7dccb] bg-[#fcf8f1] text-zinc-600 transition hover:border-[#d4c4a8] hover:bg-[#f5ecdd] hover:text-zinc-900"
+                              title={inviteCardPreviewByGuest.get(guest.id)?.usingLine ?? "Resolved invite card"}
+                              aria-label="Resolved invite card preview"
+                              onClick={() => setPreviewGuestId(guest.id)}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+                                <path
+                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 20h12a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#e7dccb] bg-[#fcf8f1] text-zinc-600 transition hover:border-[#d4c4a8] hover:bg-[#f5ecdd] hover:text-zinc-900"
+                              title="Open full RSVP page as this guest (new tab)"
+                              aria-label="Preview guest RSVP page"
+                              onClick={() => {
+                                const url = `${guestRsvpUrl(siteUrl, guest.token)}?preview=1`;
+                                window.open(url, "_blank", "noopener,noreferrer");
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+                                <path
+                                  d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5a2.25 2.25 0 002.25-2.25V10.5M10.5 13.5L21 3m0 0h-6.75M21 3v6.75"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
                         <td className="px-3 py-3 align-top text-xs text-zinc-600">{guest.greeting || "Assalamu Alaikum"}</td>
                         <td className="px-3 py-3 align-top tabular-nums">{guest.maxGuests}</td>
                         <td className="px-3 py-3 align-top">
                           <span className={statusBadgeClass(st)}>{statusLabel(st)}</span>
                         </td>
+                        <td className="px-3 py-3 align-top">
+                          <span className={readinessBadgeClass(readiness.id)} title={readiness.label}>
+                            {readiness.label}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <span className={followUpBadgeClass(followUp.id)} title={followUp.label}>
+                            {followUp.id === "invited_no_response" ? "Awaiting RSVP" : followUp.label}
+                          </span>
+                          {followUp.id === "invited_no_response" && guest.lastReminderAt ? (
+                            <span className="mt-0.5 block text-[10px] text-zinc-400">
+                              Reminder {formatDate(guest.lastReminderAt)}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <span className={inviteBadgeClass(guest)} title={guest.invitedAt ?? undefined}>
+                            {inviteBadgeLabel(guest)}
+                          </span>
+                          {guest.invitedAt ? (
+                            <span className="mt-0.5 block text-[10px] text-zinc-400">
+                              {guest.inviteCount > 1 ? `${guest.inviteCount} sends · ` : null}
+                              {formatDate(guest.invitedAt)}
+                            </span>
+                          ) : null}
+                          {communicationLastByGuest[guest.id] ? (
+                            <span className="mt-0.5 block text-[10px] text-zinc-400" title="Most recent logged communication action">
+                              Last log: {lastCommChannelLabel(communicationLastByGuest[guest.id].channel)} ·{" "}
+                              {formatDate(communicationLastByGuest[guest.id].at)}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="px-3 py-3 align-top tabular-nums">{guest.attendingCount ?? 0}</td>
                         <td className="px-3 py-3 align-top">
-                          {guest.group ? <span className="badge-soft">{guest.group}</span> : <span className="text-zinc-400">-</span>}
+                          {guest.group?.trim() ? (
+                            <span className="badge-soft max-w-[10rem] truncate" title={guest.group}>
+                              {guest.group}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 align-top text-xs">
+                          {guest.tableName?.trim() ? (
+                            <span className="badge-soft border border-indigo-200/80 bg-indigo-50/80 text-indigo-950 max-w-[10rem] truncate">
+                              {guest.tableName}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-3 align-top text-xs text-zinc-600">{formatDate(guest.updatedAt)}</td>
                         <td className="px-3 py-3 align-top">
                           <div className="flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              className="btn-secondary px-3 py-1.5 text-xs"
+                              title="View communication history for this guest"
+                              onClick={() => setCommHistoryGuest({ id: guest.id, name: guest.guestName })}
+                            >
+                              Comm history
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-secondary px-3 py-1.5 text-xs"
+                              title="Preview WhatsApp & email text for this guest"
+                              aria-label="Preview message"
+                              onClick={() => {
+                                setCommunicationBulkMeta(null);
+                                setCommunicationPreviewGuestId(guest.id);
+                              }}
+                            >
+                              Preview message
+                            </button>
                             <button
                               type="button"
                               onClick={async () => {
@@ -617,6 +1629,7 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                                     if (result.ok && !result.skipped) {
                                       setEmailSentGuestId(guest.id);
                                       setTimeout(() => setEmailSentGuestId(null), 1800);
+                                      router.refresh();
                                     }
                                   } finally {
                                     setEmailSendingGuestId(null);
@@ -697,7 +1710,14 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                                 name="group"
                                 defaultValue={guest.group ?? ""}
                                 className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                placeholder="Group"
+                                placeholder="Category / group"
+                              />
+                              <input
+                                type="text"
+                                name="tableName"
+                                defaultValue={guest.tableName ?? ""}
+                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
+                                placeholder="Table"
                               />
                               <input
                                 type="text"
@@ -720,6 +1740,42 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
                                 className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
                                 placeholder="Notes"
                               />
+                              <label className="flex items-start gap-2 sm:col-span-2">
+                                <input
+                                  type="checkbox"
+                                  name="isFamilyInvite"
+                                  value="true"
+                                  defaultChecked={guest.isFamilyInvite}
+                                  className="mt-1 h-4 w-4 rounded border-[#dccfbb] text-zinc-900"
+                                />
+                                <span className="text-xs text-zinc-700">
+                                  Family invite — use the family invite card when no size-specific card applies (see event
+                                  settings).
+                                </span>
+                              </label>
+                              <div className="sm:col-span-2 rounded-xl border border-[#e7dccb] bg-[#fbf8f2] p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                                  Resolved invite card (saved guest)
+                                </p>
+                                <p className="mt-1 text-xs text-zinc-700">
+                                  {inviteCardPreviewByGuest.get(guest.id)?.usingLine ?? "Using: Default Card"}
+                                </p>
+                                <p className="mt-1 text-[11px] text-zinc-500">
+                                  Save changes after editing max guests or family invite to refresh this preview.
+                                </p>
+                                {inviteCardPreviewByGuest.get(guest.id)?.safeSrc ? (
+                                  <div className="relative mt-2 h-36 w-full max-w-xs overflow-hidden rounded-lg border border-[#e7dccb] bg-white">
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- small admin preview */}
+                                    <img
+                                      src={inviteCardPreviewByGuest.get(guest.id)?.safeSrc ?? ""}
+                                      alt=""
+                                      className="h-full w-full object-contain object-center"
+                                    />
+                                  </div>
+                                ) : (
+                                  <p className="mt-2 text-xs text-zinc-500">No image for this variant.</p>
+                                )}
+                              </div>
                               <div className="sm:col-span-2">
                                 <button type="submit" className="btn-secondary px-3 py-1.5 text-xs">
                                   Save changes
@@ -737,6 +1793,94 @@ export function EventGuestsPanel({ eventId, eventTitle, guests, siteUrl }: Props
           </div>
         )}
       </div>
+
+      <CommunicationPreviewModal
+        open={communicationPreviewGuestId !== null}
+        onClose={() => {
+          setCommunicationPreviewGuestId(null);
+          setCommunicationBulkMeta(null);
+        }}
+        eventId={eventId}
+        guestId={communicationPreviewGuestId}
+        bulkSampleNote={Boolean(communicationBulkMeta && communicationBulkMeta.count > 1)}
+        selectedCount={communicationBulkMeta?.count}
+      />
+
+      <GuestInviteCardPreviewModal
+        open={Boolean(previewGuestId)}
+        onClose={() => setPreviewGuestId(null)}
+        safeSrc={
+          previewGuestId ? inviteCardPreviewByGuest.get(previewGuestId)?.safeSrc ?? null : null
+        }
+        usingLine={
+          previewGuestId ? inviteCardPreviewByGuest.get(previewGuestId)?.usingLine ?? "" : ""
+        }
+        guestName={previewGuestId ? guests.find((g) => g.id === previewGuestId)?.guestName ?? "" : ""}
+      />
+
+      <ReviewDuplicatesModal
+        open={reviewDuplicatesOpen}
+        onClose={() => setReviewDuplicatesOpen(false)}
+        eventId={eventId}
+        eventTitle={eventTitle}
+        guests={guests}
+        onRequestEditGuest={(id) => {
+          setEditingGuestId(id);
+          setReviewDuplicatesOpen(false);
+        }}
+      />
+
+      <SendInvitesModal
+        key={sendInvitesNonce}
+        open={sendInvitesOpen}
+        onClose={() => {
+          setSendInvitesOpen(false);
+          setSendInvitesScopeOverride(null);
+          setSendInvitesScopeMode(null);
+        }}
+        eventId={eventId}
+        eventTitle={eventTitle}
+        siteUrl={siteUrl}
+        scopeDescription={inviteScopeDescription}
+        guests={inviteScopeGuests.map((g) => ({
+          id: g.id,
+          guestName: g.guestName,
+          greeting: g.greeting,
+          token: g.token,
+          phone: g.phone,
+          email: g.email,
+        }))}
+      />
+
+      <GuestCommunicationHistoryModal
+        open={commHistoryGuest !== null}
+        onClose={() => setCommHistoryGuest(null)}
+        eventId={eventId}
+        guestId={commHistoryGuest?.id ?? null}
+        guestName={commHistoryGuest?.name ?? ""}
+      />
+
+      <SendInvitesModal
+        key={`followup-${followUpNonce}`}
+        mode="reminder"
+        open={followUpModalOpen}
+        onClose={() => {
+          setFollowUpModalOpen(false);
+          setFollowUpScopeOverride(null);
+        }}
+        eventId={eventId}
+        eventTitle={eventTitle}
+        siteUrl={siteUrl}
+        scopeDescription={followUpScopeDescription}
+        guests={followUpModalGuests.map((g) => ({
+          id: g.id,
+          guestName: g.guestName,
+          greeting: g.greeting,
+          token: g.token,
+          phone: g.phone,
+          email: g.email,
+        }))}
+      />
     </div>
   );
 }

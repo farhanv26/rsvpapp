@@ -1,15 +1,26 @@
 import Papa from "papaparse";
 import { z } from "zod";
 
+function parseFamilyInviteCell(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  const s = String(value ?? "").trim().toLowerCase();
+  return s === "true" || s === "yes" || s === "y" || s === "1";
+}
+
 export const guestImportRowSchema = z
   .object({
     guestName: z.string().trim().min(1, "guestName is required"),
     greeting: z.string().trim().max(80, "greeting must be 80 characters or less").optional(),
     maxGuests: z.coerce.number().int().min(1, "maxGuests must be at least 1"),
     group: z.string().trim().optional(),
+    tableName: z.string().trim().max(120).optional(),
     notes: z.string().optional(),
     phone: z.string().trim().optional(),
     email: z.string().trim().optional(),
+    isFamilyInvite: z.preprocess((v) => {
+      if (v === undefined || v === null || v === "") return false;
+      return parseFamilyInviteCell(v);
+    }, z.boolean()),
   })
   .superRefine((data, ctx) => {
     if (data.email && data.email.length > 0) {
@@ -34,10 +45,20 @@ function mapHeaderToField(header: string): string | null {
     maxguests: "maxGuests",
     "max guests": "maxGuests",
     group: "group",
+    tablename: "tableName",
+    "table name": "tableName",
+    table: "tableName",
+    tablenumber: "tableName",
+    "table number": "tableName",
+    "table assignment": "tableName",
     greeting: "greeting",
     notes: "notes",
     phone: "phone",
     email: "email",
+    isfamilyinvite: "isFamilyInvite",
+    "family invite": "isFamilyInvite",
+    familyinvite: "isFamilyInvite",
+    "is family invite": "isFamilyInvite",
   };
   return map[k] ?? null;
 }
@@ -144,10 +165,12 @@ export function previewGuestCsv(
       guestName: obj.guestName ?? "",
       maxGuests: obj.maxGuests === "" ? undefined : obj.maxGuests,
       group: obj.group || undefined,
+      tableName: obj.tableName || undefined,
       greeting: obj.greeting || undefined,
       notes: obj.notes || undefined,
       phone: obj.phone || undefined,
       email: obj.email || undefined,
+      isFamilyInvite: obj.isFamilyInvite === "" ? undefined : obj.isFamilyInvite,
     });
 
     if (!safeParse.success) {

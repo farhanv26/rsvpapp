@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateEventAction } from "@/app/admin/events/actions";
 import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
+import { EventInviteVariantsFields } from "@/components/admin/event-invite-variants-fields";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 import { SafeEventImage } from "@/components/safe-event-image";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
@@ -32,6 +33,12 @@ export default async function EditEventPage({ params }: Props) {
       description: true,
       welcomeMessage: true,
       imagePath: true,
+      genericCardImage: true,
+      cardImage1: true,
+      cardImage2: true,
+      cardImage3: true,
+      cardImage4: true,
+      familyCardImage: true,
     },
   });
   if (!event) {
@@ -178,6 +185,17 @@ export default async function EditEventPage({ params }: Props) {
           </div>
           <EventImageUploadField initialImagePath={event.imagePath} />
         </section>
+
+        <EventInviteVariantsFields
+          initials={{
+            genericCardImage: event.genericCardImage,
+            cardImage1: event.cardImage1,
+            cardImage2: event.cardImage2,
+            cardImage3: event.cardImage3,
+            cardImage4: event.cardImage4,
+            familyCardImage: event.familyCardImage,
+          }}
+        />
 
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Link href={`/admin/events/${event.id}`} className="btn-secondary w-full sm:w-auto">

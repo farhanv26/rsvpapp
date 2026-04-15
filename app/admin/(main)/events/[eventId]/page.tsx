@@ -8,7 +8,11 @@ import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { countInvitedAwaitingRsvp } from "@/lib/guest-followup";
+import { countDuplicateClusters, countGuestsInDuplicateClusters } from "@/lib/guest-duplicates";
+import { summarizeReadinessGuestCounts } from "@/lib/guest-readiness";
 import { getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
+import type { InviteCardEventInput } from "@/lib/invite-card-resolution";
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -70,6 +74,72 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const responseRate = totalFamilies > 0 ? totalResponded / totalFamilies : 0;
   const attendanceRate = totalMaximumInvited > 0 ? totalConfirmedAttendees / totalMaximumInvited : 0;
 
+  const readinessOverview = summarizeReadinessGuestCounts(
+    event.guests.map((g) => ({
+      respondedAt: g.respondedAt?.toISOString() ?? null,
+      invitedAt: g.invitedAt?.toISOString() ?? null,
+      phone: g.phone,
+      email: g.email,
+    })),
+  );
+
+  const needsFollowUpCount = countInvitedAwaitingRsvp(
+    event.guests.map((g) => ({
+      invitedAt: g.invitedAt?.toISOString() ?? null,
+      respondedAt: g.respondedAt?.toISOString() ?? null,
+    })),
+  );
+
+  const duplicateDetectionInput = event.guests.map((g) => ({
+    id: g.id,
+    guestName: g.guestName,
+    phone: g.phone,
+    email: g.email,
+  }));
+  const duplicateGuestsDetected = countGuestsInDuplicateClusters(duplicateDetectionInput);
+  const duplicateGroupsCount = countDuplicateClusters(duplicateDetectionInput);
+
+  const distinctGroupCategories = new Set(
+    event.guests.map((g) => g.group?.trim()).filter((s): s is string => Boolean(s)),
+  ).size;
+  const distinctTables = new Set(
+    event.guests.map((g) => g.tableName?.trim()).filter((s): s is string => Boolean(s)),
+  ).size;
+  const guestsWithoutTable = event.guests.filter((g) => !g.tableName?.trim()).length;
+  const guestsWithoutGroup = event.guests.filter((g) => !g.group?.trim()).length;
+
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [commLogsForHints, commTotalLogs, commDistinctGuests, commWeekLogs] = await Promise.all([
+    prisma.guestCommunicationLog.findMany({
+      where: { eventId: event.id },
+      orderBy: { createdAt: "desc" },
+      take: 8000,
+      select: { guestId: true, channel: true, createdAt: true },
+    }),
+    prisma.guestCommunicationLog.count({ where: { eventId: event.id } }),
+    prisma.guestCommunicationLog.groupBy({
+      by: ["guestId"],
+      where: { eventId: event.id },
+    }),
+    prisma.guestCommunicationLog.count({
+      where: { eventId: event.id, createdAt: { gte: weekAgo } },
+    }),
+  ]);
+  const communicationLastByGuest: Record<string, { channel: string; at: string }> = {};
+  for (const row of commLogsForHints) {
+    if (communicationLastByGuest[row.guestId]) continue;
+    communicationLastByGuest[row.guestId] = {
+      channel: row.channel,
+      at: row.createdAt.toISOString(),
+    };
+  }
+  const communicationStats = {
+    totalLogs: commTotalLogs,
+    guestsWithLogs: commDistinctGuests.length,
+    guestsWithNoLogs: Math.max(0, totalFamilies - commDistinctGuests.length),
+    weekLogs: commWeekLogs,
+  };
+
   const guestsSerialized = event.guests.map((g) => ({
     id: g.id,
     guestName: g.guestName,
@@ -80,13 +150,29 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     attendingCount: g.attendingCount,
     respondedAt: g.respondedAt?.toISOString() ?? null,
     group: g.group,
+    tableName: g.tableName ?? null,
     notes: g.notes,
     hostMessage: (g as unknown as { hostMessage?: string | null }).hostMessage ?? null,
     phone: g.phone,
     email: g.email,
+    invitedAt: g.invitedAt?.toISOString() ?? null,
+    inviteChannelLastUsed: g.inviteChannelLastUsed ?? null,
+    inviteCount: g.inviteCount ?? 0,
+    lastReminderAt: g.lastReminderAt?.toISOString() ?? null,
     createdAt: g.createdAt.toISOString(),
     updatedAt: g.updatedAt.toISOString(),
+    isFamilyInvite: g.isFamilyInvite,
   }));
+
+  const inviteCardEvent: InviteCardEventInput = {
+    imagePath: event.imagePath,
+    genericCardImage: event.genericCardImage,
+    cardImage1: event.cardImage1,
+    cardImage2: event.cardImage2,
+    cardImage3: event.cardImage3,
+    cardImage4: event.cardImage4,
+    familyCardImage: event.familyCardImage,
+  };
   const safeImageSrc = getSafeImageSrc(event.imagePath);
   console.info("[event-image] admin detail render src", {
     eventId: event.id,
@@ -129,6 +215,9 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     "communication_email_guest_skipped",
     "communication_whatsapp_prepared",
     "communication_whatsapp_bulk_prepared",
+    "guest_invite_marked",
+    "communication_email_guest_reminder_sent",
+    "guest_reminder_recorded",
   ];
 
   return (
@@ -194,6 +283,19 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Link
+              href="#event-guests"
+              className="btn-secondary inline-flex shrink-0"
+              title="Jump to guest list — use Preview guest RSVP on any row"
+            >
+              Guest RSVP preview
+            </Link>
+            <Link
+              href={`/admin/events/${event.id}/report`}
+              className="btn-secondary inline-flex shrink-0"
+            >
+              Host summary
+            </Link>
+            <Link
               href={`/admin/events/${event.id}/edit`}
               className="btn-secondary inline-flex shrink-0"
             >
@@ -231,6 +333,48 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               No invitation image uploaded
             </div>
           )}
+          <div className="flex flex-wrap gap-2 border-t border-[#efe4d4] px-5 py-3 sm:px-7">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Invite cards:</span>
+            {getSafeImageSrc(event.imagePath) ? (
+              <span className="rounded-full border border-[#e3d8c7] bg-[#fbf8f2] px-2.5 py-0.5 text-xs text-zinc-700">
+                Default
+              </span>
+            ) : (
+              <span className="rounded-full border border-dashed border-zinc-200 px-2.5 py-0.5 text-xs text-zinc-400">
+                Default (none)
+              </span>
+            )}
+            {getSafeImageSrc(event.genericCardImage) ? (
+              <span className="rounded-full border border-[#e3d8c7] bg-[#fbf8f2] px-2.5 py-0.5 text-xs text-zinc-700">
+                Generic
+              </span>
+            ) : null}
+            {getSafeImageSrc(event.cardImage1) ? (
+              <span className="rounded-full border border-[#e3d8c7] bg-[#fbf8f2] px-2.5 py-0.5 text-xs text-zinc-700">
+                1 guest
+              </span>
+            ) : null}
+            {getSafeImageSrc(event.cardImage2) ? (
+              <span className="rounded-full border border-[#e3d8c7] bg-[#fbf8f2] px-2.5 py-0.5 text-xs text-zinc-700">
+                2 guest
+              </span>
+            ) : null}
+            {getSafeImageSrc(event.cardImage3) ? (
+              <span className="rounded-full border border-[#e3d8c7] bg-[#fbf8f2] px-2.5 py-0.5 text-xs text-zinc-700">
+                3 guest
+              </span>
+            ) : null}
+            {getSafeImageSrc(event.cardImage4) ? (
+              <span className="rounded-full border border-[#e3d8c7] bg-[#fbf8f2] px-2.5 py-0.5 text-xs text-zinc-700">
+                4 guest
+              </span>
+            ) : null}
+            {getSafeImageSrc(event.familyCardImage) ? (
+              <span className="rounded-full border border-[#e3d8c7] bg-[#fbf8f2] px-2.5 py-0.5 text-xs text-zinc-700">
+                Family
+              </span>
+            ) : null}
+          </div>
           <div className="space-y-3 p-6 text-sm leading-relaxed text-zinc-700 sm:p-8">
             {event.eventSubtitle ? <p className="text-zinc-600">{event.eventSubtitle}</p> : null}
             {event.welcomeMessage ? <p>{event.welcomeMessage}</p> : null}
@@ -252,6 +396,147 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           <StatCard label="Response rate" value={`${Math.round(responseRate * 100)}%`} />
           <StatCard label="Attendance rate" value={`${Math.round(attendanceRate * 100)}%`} />
         </section>
+
+        {totalFamilies > 0 ? (
+          <section
+            className={`app-card p-5 sm:p-6 ${
+              needsFollowUpCount > 0 ? "border-amber-200/80 bg-amber-50/40" : ""
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs follow-up</p>
+            <p className="mt-1 text-sm text-zinc-700">
+              Invited guests who have not RSVP&apos;d yet — nudge them from the guest list when you&apos;re ready.
+            </p>
+            <p
+              className={`mt-3 text-3xl font-semibold tabular-nums ${
+                needsFollowUpCount > 0 ? "text-amber-950" : "text-zinc-400"
+              }`}
+            >
+              {needsFollowUpCount}
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">invited, awaiting response</p>
+          </section>
+        ) : null}
+
+        {totalFamilies > 0 ? (
+          <section className="app-card p-5 sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact &amp; invite readiness</p>
+            <p className="mt-1 text-sm text-zinc-600">
+              Who can be invited now, who still needs contact details, and who has already responded.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90">Ready to send</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
+                  {readinessOverview.readyToSend}
+                </p>
+                <p className="mt-1 text-xs text-emerald-900/80">Phone &amp; email on file, not invited</p>
+              </div>
+              <div className="rounded-2xl border border-rose-200/70 bg-rose-50/50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-900/80">Missing contact</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-rose-950">
+                  {readinessOverview.missingContact}
+                </p>
+                <p className="mt-1 text-xs text-rose-900/75">No phone or email yet</p>
+              </div>
+              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-950/90">Already invited</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-950">
+                  {readinessOverview.alreadyInvited}
+                </p>
+                <p className="mt-1 text-xs text-amber-950/80">Awaiting RSVP</p>
+              </div>
+              <div className="rounded-2xl border border-violet-200/70 bg-violet-50/60 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900/85">Responded</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-violet-950">
+                  {readinessOverview.responded}
+                </p>
+                <p className="mt-1 text-xs text-violet-900/80">RSVP submitted</p>
+              </div>
+            </div>
+            {(readinessOverview.missingPhone > 0 || readinessOverview.missingEmail > 0) ? (
+              <p className="mt-3 text-xs text-zinc-500">
+                Partial contact: {readinessOverview.missingPhone} missing phone (email only),{" "}
+                {readinessOverview.missingEmail} missing email (phone only).
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        {totalFamilies > 0 ? (
+          <section className="app-card p-5 sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Seating &amp; groups</p>
+            <p className="mt-1 text-sm text-zinc-600">
+              Categories, table labels, and who still needs assignments.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-2xl border border-sky-200/80 bg-sky-50/50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-950/85">Categories used</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-sky-950">{distinctGroupCategories}</p>
+                <p className="mt-1 text-xs text-sky-950/75">Distinct group labels</p>
+              </div>
+              <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-950/85">Tables used</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-indigo-950">{distinctTables}</p>
+                <p className="mt-1 text-xs text-indigo-950/75">Distinct table names</p>
+              </div>
+              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-950/90">No table yet</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-950">{guestsWithoutTable}</p>
+                <p className="mt-1 text-xs text-amber-950/80">Families not assigned</p>
+              </div>
+              <div className="rounded-2xl border border-zinc-200/90 bg-zinc-50/80 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">No category yet</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-900">{guestsWithoutGroup}</p>
+                <p className="mt-1 text-xs text-zinc-600">No group label</p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {totalFamilies > 0 ? (
+          <section className="app-card p-5 sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">List hygiene</p>
+            <p className="mt-1 text-sm text-zinc-600">
+              Duplicate signals, missing contact, and families ready for a first invite.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div
+                className={`rounded-2xl border px-4 py-3 ${
+                  duplicateGuestsDetected > 0
+                    ? "border-rose-200/80 bg-rose-50/50"
+                    : "border-zinc-200/80 bg-zinc-50/50"
+                }`}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Possible duplicates</p>
+                <p
+                  className={`mt-1 text-2xl font-semibold tabular-nums ${
+                    duplicateGuestsDetected > 0 ? "text-rose-950" : "text-zinc-400"
+                  }`}
+                >
+                  {duplicateGuestsDetected}
+                </p>
+                <p className="mt-1 text-xs text-zinc-600">
+                  {duplicateGroupsCount} group{duplicateGroupsCount === 1 ? "" : "s"} (same name, phone, or email)
+                </p>
+              </div>
+              <div className="rounded-2xl border border-rose-200/70 bg-rose-50/50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-900/80">Missing contact</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-rose-950">
+                  {readinessOverview.missingContact}
+                </p>
+                <p className="mt-1 text-xs text-rose-900/75">No phone or email</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90">Send-ready</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
+                  {readinessOverview.readyToSend}
+                </p>
+                <p className="mt-1 text-xs text-emerald-900/80">Phone &amp; email, not invited</p>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
           <section
@@ -278,7 +563,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
         <section className="app-card p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-zinc-900">Add one guest</h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Optional: group, contact, and notes for your internal planning.
+            Optional: category (e.g. Bride side), table, contact, and notes.
           </p>
           <form action={createGuestAction} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <input type="hidden" name="eventId" value={event.id} />
@@ -314,8 +599,12 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
-              Group / side
-              <input name="group" type="text" className="input-luxe" />
+              Group / category
+              <input name="group" type="text" className="input-luxe" placeholder="Family, VIP, Bride side…" />
+            </label>
+            <label className="block text-sm font-medium text-zinc-700">
+              Table
+              <input name="tableName" type="text" className="input-luxe" placeholder="Table 1, A, VIP…" />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
               Phone
@@ -328,6 +617,18 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             <label className="block text-sm font-medium text-zinc-700 sm:col-span-2 lg:col-span-3">
               Notes
               <input name="notes" type="text" className="input-luxe" />
+            </label>
+            <label className="flex items-start gap-2 sm:col-span-2 lg:col-span-3">
+              <input
+                type="checkbox"
+                name="isFamilyInvite"
+                value="true"
+                className="mt-1 h-4 w-4 rounded border-[#dccfbb] text-zinc-900"
+              />
+              <span className="text-sm text-zinc-700">
+                Family invite — use the family invite card when no size-specific card applies (configure under Edit
+                event → Advanced invite card variants).
+              </span>
             </label>
             <div className="sm:col-span-2 lg:col-span-3">
               <button type="submit" className="btn-primary w-full sm:w-auto">
@@ -404,11 +705,33 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           )}
         </section>
 
+        {totalFamilies > 0 ? (
+          <section className="app-card p-5 sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Communications (logged)</p>
+            <p className="mt-2 text-sm text-zinc-700">
+              <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.totalLogs}</span> actions
+              logged ·{" "}
+              <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.guestsWithLogs}</span>{" "}
+              guests with history ·{" "}
+              <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.weekLogs}</span> in the
+              last 7 days ·{" "}
+              <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.guestsWithNoLogs}</span>{" "}
+              guests with no comm log yet
+            </p>
+            <p className="mt-2 text-xs text-zinc-500">
+              Open any row&apos;s communication history for the full timeline (WhatsApp, email, manual marks,
+              reminders).
+            </p>
+          </section>
+        ) : null}
+
         <EventGuestsPanel
           eventId={event.id}
           eventTitle={event.title}
           guests={guestsSerialized}
           siteUrl={getPublicSiteUrl()}
+          inviteCardEvent={inviteCardEvent}
+          communicationLastByGuest={communicationLastByGuest}
         />
       </div>
     </main>

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 import { dispatchEventCommunication } from "@/lib/communications";
@@ -34,6 +35,17 @@ export async function submitRsvpAction(formData: FormData) {
 
   if (!guest) {
     throw new Error("Invalid RSVP link.");
+  }
+
+  const previewFlag = formData.get("previewMode") === "1";
+  if (previewFlag) {
+    const admin = await getOptionalAdminUser();
+    if (
+      admin &&
+      (isSuperAdmin(admin) || guest.event.ownerUserId === admin.id)
+    ) {
+      throw new Error("RSVP submission is disabled in preview mode.");
+    }
   }
 
   if (guest.event.rsvpDeadline) {

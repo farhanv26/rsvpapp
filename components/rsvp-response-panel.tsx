@@ -11,6 +11,7 @@ type Props = {
   attendingCount: number | null;
   hostMessage: string | null;
   canEdit: boolean;
+  previewMode?: boolean;
 };
 
 export function RsvpResponsePanel({
@@ -21,6 +22,7 @@ export function RsvpResponsePanel({
   attendingCount,
   hostMessage,
   canEdit,
+  previewMode = false,
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -30,6 +32,7 @@ export function RsvpResponsePanel({
         token={token}
         maxGuests={maxGuests}
         isLocked={false}
+        previewMode={previewMode}
         initialAttending={attending ? "yes" : "no"}
         initialAttendingCount={attendingCount}
         initialHostMessage={hostMessage}
@@ -59,10 +62,12 @@ export function RsvpResponsePanel({
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{hostMessage}</p>
         </div>
       ) : null}
-      {canEdit ? (
+      {canEdit && !previewMode ? (
         <button type="button" onClick={() => setIsEditing(true)} className="btn-secondary mt-5">
           Edit RSVP
         </button>
+      ) : previewMode ? (
+        <p className="mt-5 text-xs text-zinc-500">Preview mode — editing RSVP is disabled.</p>
       ) : (
         <p className="mt-5 text-xs uppercase tracking-[0.16em] text-zinc-500">Editing is closed after the RSVP deadline</p>
       )}

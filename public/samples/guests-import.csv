@@ -1,4 +1,4 @@
-guestName,maxGuests,group,notes,phone,email
-The Valli Family,4,Family,Brunch side,,guest@example.com
-Jordan & Alex,2,Couple,,555-0100,
-Samira Khan,3,Friends,From university,,
+guestName,maxGuests,group,tableName,notes,phone,email
+The Valli Family,4,Family,Table 1,Brunch side,,guest@example.com
+Jordan & Alex,2,Couple,Table 2,,555-0100,
+Samira Khan,3,Friends,,From university,,

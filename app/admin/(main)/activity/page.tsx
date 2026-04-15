@@ -58,6 +58,7 @@ export default async function AdminActivityPage({ searchParams }: Props) {
     "communication_email_guest_skipped",
     "communication_whatsapp_prepared",
     "communication_whatsapp_bulk_prepared",
+    "guest_invite_marked",
     "user_created",
     "user_role_updated",
     "user_password_reset",
@@ -74,6 +75,12 @@ export default async function AdminActivityPage({ searchParams }: Props) {
           <h1 className="headline-display mt-2">System activity</h1>
           <p className="mt-2 text-sm text-zinc-600">
             Review who performed key actions across users, events, guests, and RSVP updates.
+          </p>
+          <p className="mt-3 rounded-xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3 text-xs text-zinc-600">
+            Per-guest <span className="font-medium text-zinc-800">communication history</span> (WhatsApp prepared,
+            email send/skip/fail, manual invite marks, reminders) is stored separately from this audit list. Open an
+            event → guest list → <span className="font-medium text-zinc-800">Comm history</span> on a row to see the
+            full timeline for that guest.
           </p>
         </section>
 

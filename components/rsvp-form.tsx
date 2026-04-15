@@ -8,6 +8,8 @@ type RsvpFormProps = {
   token: string;
   maxGuests: number;
   isLocked: boolean;
+  /** Admin preview: show real page but block submission (server-enforced too). */
+  previewMode?: boolean;
   initialAttending?: "yes" | "no";
   initialAttendingCount?: number | null;
   initialHostMessage?: string | null;
@@ -21,6 +23,7 @@ export function RsvpForm({
   token,
   maxGuests,
   isLocked,
+  previewMode = false,
   initialAttending = "yes",
   initialAttendingCount = null,
   initialHostMessage = null,
@@ -44,6 +47,9 @@ export function RsvpForm({
   }
 
   function submitRsvp() {
+    if (previewMode) {
+      return;
+    }
     setError(null);
     startTransition(async () => {
       try {
@@ -69,6 +75,9 @@ export function RsvpForm({
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (previewMode) {
+      return;
+    }
     setError(null);
     if (attending === "yes" && (attendingCount < 1 || attendingCount > maxGuests)) {
       setError(`Please choose between 1 and ${maxGuests} guests.`);
@@ -86,23 +95,31 @@ export function RsvpForm({
 
   const canSubmit = attending === "no" || (attendingCount >= 1 && attendingCount <= maxGuests);
 
+  const disableInteractive = previewMode || isPending;
+
   return (
     <>
     <form
       onSubmit={handleSubmit}
-      className={`rsvp-fade-up relative w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-5 py-7 shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)] sm:px-8 sm:py-8 ${serif} ${isPending ? "opacity-[0.92]" : ""}`}
+      className={`rsvp-fade-up relative w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-5 py-7 shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)] sm:px-8 sm:py-8 ${serif} ${isPending ? "opacity-[0.92]" : ""} ${previewMode ? "opacity-[0.97]" : ""}`}
       style={{ fontFamily: "var(--font-wedding-sans), sans-serif" }}
       aria-busy={isPending}
     >
       <input type="hidden" name="token" value={token} />
+      {previewMode ? <input type="hidden" name="previewMode" value="1" readOnly /> : null}
 
       <p className="text-center text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">
         RSVP
       </p>
+      {previewMode ? (
+        <p className="mt-2 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-center text-xs text-amber-950">
+          Preview mode — RSVP submission is turned off.
+        </p>
+      ) : null}
       <p className={`mt-2 text-center text-2xl text-zinc-900 ${script}`}>Will you be attending?</p>
 
       <div className="mt-7 grid gap-3 sm:grid-cols-2">
-        <label className="block cursor-pointer touch-manipulation">
+        <label className={`block touch-manipulation ${previewMode ? "cursor-not-allowed" : "cursor-pointer"}`}>
           <input
             type="radio"
             name="attending"
@@ -112,6 +129,7 @@ export function RsvpForm({
               setAttending("yes");
               setAttendingCount(0);
             }}
+            disabled={disableInteractive}
             className="sr-only"
           />
           <div
@@ -126,13 +144,14 @@ export function RsvpForm({
           </div>
         </label>
 
-        <label className="block cursor-pointer touch-manipulation">
+        <label className={`block touch-manipulation ${previewMode ? "cursor-not-allowed" : "cursor-pointer"}`}>
           <input
             type="radio"
             name="attending"
             value="no"
             checked={attending === "no"}
             onChange={() => setAttending("no")}
+            disabled={disableInteractive}
             className="sr-only"
           />
           <div
@@ -158,7 +177,7 @@ export function RsvpForm({
             <button
               type="button"
               onClick={() => step(-1)}
-              disabled={attendingCount <= 0 || isPending}
+              disabled={attendingCount <= 0 || disableInteractive}
               aria-label="Decrease guest count"
               className="flex h-[3rem] min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border border-[#d9ccb7] bg-white text-xl font-light text-zinc-700 shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
             >
@@ -172,7 +191,7 @@ export function RsvpForm({
             <button
               type="button"
               onClick={() => step(1)}
-              disabled={attendingCount >= maxGuests || isPending}
+              disabled={attendingCount >= maxGuests || disableInteractive}
               aria-label="Increase guest count"
               className="flex h-[3rem] min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border border-[#d9ccb7] bg-white text-xl font-light text-zinc-700 shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 touch-manipulation"
             >
@@ -190,7 +209,8 @@ export function RsvpForm({
           onChange={(e) => setHostMessage(e.target.value)}
           maxLength={500}
           rows={3}
-          className="mt-3 w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#b28944] focus:ring-2 focus:ring-[#b28944]/20"
+          disabled={disableInteractive}
+          className="mt-3 w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#b28944] focus:ring-2 focus:ring-[#b28944]/20 disabled:cursor-not-allowed disabled:bg-zinc-50"
           placeholder="Write a message…"
         />
         <p className="mt-2 text-right text-[11px] text-zinc-500">{hostMessage.length}/500</p>
@@ -204,13 +224,18 @@ export function RsvpForm({
 
       <button
         type="submit"
-        disabled={isPending || !canSubmit}
+        disabled={isPending || !canSubmit || previewMode}
         className={`mt-9 w-full rounded-2xl border border-[#3f2f1f] bg-[#3f2f1f] py-4 text-sm font-semibold tracking-[0.08em] text-white shadow-[0_14px_40px_-18px_rgba(50,40,20,0.55)] transition hover:bg-[#352618] active:scale-[0.99] disabled:opacity-60 touch-manipulation ${serif}`}
       >
-        {isPending ? "Sending your RSVP..." : "Review RSVP"}
+        {previewMode ? "Preview — RSVP disabled" : isPending ? "Sending your RSVP..." : "Review RSVP"}
       </button>
       {onCancelEdit ? (
-        <button type="button" onClick={onCancelEdit} className="btn-secondary mt-3 w-full">
+        <button
+          type="button"
+          onClick={onCancelEdit}
+          disabled={previewMode}
+          className="btn-secondary mt-3 w-full disabled:opacity-50"
+        >
           Cancel edit
         </button>
       ) : null}

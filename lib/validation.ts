@@ -84,10 +84,12 @@ export const guestSchema = z
     guestName: z.string().trim().min(1, "Guest name is required."),
     greeting: z.string().trim().max(80, "Greeting must be 80 characters or less.").optional(),
     maxGuests: z.coerce.number().int().min(1, "Max guests must be at least 1."),
-    group: z.string().trim().optional(),
+    group: z.string().trim().max(120, "Group must be 120 characters or less.").optional(),
+    tableName: z.string().trim().max(120, "Table must be 120 characters or less.").optional(),
     notes: z.string().trim().optional(),
     phone: z.string().trim().optional(),
     email: z.string().trim().optional(),
+    isFamilyInvite: z.preprocess((v) => v === "true" || v === "on", z.boolean()).optional().default(false),
   })
   .superRefine((data, ctx) => {
     const e = data.email?.trim();

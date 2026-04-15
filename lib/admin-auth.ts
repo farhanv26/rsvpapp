@@ -27,6 +27,28 @@ export async function requireCurrentAdminUser() {
   }
 }
 
+/** Returns the current admin user if logged in, or null (no redirect). Used for RSVP preview mode. */
+export async function getOptionalAdminUser() {
+  const store = await cookies();
+  const token = store.get(COOKIE_NAME)?.value;
+  if (!token) {
+    return null;
+  }
+  try {
+    const session = await readAdminSessionToken(token);
+    const row = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { id: true, name: true, role: true, active: true },
+    });
+    if (!row || !row.active) {
+      return null;
+    }
+    return { id: row.id, name: row.name, role: row.role };
+  } catch {
+    return null;
+  }
+}
+
 export function isSuperAdmin(user: { role: string }) {
   return user.role === "super_admin";
 }

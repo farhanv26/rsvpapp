@@ -9,9 +9,21 @@ import { SafeEventImage } from "@/components/safe-event-image";
 type Props = {
   initialImagePath?: string | null;
   inputName?: string;
+  /** Visible label for the upload slot (default: main invitation). */
+  label?: string;
+  /** Helper under the label. */
+  description?: string;
+  /** Wrapper for preview area height (default h-52). */
+  previewHeightClassName?: string;
 };
 
-export function EventImageUploadField({ initialImagePath = null, inputName = "imagePath" }: Props) {
+export function EventImageUploadField({
+  initialImagePath = null,
+  inputName = "imagePath",
+  label = "Invitation image",
+  description = "PNG or JPG formats are supported.",
+  previewHeightClassName = "h-52",
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -60,19 +72,19 @@ export function EventImageUploadField({ initialImagePath = null, inputName = "im
 
   const safeImageSrc = getSafeImageSrc(uploadedPath);
   const hasImage = Boolean(safeImageSrc);
+  const fileInputId = `event-image-file-${inputName.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
   return (
     <div className="space-y-4">
       <input type="hidden" name={inputName} value={uploadedPath ?? ""} />
       <div className="rounded-2xl border border-dashed border-[#dccfbb] bg-[#fffdfa] p-4">
-        <label htmlFor="image" className="mb-2 block text-sm font-semibold text-zinc-800">
-          Invitation image
+        <label htmlFor={fileInputId} className="mb-2 block text-sm font-semibold text-zinc-800">
+          {label}
         </label>
-        <p className="mb-3 text-xs text-zinc-600">PNG or JPG formats are supported.</p>
+        <p className="mb-3 text-xs text-zinc-600">{description}</p>
         <input
           ref={fileInputRef}
-          id="image"
-          name="image"
+          id={fileInputId}
           type="file"
           accept=".png,.jpg,.jpeg,image/png,image/jpeg"
           onChange={onFileChange}
@@ -112,7 +124,9 @@ export function EventImageUploadField({ initialImagePath = null, inputName = "im
               Remove image
             </button>
           </div>
-          <div className="relative h-52 w-full overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fffdfa]">
+          <div
+            className={`relative w-full overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fffdfa] ${previewHeightClassName}`}
+          >
             <SafeEventImage
               src={safeImageSrc ?? ""}
               alt="Invitation preview"
@@ -126,3 +140,4 @@ export function EventImageUploadField({ initialImagePath = null, inputName = "im
     </div>
   );
 }
+
