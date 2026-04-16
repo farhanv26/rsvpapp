@@ -25,16 +25,20 @@ export function buildGuestInviteCommunicationParts(input: {
   greeting: string | null;
   guestName: string;
   eventTitle: string;
+  coupleNames?: string | null;
   rsvpLink: string;
-  customMessage?: string | null;
+  customIntroLine?: string | null;
+  customLineOverride?: string | null;
 }): GuestInviteMessageParts {
   const inviteText = buildGuestWhatsAppInviteMessage({
     guestId: input.guestId,
     greeting: input.greeting,
     guestName: input.guestName,
     eventTitle: input.eventTitle,
+    coupleNames: input.coupleNames,
     rsvpLink: input.rsvpLink,
-    customMessage: input.customMessage,
+    customIntroLine: input.customIntroLine,
+    customLineOverride: input.customLineOverride,
   });
   const emailSubject = buildGuestInviteEmailSubject(input.eventTitle, input.guestName);
   const emailBody = buildGuestInviteEmailBody(inviteText);

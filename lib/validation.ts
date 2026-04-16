@@ -24,6 +24,12 @@ export const eventSchema = z.object({
   eventTime: z.string().trim().min(1, "Event time is required."),
   venue: z.string().trim().optional(),
   welcomeMessage: z.string().trim().optional(),
+  inviteMessageIntro: z.string().trim().max(180, "Invite intro must be 180 characters or less.").optional(),
+  inviteMessageLineOverride: z
+    .string()
+    .trim()
+    .max(180, "Invite line override must be 180 characters or less.")
+    .optional(),
 }).superRefine((data, ctx) => {
   const eventDateText = data.eventDate?.trim();
   const deadlineText = data.rsvpDeadline?.trim();

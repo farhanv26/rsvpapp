@@ -163,9 +163,30 @@ export function CommunicationPreviewModal({
               <div className="rounded-xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Event</p>
                 <p className="mt-1 font-medium text-zinc-900">{preview.eventTitle}</p>
+                {preview.coupleNames?.trim() ? (
+                  <p className="mt-1 text-sm text-zinc-700">Couple: {preview.coupleNames}</p>
+                ) : null}
                 {preview.eventSubtitle?.trim() ? (
                   <p className="mt-1 text-sm text-zinc-600">{preview.eventSubtitle}</p>
                 ) : null}
+              </div>
+
+              <div className="rounded-xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Message structure</p>
+                <ul className="mt-2 space-y-1 text-sm text-zinc-700">
+                  <li>
+                    <span className="text-zinc-500">Greeting:</span> {preview.greeting} {preview.guestName},
+                  </li>
+                  <li>
+                    <span className="text-zinc-500">Intro:</span> {preview.inviteIntroLine}
+                  </li>
+                  <li>
+                    <span className="text-zinc-500">Randomized line:</span> {preview.randomizedLine}
+                  </li>
+                  <li className="break-all">
+                    <span className="text-zinc-500">RSVP link:</span> {preview.rsvpLink}
+                  </li>
+                </ul>
               </div>
 
               <div className="flex gap-1 rounded-xl border border-[#e7dccb] bg-[#f4f0e8] p-1">

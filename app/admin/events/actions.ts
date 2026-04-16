@@ -13,6 +13,7 @@ import { buildGuestRsvpAbsoluteUrl, getSafeImageSrc } from "@/lib/utils";
 import { eventSchema, guestSchema } from "@/lib/validation";
 import { sendEventOwnerNotificationEmail } from "@/lib/rsvp-email";
 import {
+  buildGuestInviteMessageParts,
   buildGuestRsvpReminderMessage,
   buildGuestWhatsAppInviteMessage,
   normalizePhoneForWhatsApp,
@@ -109,6 +110,8 @@ export async function createEventAction(formData: FormData) {
     eventTime: formData.get("eventTime") || undefined,
     venue: formData.get("venue") || undefined,
     welcomeMessage: formData.get("welcomeMessage") || undefined,
+    inviteMessageIntro: formData.get("inviteMessageIntro") || undefined,
+    inviteMessageLineOverride: formData.get("inviteMessageLineOverride") || undefined,
   });
 
   if (!parsed.success) {
@@ -146,6 +149,8 @@ export async function createEventAction(formData: FormData) {
       eventTime: parsed.data.eventTime || null,
       venue: parsed.data.venue || null,
       welcomeMessage: parsed.data.welcomeMessage || null,
+      inviteMessageIntro: parsed.data.inviteMessageIntro || null,
+      inviteMessageLineOverride: parsed.data.inviteMessageLineOverride || null,
     },
     select: { id: true },
   });
@@ -183,6 +188,8 @@ export async function updateEventAction(formData: FormData) {
     eventTime: formData.get("eventTime") || undefined,
     venue: formData.get("venue") || undefined,
     welcomeMessage: formData.get("welcomeMessage") || undefined,
+    inviteMessageIntro: formData.get("inviteMessageIntro") || undefined,
+    inviteMessageLineOverride: formData.get("inviteMessageLineOverride") || undefined,
   });
 
   if (!parsed.success) {
@@ -218,6 +225,8 @@ export async function updateEventAction(formData: FormData) {
       eventTime: parsed.data.eventTime || null,
       venue: parsed.data.venue || null,
       welcomeMessage: parsed.data.welcomeMessage || null,
+      inviteMessageIntro: parsed.data.inviteMessageIntro || null,
+      inviteMessageLineOverride: parsed.data.inviteMessageLineOverride || null,
       ...(imagePath ? { imagePath } : {}),
       ...variantImages,
     },
@@ -330,7 +339,7 @@ export async function createGuestAction(formData: FormData) {
     data: {
       eventId,
       guestName: parsed.data.guestName,
-      greeting: parsed.data.greeting?.trim() || "Assalamu Alaikum",
+      greeting: parsed.data.greeting?.trim() || "Assalamualaikum",
       maxGuests: parsed.data.maxGuests,
       group: parsed.data.group ?? null,
       tableName: parsed.data.tableName?.trim() ? parsed.data.tableName.trim() : null,
@@ -405,7 +414,7 @@ export async function updateGuestAction(formData: FormData) {
     where: { id: guestId },
     data: {
       guestName: parsed.data.guestName,
-      greeting: parsed.data.greeting?.trim() || "Assalamu Alaikum",
+      greeting: parsed.data.greeting?.trim() || "Assalamualaikum",
       maxGuests: parsed.data.maxGuests,
       group: parsed.data.group ?? null,
       tableName: parsed.data.tableName?.trim() ? parsed.data.tableName.trim() : null,
@@ -608,7 +617,15 @@ export async function logGuestWhatsappPreparedAction(eventId: string, guestId: s
   const { admin } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
     where: { id: guestId, eventId },
-    select: { id: true, guestName: true, greeting: true, token: true, event: { select: { title: true } } },
+    select: {
+      id: true,
+      guestName: true,
+      greeting: true,
+      token: true,
+      event: {
+        select: { title: true, coupleNames: true, inviteMessageIntro: true, inviteMessageLineOverride: true },
+      },
+    },
   });
   if (!guest) {
     throw new Error("Guest not found for this event.");
@@ -619,6 +636,9 @@ export async function logGuestWhatsappPreparedAction(eventId: string, guestId: s
     greeting: guest.greeting,
     guestName: guest.guestName,
     eventTitle: guest.event.title,
+    coupleNames: guest.event.coupleNames,
+    customIntroLine: guest.event.inviteMessageIntro,
+    customLineOverride: guest.event.inviteMessageLineOverride,
     rsvpLink: guestRsvpUrl(guest.token),
   });
 
@@ -696,7 +716,9 @@ export async function sendGuestInviteEmailAction(eventId: string, guestId: strin
       email: true,
       greeting: true,
       token: true,
-      event: { select: { id: true, title: true } },
+      event: {
+        select: { id: true, title: true, coupleNames: true, inviteMessageIntro: true, inviteMessageLineOverride: true },
+      },
     },
   });
   if (!guest) {
@@ -733,7 +755,10 @@ export async function sendGuestInviteEmailAction(eventId: string, guestId: strin
     greeting: guest.greeting,
     guestName: guest.guestName,
     eventTitle: guest.event.title,
+    coupleNames: guest.event.coupleNames,
     rsvpLink,
+    customIntroLine: guest.event.inviteMessageIntro,
+    customLineOverride: guest.event.inviteMessageLineOverride,
   });
 
   try {
@@ -1238,6 +1263,9 @@ export async function recordGuestManualRsvpAction(input: {
 export type GuestCommunicationPreviewPayload = {
   guestName: string;
   greeting: string;
+  coupleNames: string | null;
+  inviteIntroLine: string;
+  randomizedLine: string;
   eventTitle: string;
   eventSubtitle: string | null;
   phone: string | null;
@@ -1260,7 +1288,15 @@ export async function getGuestCommunicationPreviewAction(eventId: string, guestI
       token: true,
       email: true,
       phone: true,
-      event: { select: { title: true, eventSubtitle: true } },
+      event: {
+        select: {
+          title: true,
+          eventSubtitle: true,
+          coupleNames: true,
+          inviteMessageIntro: true,
+          inviteMessageLineOverride: true,
+        },
+      },
     },
   });
   if (!guest) {
@@ -1268,19 +1304,35 @@ export async function getGuestCommunicationPreviewAction(eventId: string, guestI
   }
 
   const rsvpLink = buildGuestRsvpAbsoluteUrl(guest.token);
+  const inviteParts = buildGuestInviteMessageParts({
+    guestId: guestId,
+    greeting: guest.greeting,
+    guestName: guest.guestName,
+    eventTitle: guest.event.title,
+    coupleNames: guest.event.coupleNames,
+    rsvpLink,
+    customIntroLine: guest.event.inviteMessageIntro,
+    customLineOverride: guest.event.inviteMessageLineOverride,
+  });
   const { inviteText, emailSubject, emailBody } = buildGuestInviteCommunicationParts({
     guestId: guestId,
     greeting: guest.greeting,
     guestName: guest.guestName,
     eventTitle: guest.event.title,
+    coupleNames: guest.event.coupleNames,
     rsvpLink,
+    customIntroLine: guest.event.inviteMessageIntro,
+    customLineOverride: guest.event.inviteMessageLineOverride,
   });
 
   return {
     ok: true as const,
     preview: {
       guestName: guest.guestName,
-      greeting: guest.greeting?.trim() || "Assalamu Alaikum",
+      greeting: guest.greeting?.trim() || "Assalamualaikum",
+      coupleNames: guest.event.coupleNames,
+      inviteIntroLine: inviteParts.introLine,
+      randomizedLine: inviteParts.randomizedLine,
       eventTitle: guest.event.title,
       eventSubtitle: guest.event.eventSubtitle,
       phone: guest.phone,

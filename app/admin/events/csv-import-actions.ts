@@ -97,7 +97,7 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
         data: {
           eventId,
           guestName: row.guestName,
-          greeting: row.greeting?.trim() || "Assalamu Alaikum",
+          greeting: row.greeting?.trim() || "Assalamualaikum",
           maxGuests: row.maxGuests,
           group: row.group?.trim() || null,
           tableName: row.tableName?.trim() || null,

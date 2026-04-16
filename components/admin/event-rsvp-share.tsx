@@ -70,9 +70,15 @@ function downloadDataUrl(filename: string, dataUrl: string) {
 
 export function EventRsvpShare({
   eventTitle,
+  eventCoupleNames,
+  inviteMessageIntro,
+  inviteMessageLineOverride,
   guests,
 }: {
   eventTitle: string;
+  eventCoupleNames?: string | null;
+  inviteMessageIntro?: string | null;
+  inviteMessageLineOverride?: string | null;
   guests: GuestForShare[];
 }) {
   const [open, setOpen] = useState(false);
@@ -97,9 +103,12 @@ export function EventRsvpShare({
       greeting: selected.greeting,
       guestName: selected.guestName,
       eventTitle,
+      coupleNames: eventCoupleNames,
       rsvpLink: link,
+      customIntroLine: inviteMessageIntro,
+      customLineOverride: inviteMessageLineOverride,
     });
-  }, [eventTitle, link, selected]);
+  }, [eventTitle, eventCoupleNames, link, selected, inviteMessageIntro, inviteMessageLineOverride]);
 
   useEffect(() => {
     if (!open) return;

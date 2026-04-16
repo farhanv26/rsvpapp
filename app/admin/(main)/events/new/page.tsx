@@ -100,6 +100,30 @@ export default async function NewEventPage() {
             />
           </div>
           <div>
+            <label htmlFor="inviteMessageIntro" className="mb-2 block text-sm font-medium">
+              Invite intro override (optional)
+            </label>
+            <input
+              id="inviteMessageIntro"
+              name="inviteMessageIntro"
+              type="text"
+              className="input-luxe mt-0"
+              placeholder="You are cordially invited to Farhan & Rafiya’s Nikkah Ceremony"
+            />
+          </div>
+          <div>
+            <label htmlFor="inviteMessageLineOverride" className="mb-2 block text-sm font-medium">
+              Invite line override (optional)
+            </label>
+            <input
+              id="inviteMessageLineOverride"
+              name="inviteMessageLineOverride"
+              type="text"
+              className="input-luxe mt-0"
+              placeholder="Your presence would truly make this event special."
+            />
+          </div>
+          <div>
             <label htmlFor="description" className="mb-2 block text-sm font-medium">
               Description (optional)
             </label>

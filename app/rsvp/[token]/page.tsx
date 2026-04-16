@@ -1,10 +1,11 @@
 import { RsvpForm } from "@/components/rsvp-form";
 import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { RsvpResponsePanel } from "@/components/rsvp-response-panel";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
 import { resolveInviteCardImage } from "@/lib/invite-card-resolution";
-import { formatDateTime, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
+import { formatDateTime, getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
 const script = "font-[family-name:var(--font-wedding-script),cursive]";
@@ -14,6 +15,74 @@ type Props = {
   params: Promise<{ token: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const { token } = await params;
+  const guest = await prisma.guest.findUnique({
+    where: { token },
+    select: {
+      guestName: true,
+      maxGuests: true,
+      isFamilyInvite: true,
+      event: {
+        select: {
+          title: true,
+          coupleNames: true,
+          imagePath: true,
+          genericCardImage: true,
+          cardImage1: true,
+          cardImage2: true,
+          cardImage3: true,
+          cardImage4: true,
+          familyCardImage: true,
+        },
+      },
+    },
+  });
+  if (!guest) {
+    return {
+      title: "Invitation RSVP",
+      description: "Private RSVP invitation link.",
+    };
+  }
+
+  const resolvedCard = resolveInviteCardImage(
+    {
+      imagePath: guest.event.imagePath,
+      genericCardImage: guest.event.genericCardImage,
+      cardImage1: guest.event.cardImage1,
+      cardImage2: guest.event.cardImage2,
+      cardImage3: guest.event.cardImage3,
+      cardImage4: guest.event.cardImage4,
+      familyCardImage: guest.event.familyCardImage,
+    },
+    { maxGuests: guest.maxGuests, isFamilyInvite: guest.isFamilyInvite },
+  );
+  const safeImageSrc = getSafeImageSrc(resolvedCard.rawPath);
+  const base = getPublicSiteUrl();
+  const absoluteImage =
+    safeImageSrc && base && safeImageSrc.startsWith("/") ? `${base}${safeImageSrc}` : safeImageSrc ?? undefined;
+  const names = guest.event.coupleNames?.trim() || guest.event.title;
+  const title = `${names} · RSVP Invitation`;
+  const description = `You are invited to ${guest.event.title}. Please RSVP through this private invitation link.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: absoluteImage ? [{ url: absoluteImage, alt: `${guest.event.title} invitation card` }] : undefined,
+    },
+    twitter: {
+      card: absoluteImage ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: absoluteImage ? [absoluteImage] : undefined,
+    },
+  };
+}
 
 function CeremonyDetails({
   eventDate,

@@ -44,17 +44,17 @@ export function AdminAccountMenu({ user }: { user: AdminUserChip }) {
   return (
     <details ref={detailsRef} className="relative shrink-0">
       <summary
-        className="flex cursor-pointer list-none items-center gap-2.5 rounded-full border border-[#e2d4bf] bg-white/90 px-2 py-1.5 pl-2 pr-3 text-left shadow-sm transition hover:border-[#d4c4a8] hover:bg-white active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a66b]/40 [&::-webkit-details-marker]:hidden [&::marker]:hidden"
+        className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-[#e2d4bf] bg-white/90 px-2 py-1.5 pr-2.5 text-left shadow-sm transition hover:border-[#d4c4a8] hover:bg-white active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a66b]/40 [&::-webkit-details-marker]:hidden [&::marker]:hidden"
         aria-haspopup="menu"
       >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#c9a66b] to-[#a67c52] text-sm font-semibold text-white">
           {initial}
         </span>
-        <span className="max-w-[140px] truncate text-sm font-medium text-zinc-900 sm:max-w-[200px]">{user.name}</span>
+        <span className="max-w-[120px] truncate text-sm font-semibold text-zinc-900 sm:max-w-[180px]">{user.name}</span>
       </summary>
 
       <div
-        className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] w-72 max-w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-[#e7dccb] bg-[#fffcf6] p-4 shadow-lg ring-1 ring-black/5"
+        className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] w-72 max-w-[min(18rem,calc(100vw-1rem))] rounded-2xl border border-[#e7dccb] bg-[#fffcf6] p-4 shadow-lg ring-1 ring-black/5"
         role="menu"
         aria-label="Account menu"
       >
@@ -63,8 +63,10 @@ export function AdminAccountMenu({ user }: { user: AdminUserChip }) {
             {initial}
           </span>
           <div className="min-w-0 flex-1 pt-0.5">
-            <p className="truncate font-semibold text-zinc-900">{user.name}</p>
-            <p className="mt-0.5 text-sm text-zinc-600">{formatAdminRoleLabel(user.role)}</p>
+            <p className="truncate text-sm font-semibold text-zinc-900">{user.name}</p>
+            <p className="mt-1 inline-flex rounded-full border border-[#e7dccb] bg-[#fbf8f2] px-2 py-0.5 text-xs text-zinc-600">
+              {formatAdminRoleLabel(user.role)}
+            </p>
           </div>
         </div>
         <div className="my-4 border-t border-[#ebe4d6]" />

@@ -81,6 +81,9 @@ type Props = {
   onClose: () => void;
   eventId: string;
   eventTitle: string;
+  eventCoupleNames?: string | null;
+  inviteMessageIntro?: string | null;
+  inviteMessageLineOverride?: string | null;
   siteUrl: string;
   guests: SendInvitesGuest[];
   scopeDescription: string;
@@ -93,6 +96,9 @@ export function SendInvitesModal({
   onClose,
   eventId,
   eventTitle,
+  eventCoupleNames,
+  inviteMessageIntro,
+  inviteMessageLineOverride,
   siteUrl,
   guests,
   scopeDescription,
@@ -130,9 +136,12 @@ export function SendInvitesModal({
       greeting: sampleGuest.greeting,
       guestName: sampleGuest.guestName,
       eventTitle,
+      coupleNames: eventCoupleNames,
       rsvpLink: guestRsvpUrl(siteUrl, sampleGuest.token),
+      customIntroLine: inviteMessageIntro,
+      customLineOverride: inviteMessageLineOverride,
     });
-  }, [sampleGuest, eventTitle, siteUrl, isReminder]);
+  }, [sampleGuest, eventTitle, eventCoupleNames, siteUrl, inviteMessageIntro, inviteMessageLineOverride, isReminder]);
 
   const waGuest = sortedGuests[waStep];
   const waMessage = useMemo(() => {
@@ -143,9 +152,12 @@ export function SendInvitesModal({
       greeting: waGuest.greeting,
       guestName: waGuest.guestName,
       eventTitle,
+      coupleNames: eventCoupleNames,
       rsvpLink: guestRsvpUrl(siteUrl, waGuest.token),
+      customIntroLine: inviteMessageIntro,
+      customLineOverride: inviteMessageLineOverride,
     });
-  }, [waGuest, eventTitle, siteUrl, isReminder]);
+  }, [waGuest, eventTitle, eventCoupleNames, siteUrl, inviteMessageIntro, inviteMessageLineOverride, isReminder]);
 
   const guestIds = useMemo(() => guests.map((g) => g.id), [guests]);
   const emailEligibleIds = useMemo(() => guests.filter(hasEmail).map((g) => g.id), [guests]);
@@ -167,7 +179,10 @@ export function SendInvitesModal({
         greeting: guest.greeting,
         guestName: guest.guestName,
         eventTitle,
+        coupleNames: eventCoupleNames,
         rsvpLink: link,
+        customIntroLine: inviteMessageIntro,
+        customLineOverride: inviteMessageLineOverride,
       });
       return `${guest.guestName}\n${message}`;
     });

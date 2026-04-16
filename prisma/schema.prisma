@@ -29,6 +29,8 @@ model Event {
   eventTime     String?
   venue         String?
   welcomeMessage String?
+  inviteMessageIntro String?
+  inviteMessageLineOverride String?
   genericCardImage String?
   cardImage1       String?
   cardImage2       String?
@@ -98,7 +100,7 @@ model Guest {
   id             String   @id @default(cuid())
   eventId        String
   guestName      String
-  greeting       String   @default("Assalamu Alaikum")
+  greeting       String   @default("Assalamualaikum")
   maxGuests      Int
   token          String   @unique
   attending      Boolean?

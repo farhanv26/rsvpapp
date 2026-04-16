@@ -69,6 +69,9 @@ export type GuestPanelGuest = {
 type Props = {
   eventId: string;
   eventTitle: string;
+  eventCoupleNames?: string | null;
+  inviteMessageIntro?: string | null;
+  inviteMessageLineOverride?: string | null;
   guests: GuestPanelGuest[];
   siteUrl: string;
   inviteCardEvent: InviteCardEventInput;
@@ -267,6 +270,9 @@ function downloadCsv(filename: string, rows: string[][]) {
 export function EventGuestsPanel({
   eventId,
   eventTitle,
+  eventCoupleNames,
+  inviteMessageIntro,
+  inviteMessageLineOverride,
   guests,
   siteUrl,
   inviteCardEvent,
@@ -682,7 +688,7 @@ export function EventGuestsPanel({
       ...source.map((guest) => {
         return [
           guest.guestName,
-          guest.greeting || "Assalamu Alaikum",
+          guest.greeting || "Assalamualaikum",
           guest.group ?? "",
           guest.tableName ?? "",
           String(guest.maxGuests),
@@ -749,7 +755,10 @@ export function EventGuestsPanel({
         greeting: guest.greeting,
         guestName: guest.guestName,
         eventTitle,
+        coupleNames: eventCoupleNames,
         rsvpLink: link,
+        customIntroLine: inviteMessageIntro,
+        customLineOverride: inviteMessageLineOverride,
       });
       return `${guest.guestName}\n${message}`;
     });
@@ -1307,7 +1316,7 @@ export function EventGuestsPanel({
                 const attendingBool = st === "attending";
                 return [
                   guest.guestName,
-                  guest.greeting || "Assalamu Alaikum",
+                  guest.greeting || "Assalamualaikum",
                   guest.token,
                   link,
                   guest.group ?? "",
@@ -1354,7 +1363,7 @@ export function EventGuestsPanel({
               ],
               ...confirmed.map((guest) => [
                 guest.guestName,
-                guest.greeting || "Assalamu Alaikum",
+                guest.greeting || "Assalamualaikum",
                 guest.group ?? "",
                 guest.tableName ?? "",
                 String(guest.maxGuests),
@@ -1474,7 +1483,10 @@ export function EventGuestsPanel({
                       greeting: guest.greeting,
                       guestName: guest.guestName,
                       eventTitle,
+                      coupleNames: eventCoupleNames,
                       rsvpLink: link,
+                      customIntroLine: inviteMessageIntro,
+                      customLineOverride: inviteMessageLineOverride,
                     });
                     const st = guestPrimaryStatus(guest);
                     const readiness = getGuestReadiness(guest);
@@ -1511,7 +1523,7 @@ export function EventGuestsPanel({
                             <div className="min-w-0">
                               <p className="truncate font-semibold text-zinc-900">{guest.guestName}</p>
                               <p className="mt-1 text-xs text-zinc-600">
-                                {guest.greeting || "Assalamu Alaikum"} · {guest.maxGuests} guest
+                                {guest.greeting || "Assalamualaikum"} · {guest.maxGuests} guest
                                 {guest.maxGuests === 1 ? "" : "s"}
                               </p>
                               {(guest.phone || guest.email) ? (
@@ -1752,7 +1764,8 @@ export function EventGuestsPanel({
                               <input
                                 type="text"
                                 name="greeting"
-                                defaultValue={guest.greeting || "Assalamu Alaikum"}
+                                list="guest-greeting-options"
+                                defaultValue={guest.greeting || "Assalamualaikum"}
                                 className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
                                 placeholder="Greeting"
                               />
@@ -2017,6 +2030,9 @@ export function EventGuestsPanel({
         }}
         eventId={eventId}
         eventTitle={eventTitle}
+        eventCoupleNames={eventCoupleNames}
+        inviteMessageIntro={inviteMessageIntro}
+        inviteMessageLineOverride={inviteMessageLineOverride}
         siteUrl={siteUrl}
         scopeDescription={inviteScopeDescription}
         guests={inviteScopeGuests.map((g) => ({
@@ -2047,6 +2063,9 @@ export function EventGuestsPanel({
         }}
         eventId={eventId}
         eventTitle={eventTitle}
+        eventCoupleNames={eventCoupleNames}
+        inviteMessageIntro={inviteMessageIntro}
+        inviteMessageLineOverride={inviteMessageLineOverride}
         siteUrl={siteUrl}
         scopeDescription={followUpScopeDescription}
         guests={followUpModalGuests.map((g) => ({
@@ -2058,6 +2077,12 @@ export function EventGuestsPanel({
           email: g.email,
         }))}
       />
+      <datalist id="guest-greeting-options">
+        <option value="Assalamualaikum" />
+        <option value="Hello" />
+        <option value="Hi" />
+        <option value="Dear" />
+      </datalist>
     </div>
   );
 }

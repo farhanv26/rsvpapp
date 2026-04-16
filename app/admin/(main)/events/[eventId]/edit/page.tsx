@@ -32,6 +32,8 @@ export default async function EditEventPage({ params }: Props) {
       venue: true,
       description: true,
       welcomeMessage: true,
+      inviteMessageIntro: true,
+      inviteMessageLineOverride: true,
       imagePath: true,
       genericCardImage: true,
       cardImage1: true,
@@ -146,6 +148,32 @@ export default async function EditEventPage({ params }: Props) {
               name="welcomeMessage"
               defaultValue={event.welcomeMessage ?? ""}
               className="input-luxe mt-0 h-24"
+            />
+          </div>
+          <div>
+            <label htmlFor="inviteMessageIntro" className="mb-2 block text-sm font-medium">
+              Invite intro override (optional)
+            </label>
+            <input
+              id="inviteMessageIntro"
+              name="inviteMessageIntro"
+              type="text"
+              defaultValue={event.inviteMessageIntro ?? ""}
+              className="input-luxe mt-0"
+              placeholder="You are cordially invited to Farhan & Rafiya’s Nikkah Ceremony"
+            />
+          </div>
+          <div>
+            <label htmlFor="inviteMessageLineOverride" className="mb-2 block text-sm font-medium">
+              Invite line override (optional)
+            </label>
+            <input
+              id="inviteMessageLineOverride"
+              name="inviteMessageLineOverride"
+              type="text"
+              defaultValue={event.inviteMessageLineOverride ?? ""}
+              className="input-luxe mt-0"
+              placeholder="Your presence would truly make this event special."
             />
           </div>
           <div>

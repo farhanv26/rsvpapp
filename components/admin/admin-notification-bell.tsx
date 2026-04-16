@@ -104,7 +104,7 @@ export function AdminNotificationBell() {
         ) : null}
       </summary>
 
-      <div className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] w-[22rem] max-w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-[#e7dccb] bg-[#fffcf6] p-3 shadow-lg ring-1 ring-black/5">
+      <div className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] w-[22rem] max-w-[min(22rem,calc(100vw-1rem))] rounded-2xl border border-[#e7dccb] bg-[#fffcf6] p-3 shadow-lg ring-1 ring-black/5">
         <div className="flex items-center justify-between px-2 py-1">
           <p className="text-sm font-semibold text-zinc-900">Notifications</p>
           {hasUnread ? (

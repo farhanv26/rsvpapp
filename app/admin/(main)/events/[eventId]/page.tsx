@@ -144,7 +144,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const guestsSerialized = event.guests.map((g) => ({
     id: g.id,
     guestName: g.guestName,
-    greeting: (g as unknown as { greeting?: string | null }).greeting ?? "Assalamu Alaikum",
+    greeting: (g as unknown as { greeting?: string | null }).greeting ?? "Assalamualaikum",
     maxGuests: g.maxGuests,
     token: g.token,
     attending: g.attending,
@@ -304,6 +304,9 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             </Link>
             <EventRsvpShare
               eventTitle={event.title}
+              eventCoupleNames={event.coupleNames}
+              inviteMessageIntro={event.inviteMessageIntro}
+              inviteMessageLineOverride={event.inviteMessageLineOverride}
               guests={guestsSerialized.map((g) => ({
                 id: g.id,
                 guestName: g.guestName,
@@ -606,11 +609,18 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               <input
                 name="greeting"
                 type="text"
-                defaultValue="Assalamu Alaikum"
+                list="greeting-options"
+                defaultValue="Assalamualaikum"
                 className="input-luxe"
-                placeholder="Assalamu Alaikum"
+                placeholder="Assalamualaikum"
               />
             </label>
+            <datalist id="greeting-options">
+              <option value="Assalamualaikum" />
+              <option value="Hello" />
+              <option value="Hi" />
+              <option value="Dear" />
+            </datalist>
             <label className="block text-sm font-medium text-zinc-700">
               Group / category
               <input name="group" type="text" className="input-luxe" placeholder="Family, VIP, Bride side…" />
@@ -741,6 +751,9 @@ export default async function EventDashboardPage({ params, searchParams }: Props
         <EventGuestsPanel
           eventId={event.id}
           eventTitle={event.title}
+          eventCoupleNames={event.coupleNames}
+          inviteMessageIntro={event.inviteMessageIntro}
+          inviteMessageLineOverride={event.inviteMessageLineOverride}
           guests={guestsSerialized}
           siteUrl={getPublicSiteUrl()}
           inviteCardEvent={inviteCardEvent}
