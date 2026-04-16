@@ -29,6 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
       isFamilyInvite: true,
       event: {
         select: {
+          id: true,
           title: true,
           coupleNames: true,
           imagePath: true,
@@ -38,6 +39,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
           cardImage3: true,
           cardImage4: true,
           familyCardImage: true,
+          updatedAt: true,
         },
       },
     },
@@ -63,8 +65,12 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   );
   const safeImageSrc = getSafeImageSrc(resolvedCard.rawPath);
   const base = getPublicSiteUrl();
-  const absoluteImage =
+  const absoluteImageBase =
     safeImageSrc && base && safeImageSrc.startsWith("/") ? `${base}${safeImageSrc}` : safeImageSrc ?? undefined;
+  const absoluteImage = absoluteImageBase
+    ? `${absoluteImageBase}${absoluteImageBase.includes("?") ? "&" : "?"}v=${guest.event.updatedAt.getTime()}`
+    : undefined;
+  const canonical = base ? `${base}/rsvp/${token}` : `/rsvp/${token}`;
   const names = guest.event.coupleNames?.trim() || guest.event.title;
   const title = `${names} · RSVP Invitation`;
   const description = `You are invited to ${guest.event.title}. Please RSVP through this private invitation link.`;
@@ -76,7 +82,11 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
       title,
       description,
       type: "website",
+      url: canonical,
       images: absoluteImage ? [{ url: absoluteImage, alt: `${guest.event.title} invitation card` }] : undefined,
+    },
+    alternates: {
+      canonical,
     },
     twitter: {
       card: absoluteImage ? "summary_large_image" : "summary",

@@ -601,7 +601,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             </label>
             <label className="block text-sm font-medium text-zinc-700">
               Men
-              <input name="menCount" type="number" min={0} defaultValue={1} className="input-luxe" required />
+              <input name="menCount" type="number" min={0} defaultValue={0} className="input-luxe" required />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
               Women

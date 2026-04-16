@@ -72,6 +72,9 @@ export function GuestCsvImport({ eventId }: Props) {
             <code className="text-xs">tableName</code>, <code className="text-xs">notes</code>,{" "}
             <code className="text-xs">phone</code>, <code className="text-xs">email</code>.
           </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            No header row? The importer auto-maps positional columns as: name, men, women, kids, greeting, group.
+          </p>
         </div>
         <a
           href="/samples/guests-import.csv"
@@ -183,6 +186,9 @@ export function GuestCsvImport({ eventId }: Props) {
           <p className="text-sm text-zinc-600">
             {preview.rowCount} row(s) · {preview.importableCount} will be imported ·{" "}
             {preview.ready ? "All rows valid" : "Some rows need attention"}
+          </p>
+          <p className="text-xs text-zinc-500">
+            Parsing mode: {preview.headerMode === "header" ? "Header mapping" : "No-header positional mapping"}
           </p>
           <div className="max-h-72 overflow-auto rounded-2xl border border-zinc-200">
             <table className="min-w-full text-left text-xs sm:text-sm">

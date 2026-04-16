@@ -11,9 +11,9 @@ export const guestImportRowSchema = z
   .object({
     guestName: z.string().trim().min(1, "guestName is required"),
     greeting: z.string().trim().max(80, "greeting must be 80 characters or less").optional(),
-    menCount: z.coerce.number().int().min(0, "men must be 0 or greater"),
-    womenCount: z.coerce.number().int().min(0, "women must be 0 or greater"),
-    kidsCount: z.coerce.number().int().min(0, "kids must be 0 or greater"),
+    menCount: z.preprocess((v) => (v === "" || v === undefined || v === null ? 0 : v), z.coerce.number().int().min(0, "men must be 0 or greater")),
+    womenCount: z.preprocess((v) => (v === "" || v === undefined || v === null ? 0 : v), z.coerce.number().int().min(0, "women must be 0 or greater")),
+    kidsCount: z.preprocess((v) => (v === "" || v === undefined || v === null ? 0 : v), z.coerce.number().int().min(0, "kids must be 0 or greater")),
     group: z.string().trim().optional(),
     tableName: z.string().trim().max(120).optional(),
     notes: z.string().optional(),
@@ -48,6 +48,7 @@ function mapHeaderToField(header: string): string | null {
   const map: Record<string, string> = {
     guestname: "guestName",
     "guest name": "guestName",
+    name: "guestName",
     men: "menCount",
     mencount: "menCount",
     women: "womenCount",
@@ -86,6 +87,22 @@ function rowToFields(row: Record<string, unknown>): Record<string, string> {
   return out;
 }
 
+function positionalRowToFields(row: unknown[]): Record<string, string> {
+  return {
+    guestName: String(row[0] ?? "").trim(),
+    menCount: String(row[1] ?? "").trim(),
+    womenCount: String(row[2] ?? "").trim(),
+    kidsCount: String(row[3] ?? "").trim(),
+    greeting: String(row[4] ?? "").trim(),
+    group: String(row[5] ?? "").trim(),
+    tableName: String(row[6] ?? "").trim(),
+    notes: String(row[7] ?? "").trim(),
+    phone: String(row[8] ?? "").trim(),
+    email: String(row[9] ?? "").trim(),
+    isFamilyInvite: String(row[10] ?? "").trim(),
+  };
+}
+
 export type CsvPreviewRow = {
   lineNumber: number;
   data: GuestImportRow | null;
@@ -103,6 +120,7 @@ export type CsvPreviewResult = {
   rows: CsvPreviewRow[];
   requiredHeadersMissing: string[];
   rowCount: number;
+  headerMode: "header" | "no_header";
 };
 
 /** Rows that will actually be inserted: skip DB dupes and later file dupes. */
@@ -133,20 +151,20 @@ export function previewGuestCsv(
   existingNormalizedNames: Set<string>,
 ): CsvPreviewResult {
   const parseErrors: string[] = [];
-  const parsed = Papa.parse<Record<string, unknown>>(csvText, {
+  const parsedWithHeaders = Papa.parse<Record<string, unknown>>(csvText, {
     header: true,
     skipEmptyLines: "greedy",
     transformHeader: (h) => h.trim(),
   });
 
-  for (const err of parsed.errors) {
+  for (const err of parsedWithHeaders.errors) {
     if (err.type === "Quotes" || err.type === "FieldMismatch") {
       continue;
     }
     parseErrors.push(err.message || "CSV parse error");
   }
 
-  const fields = parsed.meta.fields?.filter((f): f is string => Boolean(f?.trim())) ?? [];
+  const fields = parsedWithHeaders.meta.fields?.filter((f): f is string => Boolean(f?.trim())) ?? [];
   const mapped = new Set<string>();
   for (const f of fields) {
     const m = mapHeaderToField(f);
@@ -154,29 +172,45 @@ export function previewGuestCsv(
       mapped.add(m);
     }
   }
+  const hasRecognizedHeaders =
+    mapped.has("guestName") || mapped.has("menCount") || mapped.has("womenCount") || mapped.has("kidsCount");
+  const headerMode: "header" | "no_header" = hasRecognizedHeaders ? "header" : "no_header";
 
   const requiredHeadersMissing: string[] = [];
-  if (!mapped.has("guestName")) {
-    requiredHeadersMissing.push("guestName");
+  if (headerMode === "header") {
+    if (!mapped.has("guestName")) requiredHeadersMissing.push("guestName");
+    if (!mapped.has("menCount")) requiredHeadersMissing.push("men");
+    if (!mapped.has("womenCount")) requiredHeadersMissing.push("women");
+    if (!mapped.has("kidsCount")) requiredHeadersMissing.push("kids");
   }
-  if (!mapped.has("menCount")) requiredHeadersMissing.push("men");
-  if (!mapped.has("womenCount")) requiredHeadersMissing.push("women");
-  if (!mapped.has("kidsCount")) requiredHeadersMissing.push("kids");
 
   const rows: CsvPreviewRow[] = [];
   const seenInFile = new Set<string>();
+  const parsedRows =
+    headerMode === "header"
+      ? parsedWithHeaders.data.map((raw, index) => ({
+          lineNumber: index + 2,
+          fields: raw ? rowToFields(raw) : {},
+        }))
+      : Papa.parse<unknown[]>(csvText, {
+          header: false,
+          skipEmptyLines: "greedy",
+        }).data.map((raw, index) => ({
+          lineNumber: index + 1,
+          fields: positionalRowToFields(Array.isArray(raw) ? raw : []),
+        }));
 
-  parsed.data.forEach((raw, index) => {
-    const lineNumber = index + 2;
-    if (!raw || Object.keys(raw).length === 0) {
+  parsedRows.forEach((row) => {
+    const lineNumber = row.lineNumber;
+    const obj = row.fields;
+    if (!obj || Object.keys(obj).length === 0 || !String(obj.guestName ?? "").trim()) {
       return;
     }
-    const obj = rowToFields(raw);
     const safeParse = guestImportRowSchema.safeParse({
       guestName: obj.guestName ?? "",
-      menCount: obj.menCount === "" ? undefined : obj.menCount,
-      womenCount: obj.womenCount === "" ? undefined : obj.womenCount,
-      kidsCount: obj.kidsCount === "" ? undefined : obj.kidsCount,
+      menCount: obj.menCount,
+      womenCount: obj.womenCount,
+      kidsCount: obj.kidsCount,
       group: obj.group || undefined,
       tableName: obj.tableName || undefined,
       greeting: obj.greeting || undefined,
@@ -216,11 +250,7 @@ export function previewGuestCsv(
 
   const hasInvalidRows = rows.some((r) => r.data === null);
   const importableCount = selectRowsForImport(rows).length;
-  const ready =
-    requiredHeadersMissing.length === 0 &&
-    parseErrors.length === 0 &&
-    rows.length > 0 &&
-    !hasInvalidRows;
+  const ready = requiredHeadersMissing.length === 0 && parseErrors.length === 0 && rows.length > 0 && !hasInvalidRows;
 
   return {
     ready,
@@ -229,5 +259,6 @@ export function previewGuestCsv(
     rows,
     requiredHeadersMissing,
     rowCount: rows.length,
+    headerMode,
   };
 }
