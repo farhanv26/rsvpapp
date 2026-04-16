@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
 import { resolveInviteCardImage } from "@/lib/invite-card-resolution";
+import { buildRsvpOgRouteUrl, resolveRsvpPreviewCardSource } from "@/lib/rsvp-share-preview";
 import { formatDateTime, getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
@@ -107,7 +108,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     };
   }
 
-  const resolvedCard = resolveInviteCardImage(
+  const previewSource = resolveRsvpPreviewCardSource(
     {
       imagePath: guest.event.imagePath,
       genericCardImage: guest.event.genericCardImage,
@@ -119,24 +120,8 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     },
     { maxGuests: guest.maxGuests, isFamilyInvite: guest.isFamilyInvite },
   );
-  const resolvedVariantSrc = getSafeImageSrc(resolvedCard.rawPath);
-  const defaultMainSrc = getSafeImageSrc(guest.event.imagePath);
-  const genericFallbackSrc = getSafeImageSrc(guest.event.genericCardImage);
-
-  // Reliability-first metadata fallback:
-  // 1) resolved variant (if valid) -> 2) event main card -> 3) generic card.
-  const safeImageSrc = resolvedVariantSrc ?? defaultMainSrc ?? genericFallbackSrc;
   const base = getPublicSiteUrl();
-  const absoluteImageBase = !safeImageSrc
-    ? undefined
-    : safeImageSrc.startsWith("http://") || safeImageSrc.startsWith("https://")
-      ? safeImageSrc
-      : base
-        ? `${base}${safeImageSrc}`
-        : undefined;
-  const absoluteImage = absoluteImageBase
-    ? `${absoluteImageBase}${absoluteImageBase.includes("?") ? "&" : "?"}v=${guest.event.updatedAt.getTime()}`
-    : undefined;
+  const absoluteImage = buildRsvpOgRouteUrl(token, guest.event.updatedAt.getTime()) ?? undefined;
   const canonical = base ? `${base}/rsvp/${token}` : undefined;
   const names = guest.event.coupleNames?.trim() || guest.event.title;
   const title = `${names} · RSVP Invitation`;
@@ -146,10 +131,10 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     token,
     eventId: guest.event.id,
     baseResolved: Boolean(base),
-    resolvedVariantSource: resolvedCard.source,
-    resolvedVariantSrc,
-    defaultMainSrc,
-    genericFallbackSrc,
+    resolvedVariantSource: previewSource.resolvedVariantSource,
+    resolvedVariantSrc: previewSource.resolvedVariantSrc,
+    defaultMainSrc: previewSource.defaultMainSrc,
+    genericFallbackSrc: previewSource.genericFallbackSrc,
     chosenImage: absoluteImage ?? null,
   });
 

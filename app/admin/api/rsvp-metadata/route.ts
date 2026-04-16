@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentAdminUserFromApi } from "@/lib/admin-api-auth";
 import { prisma } from "@/lib/prisma";
-import { resolveInviteCardImage } from "@/lib/invite-card-resolution";
-import { getPublicSiteUrl, getSafeImageSrc } from "@/lib/utils";
+import { buildRsvpOgRouteUrl, resolveRsvpPreviewCardSource, toAbsolutePreviewUrl } from "@/lib/rsvp-share-preview";
+import { getPublicSiteUrl } from "@/lib/utils";
 
 export async function GET(request: Request) {
   const admin = await getCurrentAdminUserFromApi();
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Guest not found for token" }, { status: 404 });
   }
 
-  const resolved = resolveInviteCardImage(
+  const previewSource = resolveRsvpPreviewCardSource(
     {
       imagePath: guest.event.imagePath,
       genericCardImage: guest.event.genericCardImage,
@@ -57,23 +57,10 @@ export async function GET(request: Request) {
     { maxGuests: guest.maxGuests, isFamilyInvite: guest.isFamilyInvite },
   );
 
-  const resolvedVariantSrc = getSafeImageSrc(resolved.rawPath);
-  const defaultMainSrc = getSafeImageSrc(guest.event.imagePath);
-  const genericFallbackSrc = getSafeImageSrc(guest.event.genericCardImage);
-  const chosenSrc = resolvedVariantSrc ?? defaultMainSrc ?? genericFallbackSrc;
-
   const base = getPublicSiteUrl();
   const canonical = base ? `${base}/rsvp/${token}` : null;
-  const absoluteImageBase = !chosenSrc
-    ? null
-    : chosenSrc.startsWith("http://") || chosenSrc.startsWith("https://")
-      ? chosenSrc
-      : base
-        ? `${base}${chosenSrc}`
-        : null;
-  const absoluteImage = absoluteImageBase
-    ? `${absoluteImageBase}${absoluteImageBase.includes("?") ? "&" : "?"}v=${guest.event.updatedAt.getTime()}`
-    : null;
+  const absoluteSourceCard = toAbsolutePreviewUrl(previewSource.chosenRawSrc);
+  const ogRouteUrl = buildRsvpOgRouteUrl(token, guest.event.updatedAt.getTime());
 
   const names = guest.event.coupleNames?.trim() || guest.event.title;
   const title = `${names} · RSVP Invitation`;
@@ -88,14 +75,15 @@ export async function GET(request: Request) {
     title,
     description,
     og: {
-      image: absoluteImage,
+      image: ogRouteUrl,
     },
     selection: {
-      resolvedVariantSource: resolved.source,
-      resolvedVariantSrc,
-      defaultMainSrc,
-      genericFallbackSrc,
-      chosen: absoluteImage,
+      resolvedVariantSource: previewSource.resolvedVariantSource,
+      resolvedVariantSrc: previewSource.resolvedVariantSrc,
+      defaultMainSrc: previewSource.defaultMainSrc,
+      genericFallbackSrc: previewSource.genericFallbackSrc,
+      sourceCardUsed: absoluteSourceCard,
+      ogRouteUrl,
     },
   });
 }
