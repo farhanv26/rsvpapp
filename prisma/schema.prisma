@@ -115,6 +115,9 @@ model Guest {
   notes          String?
   hostMessage    String?
   isFamilyInvite Boolean  @default(false)
+  /** E.g. "+1", "+44". When null, `phone` may be a legacy full/international string. */
+  phoneCountryCode String?
+  /** National digits (no country code) when `phoneCountryCode` is set; otherwise legacy full phone text. */
   phone          String?
   email          String?
   invitedAt              DateTime?

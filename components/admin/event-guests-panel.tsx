@@ -35,11 +35,13 @@ import {
   matchesReadinessFilter,
   type GuestReadinessId,
 } from "@/lib/guest-readiness";
+import { GuestPhoneFields } from "@/components/admin/guest-phone-fields";
 import {
-  buildGuestWhatsAppInviteMessage,
-  getWhatsAppInviteUrlForGuest,
-  normalizePhoneForWhatsApp,
-} from "@/lib/whatsapp";
+  formatGuestPhoneLabel,
+  normalizePhoneForWhatsAppGuestRecord,
+  WHATSAPP_PHONE_INVALID_INLINE,
+} from "@/lib/phone";
+import { buildGuestWhatsAppInviteMessage, getWhatsAppInviteUrlForGuest } from "@/lib/whatsapp";
 import { CommunicationPreviewModal } from "@/components/admin/communication-preview-modal";
 import { GuestCommunicationHistoryModal } from "@/components/admin/guest-communication-history-modal";
 import { GuestInviteCardPreviewModal } from "@/components/admin/guest-invite-card-preview-modal";
@@ -63,6 +65,7 @@ export type GuestPanelGuest = {
   notes: string | null;
   hostMessage: string | null;
   phone: string | null;
+  phoneCountryCode: string | null;
   email: string | null;
   invitedAt: string | null;
   inviteChannelLastUsed: string | null;
@@ -726,6 +729,7 @@ export function EventGuestsPanel({
         "Message to host",
         "Email",
         "Phone",
+        "Phone country code",
         "Notes",
         "Invited At",
         "Invite channel",
@@ -750,6 +754,7 @@ export function EventGuestsPanel({
           guest.hostMessage ?? "",
           guest.email ?? "",
           guest.phone ?? "",
+          guest.phoneCountryCode ?? "",
           guest.notes ?? "",
           guest.invitedAt ? formatDate(guest.invitedAt) : "",
           guest.inviteChannelLastUsed ?? "",
@@ -1357,6 +1362,7 @@ export function EventGuestsPanel({
                 "Message to host",
                 "Email",
                 "Phone",
+                "Phone country code",
                 "Notes",
                 "Invited At (ISO)",
                 "Invite channel",
@@ -1384,6 +1390,7 @@ export function EventGuestsPanel({
                   guest.hostMessage ?? "",
                   guest.email ?? "",
                   guest.phone ?? "",
+                  guest.phoneCountryCode ?? "",
                   guest.notes ?? "",
                   guest.invitedAt ?? "",
                   guest.inviteChannelLastUsed ?? "",
@@ -1417,6 +1424,7 @@ export function EventGuestsPanel({
                 "Message to host",
                 "Email",
                 "Phone",
+                "Phone country code",
                 "Notes",
               ],
               ...confirmed.map((guest) => [
@@ -1434,6 +1442,7 @@ export function EventGuestsPanel({
                 guest.hostMessage ?? "",
                 guest.email ?? "",
                 guest.phone ?? "",
+                guest.phoneCountryCode ?? "",
                 guest.notes ?? "",
               ]),
             ];
@@ -1549,7 +1558,11 @@ export function EventGuestsPanel({
                       customIntroLine: inviteMessageIntro,
                       customLineOverride: inviteMessageLineOverride,
                     });
-                    const whatsappDirectUrl = getWhatsAppInviteUrlForGuest(guest.phone, inviteMessage);
+                    const whatsappDirectUrl = getWhatsAppInviteUrlForGuest(
+                      guest.phone,
+                      inviteMessage,
+                      guest.phoneCountryCode,
+                    );
                     const st = guestPrimaryStatus(guest);
                     const readiness = getGuestReadiness(guest);
                     const isEditing = editingGuestId === guest.id;
@@ -1590,7 +1603,7 @@ export function EventGuestsPanel({
                               </p>
                               {(guest.phone || guest.email) ? (
                                 <p className="mt-1 truncate text-[11px] text-zinc-500">
-                                  {[guest.phone, guest.email].filter(Boolean).join(" · ")}
+                                  {[formatGuestPhoneLabel(guest), guest.email].filter(Boolean).join(" · ")}
                                 </p>
                               ) : null}
                             </div>
@@ -1788,7 +1801,11 @@ export function EventGuestsPanel({
                             ) : (
                               <span
                                 className="btn-secondary inline-flex cursor-not-allowed items-center px-3 py-1.5 text-xs opacity-50"
-                                title="Add a phone number with country code (no leading 0) for direct WhatsApp."
+                                title={
+                                  guest.phone?.trim()
+                                    ? WHATSAPP_PHONE_INVALID_INLINE
+                                    : "Add a phone number for WhatsApp."
+                                }
                                 aria-disabled="true"
                               >
                                 <span className="inline-flex items-center gap-2">
@@ -1961,13 +1978,12 @@ export function EventGuestsPanel({
                   className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                   placeholder="Table"
                 />
-                <input
-                  type="text"
-                  name="phone"
-                  defaultValue={editingGuest.phone ?? ""}
-                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
-                  placeholder="Phone (international, e.g. +65…)"
-                  autoComplete="tel"
+                <GuestPhoneFields
+                  key={editingGuest.id}
+                  defaultCountryCode={editingGuest.phoneCountryCode}
+                  defaultNationalDigits={editingGuest.phoneCountryCode ? (editingGuest.phone ?? "") : ""}
+                  legacyPhone={editingGuest.phoneCountryCode ? null : editingGuest.phone}
+                  showWhatsAppPreview
                 />
                 <input
                   type="email"
@@ -1976,12 +1992,6 @@ export function EventGuestsPanel({
                   className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                   placeholder="Email"
                 />
-                {editingGuest.phone?.trim() && normalizePhoneForWhatsApp(editingGuest.phone) === null ? (
-                  <p className="sm:col-span-2 text-xs text-amber-900">
-                    This number may not open WhatsApp directly. Use a country code and drop a national leading 0 (for
-                    example <span className="font-mono">+65 9123 4567</span>).
-                  </p>
-                ) : null}
                 <input
                   type="text"
                   name="notes"
@@ -2218,6 +2228,7 @@ export function EventGuestsPanel({
           greeting: g.greeting,
           token: g.token,
           phone: g.phone,
+          phoneCountryCode: g.phoneCountryCode,
           email: g.email,
         }))}
       />
@@ -2251,6 +2262,7 @@ export function EventGuestsPanel({
           greeting: g.greeting,
           token: g.token,
           phone: g.phone,
+          phoneCountryCode: g.phoneCountryCode,
           email: g.email,
         }))}
       />

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { commitGuestCsvImportAction, previewGuestCsvAction } from "@/app/admin/events/csv-import-actions";
 import type { CsvPreviewResult } from "@/lib/csv-guests";
+import { formatGuestPhoneLabel } from "@/lib/phone";
 
 type Props = {
   eventId: string;
@@ -70,10 +71,12 @@ export function GuestCsvImport({ eventId }: Props) {
             <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">kids</code>. Optional:{" "}
             <code className="text-xs">greeting</code>, <code className="text-xs">group</code>,{" "}
             <code className="text-xs">tableName</code>, <code className="text-xs">notes</code>,{" "}
-            <code className="text-xs">phone</code>, <code className="text-xs">email</code>.
+            <code className="text-xs">phone</code>, <code className="text-xs">phoneCountryCode</code>,{" "}
+            <code className="text-xs">email</code>.
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            No header row? The importer auto-maps positional columns as: name, men, women, kids, greeting, group.
+            No header row? Positional columns: name, men, women, kids, greeting, group, table, notes, phone, country
+            code, email (or legacy: phone then email if column 9 looks like an address).
           </p>
         </div>
         <a
@@ -118,7 +121,7 @@ export function GuestCsvImport({ eventId }: Props) {
               setSuccess(null);
             }}
             rows={6}
-            placeholder={`guestName,men,women,kids,greeting,group,tableName,notes\nThe Valli Family,2,2,1,Assalamu Alaikum,Family,Table 1,,`}
+            placeholder={`guestName,men,women,kids,greeting,group,tableName,notes,phone,phoneCountryCode\nThe Valli Family,2,2,1,Assalamu Alaikum,Family,Table 1,,6478607861,+1`}
             className="w-full rounded-xl border border-[#dccfbb] bg-white px-4 py-3 font-mono text-sm text-zinc-900 placeholder:text-zinc-400"
           />
           <p className="mt-2 text-xs text-zinc-500">Tip: drag and drop your CSV file into this area.</p>
@@ -202,6 +205,9 @@ export function GuestCsvImport({ eventId }: Props) {
                   <th className="px-3 py-2 font-medium">Total</th>
                   <th className="hidden px-3 py-2 font-medium md:table-cell">Greeting</th>
                   <th className="hidden px-3 py-2 font-medium sm:table-cell">Group</th>
+                  <th className="hidden px-3 py-2 font-medium lg:table-cell">Phone</th>
+                  <th className="hidden px-3 py-2 font-medium lg:table-cell">Country</th>
+                  <th className="hidden px-3 py-2 font-medium lg:table-cell">WhatsApp</th>
                   <th className="px-3 py-2 font-medium">Status</th>
                 </tr>
               </thead>
@@ -218,6 +224,36 @@ export function GuestCsvImport({ eventId }: Props) {
                     </td>
                     <td className="hidden px-3 py-2 text-zinc-600 md:table-cell">{row.data?.greeting ?? "Assalamu Alaikum"}</td>
                     <td className="hidden px-3 py-2 text-zinc-600 sm:table-cell">{row.data?.group ?? "—"}</td>
+                    <td
+                      className="hidden max-w-[12rem] truncate px-3 py-2 text-zinc-600 lg:table-cell"
+                      title={
+                        row.data
+                          ? formatGuestPhoneLabel({
+                              phone: row.data.phone,
+                              phoneCountryCode: row.data.phoneCountryCode,
+                            })
+                          : undefined
+                      }
+                    >
+                      {row.data?.phone
+                        ? formatGuestPhoneLabel({
+                            phone: row.data.phone,
+                            phoneCountryCode: row.data.phoneCountryCode,
+                          })
+                        : "—"}
+                    </td>
+                    <td className="hidden max-w-[8rem] truncate px-3 py-2 text-zinc-600 lg:table-cell">
+                      {row.phoneImport?.countryLabel ?? "—"}
+                    </td>
+                    <td className="hidden px-3 py-2 lg:table-cell">
+                      {!row.data?.phone?.trim() ? (
+                        <span className="text-zinc-400">—</span>
+                      ) : row.phoneImport?.validWhatsApp ? (
+                        <span className="text-emerald-800">Valid</span>
+                      ) : (
+                        <span className="text-amber-800">Invalid</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       {!row.data ? (
                         <span className="text-red-700">{row.errors.join("; ")}</span>

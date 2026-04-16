@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import { buildGuestWhatsAppInviteMessage, getWhatsAppInviteUrlForGuest } from "@/lib/whatsapp";
+import {
+  buildGuestWhatsAppInviteMessage,
+  getWhatsAppInviteUrlForGuest,
+  WHATSAPP_PHONE_HELPER_TEXT,
+  WHATSAPP_PHONE_INVALID_INLINE,
+} from "@/lib/whatsapp";
 import { buildAbsoluteUrl } from "@/lib/utils";
 
 type GuestForShare = {
@@ -11,6 +16,7 @@ type GuestForShare = {
   token: string;
   greeting?: string | null;
   phone?: string | null;
+  phoneCountryCode?: string | null;
 };
 
 function Modal({
@@ -112,7 +118,10 @@ export function EventRsvpShare({
   }, [eventTitle, eventCoupleNames, link, selected, inviteMessageIntro, inviteMessageLineOverride]);
 
   const whatsappDirectUrl = useMemo(
-    () => (inviteMessage && selected ? getWhatsAppInviteUrlForGuest(selected.phone, inviteMessage) : null),
+    () =>
+      inviteMessage && selected
+        ? getWhatsAppInviteUrlForGuest(selected.phone, inviteMessage, selected.phoneCountryCode)
+        : null,
     [inviteMessage, selected],
   );
 
@@ -225,13 +234,18 @@ export function EventRsvpShare({
             ) : (
               <span
                 className="btn-secondary inline-flex cursor-not-allowed items-center justify-center gap-2 opacity-50"
-                title="Add a phone number with country code to this guest for direct WhatsApp."
+                title={
+                  selected?.phone?.trim()
+                    ? WHATSAPP_PHONE_INVALID_INLINE + ". " + WHATSAPP_PHONE_HELPER_TEXT
+                    : "Add a phone number for WhatsApp. " + WHATSAPP_PHONE_HELPER_TEXT
+                }
                 aria-disabled="true"
               >
                 <WhatsAppIcon />
-                <span>WhatsApp (add phone)</span>
+                <span>{selected?.phone?.trim() ? "WhatsApp unavailable" : "WhatsApp (add phone)"}</span>
               </span>
             )}
+            <p className="w-full text-xs text-zinc-500">{WHATSAPP_PHONE_HELPER_TEXT}</p>
             <button
               type="button"
               className="btn-secondary"

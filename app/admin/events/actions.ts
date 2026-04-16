@@ -17,8 +17,21 @@ import {
   buildGuestInviteMessageParts,
   buildGuestRsvpReminderMessage,
   buildGuestWhatsAppInviteMessage,
-  normalizePhoneForWhatsApp,
+  normalizePhoneForWhatsAppGuestRecord,
 } from "@/lib/whatsapp";
+import { DEFAULT_PHONE_COUNTRY, formatGuestPhoneLabel } from "@/lib/phone";
+
+function parseGuestPhoneFromForm(formData: FormData): { phone: string | null; phoneCountryCode: string | null } {
+  const national = String(formData.get("phone") ?? "").replace(/\D/g, "");
+  const cc = String(formData.get("phoneCountryCode") ?? "").trim();
+  if (!national) {
+    return { phone: null, phoneCountryCode: null };
+  }
+  return {
+    phone: national,
+    phoneCountryCode: cc || DEFAULT_PHONE_COUNTRY,
+  };
+}
 
 function parseStoredImagePath(formData: FormData, key: string): string | null {
   return getSafeImageSrc(String(formData.get(key) ?? "")) ?? null;
@@ -347,6 +360,7 @@ export async function createGuestAction(formData: FormData) {
   const greetingPreset = String(formData.get("greetingPreset") || "").trim();
   const greetingCustom = String(formData.get("greetingCustom") || "").trim();
   const greetingValue = greetingCustom || greetingPreset || String(formData.get("greeting") || "").trim() || undefined;
+  const phoneParsed = parseGuestPhoneFromForm(formData);
   const parsed = guestSchema.safeParse({
     guestName: formData.get("guestName"),
     greeting: greetingValue,
@@ -356,7 +370,8 @@ export async function createGuestAction(formData: FormData) {
     group: formData.get("group") || undefined,
     tableName: formData.get("tableName") || undefined,
     notes: formData.get("notes") || undefined,
-    phone: formData.get("phone") || undefined,
+    phoneCountryCode: phoneParsed.phoneCountryCode ?? undefined,
+    phone: phoneParsed.phone ?? undefined,
     email: formData.get("email") || undefined,
     isFamilyInvite: formData.get("isFamilyInvite"),
   });
@@ -378,6 +393,7 @@ export async function createGuestAction(formData: FormData) {
       group: parsed.data.group ?? null,
       tableName: parsed.data.tableName?.trim() ? parsed.data.tableName.trim() : null,
       notes: parsed.data.notes ?? null,
+      phoneCountryCode: parsed.data.phoneCountryCode ?? null,
       phone: parsed.data.phone ?? null,
       email: parsed.data.email?.trim() || null,
       isFamilyInvite: parsed.data.isFamilyInvite ?? false,
@@ -423,6 +439,7 @@ export async function updateGuestAction(formData: FormData) {
   const greetingPreset = String(formData.get("greetingPreset") || "").trim();
   const greetingCustom = String(formData.get("greetingCustom") || "").trim();
   const greetingValue = greetingCustom || greetingPreset || String(formData.get("greeting") || "").trim() || undefined;
+  const phoneParsed = parseGuestPhoneFromForm(formData);
   const parsed = guestSchema.safeParse({
     guestName: formData.get("guestName"),
     greeting: greetingValue,
@@ -432,7 +449,8 @@ export async function updateGuestAction(formData: FormData) {
     group: formData.get("group") || undefined,
     tableName: formData.get("tableName") || undefined,
     notes: formData.get("notes") || undefined,
-    phone: formData.get("phone") || undefined,
+    phoneCountryCode: phoneParsed.phoneCountryCode ?? undefined,
+    phone: phoneParsed.phone ?? undefined,
     email: formData.get("email") || undefined,
     isFamilyInvite: formData.get("isFamilyInvite"),
   });
@@ -461,6 +479,7 @@ export async function updateGuestAction(formData: FormData) {
       group: parsed.data.group ?? null,
       tableName: parsed.data.tableName?.trim() ? parsed.data.tableName.trim() : null,
       notes: parsed.data.notes ?? null,
+      phoneCountryCode: parsed.data.phoneCountryCode ?? null,
       phone: parsed.data.phone ?? null,
       email: parsed.data.email?.trim() || null,
       isFamilyInvite: parsed.data.isFamilyInvite ?? false,
@@ -1327,6 +1346,7 @@ export type GuestCommunicationPreviewPayload = {
   eventTitle: string;
   eventSubtitle: string | null;
   phone: string | null;
+  phoneCountryCode: string | null;
   email: string | null;
   hasEmail: boolean;
   whatsappMessage: string;
@@ -1346,6 +1366,7 @@ export async function getGuestCommunicationPreviewAction(eventId: string, guestI
       token: true,
       email: true,
       phone: true,
+      phoneCountryCode: true,
       event: {
         select: {
           title: true,
@@ -1394,13 +1415,18 @@ export async function getGuestCommunicationPreviewAction(eventId: string, guestI
       eventTitle: guest.event.title,
       eventSubtitle: guest.event.eventSubtitle,
       phone: guest.phone,
+      phoneCountryCode: guest.phoneCountryCode,
       email: guest.email,
       hasEmail: Boolean(guest.email?.trim()),
       whatsappMessage: inviteText,
       rsvpLink,
       emailSubject,
       emailBody,
-      whatsappDirectAvailable: normalizePhoneForWhatsApp(guest.phone) !== null,
+      whatsappDirectAvailable:
+        normalizePhoneForWhatsAppGuestRecord({
+          phone: guest.phone,
+          phoneCountryCode: guest.phoneCountryCode,
+        }) !== null,
     } satisfies GuestCommunicationPreviewPayload,
   };
 }

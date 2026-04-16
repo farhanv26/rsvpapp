@@ -106,6 +106,7 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
           tableName: row.tableName?.trim() || null,
           notes: row.notes?.trim() || null,
           phone: row.phone?.trim() || null,
+          phoneCountryCode: row.phoneCountryCode?.trim() || null,
           email: row.email?.trim() || null,
           isFamilyInvite: row.isFamilyInvite,
           token: generateSecureToken(),

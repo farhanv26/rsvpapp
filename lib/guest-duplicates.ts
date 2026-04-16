@@ -3,10 +3,13 @@
  * Uses normalized name, phone (digits), and email — no fuzzy matching.
  */
 
+import { normalizePhoneForWhatsAppGuestRecord } from "./phone";
+
 export type GuestDuplicateInput = {
   id: string;
   guestName: string;
   phone: string | null;
+  phoneCountryCode?: string | null;
   email: string | null;
 };
 
@@ -21,12 +24,21 @@ export function normalizeEmailForDedup(email: string | null | undefined): string
   return t && t.length > 0 ? t : null;
 }
 
-/** Digits only; require at least 10 to treat as a match key (avoids junk matches). */
+/** E.164-style digits for comparison (structured + legacy). */
 export function normalizePhoneDigitsForDedup(phone: string | null | undefined): string | null {
   if (!phone?.trim()) return null;
   const d = phone.replace(/\D/g, "");
   if (d.length < 10) return null;
   return d;
+}
+
+export function normalizePhoneDigitsForDedupGuest(guest: GuestDuplicateInput): string | null {
+  const n = normalizePhoneForWhatsAppGuestRecord({
+    phone: guest.phone,
+    phoneCountryCode: guest.phoneCountryCode ?? null,
+  });
+  if (!n || n.length < 8) return null;
+  return n;
 }
 
 export type DuplicateStrength = "strong" | "weak" | "none";
@@ -43,8 +55,8 @@ export function buildDuplicateStrengthMap(allGuests: GuestDuplicateInput[]): Map
       const b = allGuests[j];
       const ea = normalizeEmailForDedup(a.email);
       const eb = normalizeEmailForDedup(b.email);
-      const pa = normalizePhoneDigitsForDedup(a.phone);
-      const pb = normalizePhoneDigitsForDedup(b.phone);
+      const pa = normalizePhoneDigitsForDedupGuest(a);
+      const pb = normalizePhoneDigitsForDedupGuest(b);
       if (ea && eb && ea === eb) {
         strong.add(a.id);
         strong.add(b.id);
@@ -95,8 +107,8 @@ function clusterReasonsForPair(
   const eb = normalizeEmailForDedup(b.email);
   if (ea && eb && ea === eb) out.push("same_email");
 
-  const pa = normalizePhoneDigitsForDedup(a.phone);
-  const pb = normalizePhoneDigitsForDedup(b.phone);
+  const pa = normalizePhoneDigitsForDedupGuest(a);
+  const pb = normalizePhoneDigitsForDedupGuest(b);
   if (pa && pb && pa === pb) out.push("same_phone");
 
   return out;

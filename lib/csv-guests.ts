@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { z } from "zod";
+import { parseCsvPhoneRow, type CsvPhoneImportResult } from "@/lib/phone";
 
 function parseFamilyInviteCell(value: unknown): boolean {
   if (value === true || value === 1) return true;
@@ -17,6 +18,7 @@ export const guestImportRowSchema = z
     group: z.string().trim().optional(),
     tableName: z.string().trim().max(120).optional(),
     notes: z.string().optional(),
+    phoneCountryCode: z.string().trim().optional(),
     phone: z.string().trim().optional(),
     email: z.string().trim().optional(),
     isFamilyInvite: z.preprocess((v) => {
@@ -66,6 +68,9 @@ function mapHeaderToField(header: string): string | null {
     greeting: "greeting",
     notes: "notes",
     phone: "phone",
+    phonecountrycode: "phoneCountryCode",
+    "phone country code": "phoneCountryCode",
+    "phone_country_code": "phoneCountryCode",
     email: "email",
     isfamilyinvite: "isFamilyInvite",
     "family invite": "isFamilyInvite",
@@ -88,18 +93,34 @@ function rowToFields(row: Record<string, unknown>): Record<string, string> {
 }
 
 function positionalRowToFields(row: unknown[]): Record<string, string> {
+  const r = Array.isArray(row) ? row : [];
+  const base = {
+    guestName: String(r[0] ?? "").trim(),
+    menCount: String(r[1] ?? "").trim(),
+    womenCount: String(r[2] ?? "").trim(),
+    kidsCount: String(r[3] ?? "").trim(),
+    greeting: String(r[4] ?? "").trim(),
+    group: String(r[5] ?? "").trim(),
+    tableName: String(r[6] ?? "").trim(),
+    notes: String(r[7] ?? "").trim(),
+    phone: String(r[8] ?? "").trim(),
+  };
+  const col9 = String(r[9] ?? "").trim();
+  const col10 = String(r[10] ?? "").trim();
+  const col11 = String(r[11] ?? "").trim();
+  if (col9.includes("@")) {
+    return {
+      ...base,
+      phoneCountryCode: "",
+      email: col9,
+      isFamilyInvite: col10,
+    };
+  }
   return {
-    guestName: String(row[0] ?? "").trim(),
-    menCount: String(row[1] ?? "").trim(),
-    womenCount: String(row[2] ?? "").trim(),
-    kidsCount: String(row[3] ?? "").trim(),
-    greeting: String(row[4] ?? "").trim(),
-    group: String(row[5] ?? "").trim(),
-    tableName: String(row[6] ?? "").trim(),
-    notes: String(row[7] ?? "").trim(),
-    phone: String(row[8] ?? "").trim(),
-    email: String(row[9] ?? "").trim(),
-    isFamilyInvite: String(row[10] ?? "").trim(),
+    ...base,
+    phoneCountryCode: col9,
+    email: col10,
+    isFamilyInvite: col11,
   };
 }
 
@@ -109,6 +130,7 @@ export type CsvPreviewRow = {
   errors: string[];
   duplicateInFile: boolean;
   duplicateInDatabase: boolean;
+  phoneImport?: CsvPhoneImportResult;
 };
 
 export type CsvPreviewResult = {
@@ -215,6 +237,7 @@ export function previewGuestCsv(
       tableName: obj.tableName || undefined,
       greeting: obj.greeting || undefined,
       notes: obj.notes || undefined,
+      phoneCountryCode: obj.phoneCountryCode || undefined,
       phone: obj.phone || undefined,
       email: obj.email || undefined,
       isFamilyInvite: obj.isFamilyInvite === "" ? undefined : obj.isFamilyInvite,
@@ -231,7 +254,12 @@ export function previewGuestCsv(
       return;
     }
 
-    const data = safeParse.data;
+    const pi = parseCsvPhoneRow(safeParse.data.phone, safeParse.data.phoneCountryCode);
+    const data: GuestImportRow = {
+      ...safeParse.data,
+      phoneCountryCode: pi.phoneCountryCode ?? undefined,
+      phone: pi.phone ?? undefined,
+    };
     const norm = normalizeGuestNameKey(data.guestName);
     const duplicateInFile = seenInFile.has(norm);
     if (!duplicateInFile) {
@@ -245,6 +273,7 @@ export function previewGuestCsv(
       errors: [],
       duplicateInFile,
       duplicateInDatabase,
+      phoneImport: pi,
     });
   });
 

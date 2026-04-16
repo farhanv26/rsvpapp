@@ -30,22 +30,22 @@ describe("Phase 3 - deadline statuses", () => {
 
 describe("Phase 3 - CSV import regressions", () => {
   it("flags missing required headers", () => {
-    const result = previewGuestCsv("name,max\nJohn,2", new Set());
+    const result = previewGuestCsv("men,women,kids\n1,1,0", new Set());
     expect(result.requiredHeadersMissing).toContain("guestName");
-    expect(result.requiredHeadersMissing).toContain("maxGuests");
+    expect(result.requiredHeadersMissing.length).toBeGreaterThan(0);
   });
 
   it("skips duplicates in file and database during import selection", () => {
     const csv = [
-      "guestName,maxGuests",
-      "Valli Family,2",
-      "Valli Family,4",
-      "Shah Family,3",
+      "guestName,men,women,kids",
+      "Valli Family,2,0,0",
+      "Valli Family,1,1,0",
+      "Shah Family,1,1,1",
     ].join("\n");
     const preview = previewGuestCsv(csv, new Set(["shah family"]));
     const rows = selectRowsForImport(preview.rows);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.guestName).toBe("Valli Family");
-    expect(rows[0]?.maxGuests).toBe(2);
+    expect(rows[0]?.menCount).toBe(2);
   });
 });

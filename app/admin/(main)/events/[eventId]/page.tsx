@@ -4,6 +4,7 @@ import { createGuestAction } from "@/app/admin/events/actions";
 import { DeleteEventButton } from "@/components/admin/delete-event-button";
 import { EventRsvpShare } from "@/components/admin/event-rsvp-share";
 import { EventImageLightbox } from "@/components/event-image-lightbox";
+import { GuestPhoneFields } from "@/components/admin/guest-phone-fields";
 import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
 import { EventSectionNav } from "@/components/admin/event-section-nav";
@@ -98,6 +99,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     id: g.id,
     guestName: g.guestName,
     phone: g.phone,
+    phoneCountryCode: g.phoneCountryCode,
     email: g.email,
   }));
   const duplicateGuestsDetected = countGuestsInDuplicateClusters(duplicateDetectionInput);
@@ -161,6 +163,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     notes: g.notes,
     hostMessage: (g as unknown as { hostMessage?: string | null }).hostMessage ?? null,
     phone: g.phone,
+    phoneCountryCode: g.phoneCountryCode,
     email: g.email,
     invitedAt: g.invitedAt?.toISOString() ?? null,
     inviteChannelLastUsed: g.inviteChannelLastUsed ?? null,
@@ -319,6 +322,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                 token: g.token,
                 greeting: g.greeting,
                 phone: g.phone,
+                phoneCountryCode: g.phoneCountryCode,
               }))}
             />
             <DeleteEventButton
@@ -638,10 +642,12 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               Table
               <input name="tableName" type="text" className="input-luxe" placeholder="Table 1, A, VIP…" />
             </label>
-            <label className="block text-sm font-medium text-zinc-700">
-              Phone
-              <input name="phone" type="text" className="input-luxe" />
-            </label>
+            <GuestPhoneFields
+              defaultCountryCode={null}
+              defaultNationalDigits=""
+              legacyPhone={null}
+              showWhatsAppPreview
+            />
             <label className="block text-sm font-medium text-zinc-700">
               Email
               <input name="email" type="email" className="input-luxe" />

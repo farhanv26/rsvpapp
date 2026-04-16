@@ -5,7 +5,8 @@ import {
   getGuestCommunicationPreviewAction,
   type GuestCommunicationPreviewPayload,
 } from "@/app/admin/events/actions";
-import { getWhatsAppInviteUrlForGuest } from "@/lib/whatsapp";
+import { formatGuestPhoneLabel } from "@/lib/phone";
+import { getWhatsAppInviteUrlForGuest, WHATSAPP_PHONE_INVALID_INLINE } from "@/lib/whatsapp";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -90,10 +91,16 @@ export function CommunicationPreviewModal({
 
   const whatsappHref =
     preview && preview.whatsappMessage
-      ? getWhatsAppInviteUrlForGuest(preview.phone, preview.whatsappMessage)
+      ? getWhatsAppInviteUrlForGuest(preview.phone, preview.whatsappMessage, preview.phoneCountryCode)
       : null;
 
-  const phoneLabel = preview?.phone?.trim() ? preview.phone : null;
+  const phoneLabel =
+    preview && (preview.phone?.trim() || preview.phoneCountryCode?.trim())
+      ? formatGuestPhoneLabel({
+          phone: preview.phone,
+          phoneCountryCode: preview.phoneCountryCode,
+        })
+      : null;
   const emailLabel = preview?.email?.trim() ? preview.email : null;
 
   return (
@@ -137,9 +144,13 @@ export function CommunicationPreviewModal({
                   <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700">
                     Direct chat (phone on file)
                   </span>
+                ) : phoneLabel ? (
+                  <span className="rounded-full border border-amber-200/90 bg-amber-50 px-2.5 py-1 text-xs text-amber-950">
+                    {WHATSAPP_PHONE_INVALID_INLINE}
+                  </span>
                 ) : (
                   <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700">
-                    Share link (add digits for wa.me direct)
+                    No phone on file
                   </span>
                 )}
                 {preview.hasEmail ? (
@@ -255,11 +266,11 @@ export function CommunicationPreviewModal({
                     ) : (
                       <span
                         className="btn-secondary inline-flex cursor-not-allowed items-center gap-2 text-sm opacity-50"
-                        title="Add a phone number with country code (e.g. +65…) to open WhatsApp directly for this guest."
+                        title={phoneLabel ? WHATSAPP_PHONE_INVALID_INLINE : "Add a phone number for WhatsApp."}
                         aria-disabled="true"
                       >
                         <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
-                        WhatsApp (add phone)
+                        {phoneLabel ? "WhatsApp unavailable" : "WhatsApp (add phone)"}
                       </span>
                     )}
                   </div>

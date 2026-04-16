@@ -19,6 +19,7 @@ describe("Phase 3 - RSVP edit flow UI", () => {
         respondedAtLabel="Apr 14"
         attending
         attendingCount={2}
+        hostMessage={null}
         canEdit
       />,
     );
@@ -33,6 +34,7 @@ describe("Phase 3 - RSVP edit flow UI", () => {
         respondedAtLabel="Apr 14"
         attending={false}
         attendingCount={null}
+        hostMessage={null}
         canEdit
       />,
     );
@@ -48,6 +50,7 @@ describe("Phase 3 - RSVP edit flow UI", () => {
         respondedAtLabel="Apr 14"
         attending
         attendingCount={1}
+        hostMessage={null}
         canEdit={false}
       />,
     );

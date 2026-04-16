@@ -1,4 +1,5 @@
-guestName,men,women,kids,greeting,group,tableName,notes,phone,email
-The Valli Family,2,2,1,Assalamu Alaikum,Family,Table 1,Brunch side,,guest@example.com
-Jordan & Alex,1,1,0,Hello,Couple,Table 2,,555-0100,
-Samira Khan,0,1,2,Dear,Friends,,From university,,
+guestName,men,women,kids,greeting,group,tableName,notes,phone,phoneCountryCode,email
+The Valli Family,2,2,1,Assalamu Alaikum,Family,Table 1,Brunch side,4165550100,+1,guest@example.com
+Jordan & Alex,1,1,0,Hello,Couple,Table 2,,5550100,+1,
+Samira Khan,0,1,2,Dear,Friends,,From university,,,
+UK Guest,1,0,0,Hi,Friends,,,07860123456,+44,

@@ -8,11 +8,12 @@ import {
   sendBulkGuestInviteEmailsAction,
   sendBulkGuestReminderEmailsAction,
 } from "@/app/admin/events/actions";
+import { WHATSAPP_PHONE_HELPER_TEXT, WHATSAPP_PHONE_INVALID_INLINE } from "@/lib/phone";
 import {
   buildGuestRsvpReminderMessage,
   buildGuestWhatsAppInviteMessage,
   getWhatsAppInviteUrlForGuest,
-  normalizePhoneForWhatsApp,
+  normalizePhoneForWhatsAppGuestRecord,
 } from "@/lib/whatsapp";
 
 /** Minimal guest fields for invite workflow (compatible with GuestPanelGuest). */
@@ -22,6 +23,7 @@ export type SendInvitesGuest = {
   greeting: string;
   token: string;
   phone: string | null;
+  phoneCountryCode: string | null;
   email: string | null;
 };
 
@@ -119,7 +121,11 @@ export function SendInvitesModal({
   );
 
   const waPhoneEligible = useMemo(
-    () => sortedGuests.filter((g) => normalizePhoneForWhatsApp(g.phone) !== null),
+    () =>
+      sortedGuests.filter(
+        (g) =>
+          normalizePhoneForWhatsAppGuestRecord({ phone: g.phone, phoneCountryCode: g.phoneCountryCode }) !== null,
+      ),
     [sortedGuests],
   );
 
@@ -219,7 +225,7 @@ export function SendInvitesModal({
 
   function openNextWhatsApp() {
     if (!waGuest) return;
-    const url = getWhatsAppInviteUrlForGuest(waGuest.phone, waMessage);
+    const url = getWhatsAppInviteUrlForGuest(waGuest.phone, waMessage, waGuest.phoneCountryCode);
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
     const maxIdx = Math.max(0, waPhoneEligible.length - 1);
@@ -310,8 +316,7 @@ export function SendInvitesModal({
                 ) : null}
                 {!isReminder && summary.missing > 0 && summary.withPhone + summary.withEmail < summary.total ? (
                   <p className="mt-2 text-xs text-zinc-500">
-                    Guests without contact info can still copy RSVP links; add a full international phone number
-                    (country code, no leading 0) for direct WhatsApp click-to-chat.
+                    Guests without contact info can still copy RSVP links. For WhatsApp: {WHATSAPP_PHONE_HELPER_TEXT}
                   </p>
                 ) : null}
               </section>
@@ -346,7 +351,7 @@ export function SendInvitesModal({
                     disabled={!waGuest || isPending || waPhoneEligible.length === 0}
                     title={
                       waPhoneEligible.length === 0
-                        ? "No guests have a WhatsApp-ready phone number (country code, no leading 0)."
+                        ? `No guest in this scope has a usable number for WhatsApp. ${WHATSAPP_PHONE_HELPER_TEXT}`
                         : undefined
                     }
                     onClick={openNextWhatsApp}
@@ -365,9 +370,9 @@ export function SendInvitesModal({
                 </div>
                 {waPhoneEligible.length === 0 ? (
                   <p className="mt-2 text-xs text-amber-800">
-                    No guests in this scope have a WhatsApp-ready number. Use international format with country code (e.g.{" "}
-                    <span className="font-mono">+65 9123 4567</span>) — no leading 0. You can still copy messages or RSVP
-                    links below.
+                    No guest in this scope can open WhatsApp directly — add or fix phone numbers ({WHATSAPP_PHONE_HELPER_TEXT}
+                    ). Invalid numbers show as “{WHATSAPP_PHONE_INVALID_INLINE}” in guest edit. You can still copy messages
+                    or RSVP links below.
                   </p>
                 ) : waGuest ? (
                   <p className="mt-2 text-xs text-zinc-600">
