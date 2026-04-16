@@ -261,6 +261,10 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
+/** Compact row action icon — 44px min touch target on small screens */
+const guestRowIconBtnClass =
+  "inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#e7dccb] bg-[#fcf8f1] text-zinc-500 transition hover:border-[#d4c4a8] hover:bg-[#f5ecdd] hover:text-zinc-900 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0";
+
 function csvEscape(value: unknown) {
   const text = String(value ?? "");
   if (text.includes(",") || text.includes('"') || text.includes("\n")) {
@@ -1683,154 +1687,271 @@ export function EventGuestsPanel({
                           </div>
                         </td>
                         <td className="px-3 py-3 align-top">
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <button
-                              type="button"
-                              className="btn-secondary px-3 py-1.5 text-xs"
-                              title="View communication history for this guest"
-                              onClick={() => setCommHistoryGuest({ id: guest.id, name: guest.guestName })}
-                            >
-                              Comm history
-                            </button>
-                            {!guest.invitedAt ? (
+                          <div className="flex max-w-[22rem] flex-col items-end gap-2 sm:max-w-none">
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              {!guest.invitedAt ? (
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-[#ddcfba] bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-700 transition hover:bg-[#faf6ef]"
+                                  onClick={async () => {
+                                    await markGuestsInvitedAction(eventId, [guest.id], "manual");
+                                    router.refresh();
+                                  }}
+                                >
+                                  Mark invited
+                                </button>
+                              ) : null}
                               <button
                                 type="button"
-                                className="btn-secondary px-3 py-1.5 text-xs"
-                                onClick={async () => {
-                                  await markGuestsInvitedAction(eventId, [guest.id], "manual");
-                                  router.refresh();
+                                onClick={() => openManualRsvpModal(guest)}
+                                className="btn-primary inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold shadow-[0_8px_22px_-14px_rgba(48,34,22,0.72)]"
+                                aria-label="Record RSVP for this guest"
+                              >
+                                <svg
+                                  className="h-3.5 w-3.5 shrink-0 opacity-95"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                                  />
+                                </svg>
+                                Record RSVP
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-[#ddcfba]/80 bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-500 transition hover:border-[#c4a574]/45 hover:bg-[#faf6ef] hover:text-zinc-800"
+                                title="Preview WhatsApp and email text for this guest"
+                                aria-label="Preview message"
+                                onClick={() => {
+                                  setCommunicationBulkMeta(null);
+                                  setCommunicationPreviewGuestId(guest.id);
                                 }}
                               >
-                                Mark invited
+                                <svg
+                                  className="h-3.5 w-3.5 shrink-0 text-zinc-400"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                                  />
+                                </svg>
+                                Preview
                               </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className="btn-secondary px-3 py-1.5 text-xs"
-                              onClick={() => openManualRsvpModal(guest)}
-                            >
-                              Record RSVP
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-secondary px-3 py-1.5 text-xs"
-                              title="Preview WhatsApp & email text for this guest"
-                              aria-label="Preview message"
-                              onClick={() => {
-                                setCommunicationBulkMeta(null);
-                                setCommunicationPreviewGuestId(guest.id);
-                              }}
-                            >
-                              Preview message
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(link);
-                                } catch {
-                                  // no-op
-                                }
-                              }}
-                              className="btn-secondary px-3 py-1.5 text-xs"
-                            >
-                              Copy link
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(inviteMessage);
-                                  setCopiedMessageGuestId(guest.id);
-                                  void logGuestWhatsappPreparedAction(eventId, guest.id);
-                                  setTimeout(() => {
-                                    setCopiedMessageGuestId(null);
-                                  }, 1800);
-                                } catch {
-                                  setCopiedMessageGuestId(null);
-                                }
-                              }}
-                              className="btn-secondary px-3 py-1.5 text-xs"
-                            >
-                              {copiedMessageGuestId === guest.id ? "Copied!" : "Copy invite"}
-                            </button>
-                            {guest.email ? (
                               <button
                                 type="button"
-                                className="btn-secondary px-3 py-1.5 text-xs"
-                                disabled={emailSendingGuestId === guest.id}
                                 onClick={async () => {
-                                  setEmailSendingGuestId(guest.id);
-                                  setEmailSentGuestId(null);
                                   try {
-                                    const result = await sendGuestInviteEmailAction(eventId, guest.id);
-                                    if (result.ok && !result.skipped) {
-                                      setEmailSentGuestId(guest.id);
-                                      setTimeout(() => setEmailSentGuestId(null), 1800);
-                                      router.refresh();
-                                    }
-                                  } finally {
-                                    setEmailSendingGuestId(null);
+                                    await navigator.clipboard.writeText(link);
+                                  } catch {
+                                    // no-op
                                   }
                                 }}
+                                className={guestRowIconBtnClass}
+                                title="Copy RSVP link"
+                                aria-label="Copy RSVP link"
                               >
-                                {emailSendingGuestId === guest.id
-                                  ? "Sending..."
-                                  : emailSentGuestId === guest.id
-                                    ? "Email sent!"
-                                    : "Send email"}
+                                <svg
+                                  className="h-4 w-4"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                                  />
+                                </svg>
                               </button>
-                            ) : null}
-                            {whatsappDirectUrl ? (
-                              <a
-                                href={whatsappDirectUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn-secondary px-3 py-1.5 text-xs"
-                                aria-label="Send via WhatsApp"
-                                title="Opens WhatsApp to this guest with the invite prefilled"
-                                onClick={() => {
-                                  void logGuestWhatsappPreparedAction(eventId, guest.id);
-                                }}
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
-                                  <span className="hidden sm:inline">WhatsApp</span>
-                                </span>
-                              </a>
-                            ) : (
-                              <span
-                                className="btn-secondary inline-flex cursor-not-allowed items-center px-3 py-1.5 text-xs opacity-50"
-                                title={
-                                  guest.phone?.trim()
-                                    ? WHATSAPP_PHONE_INVALID_INLINE
-                                    : "Add a phone number for WhatsApp."
-                                }
-                                aria-disabled="true"
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
-                                  <span className="hidden sm:inline">WhatsApp</span>
-                                </span>
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              className="btn-secondary px-3 py-1.5 text-xs"
-                              onClick={() => setEditingGuestId((curr) => (curr === guest.id ? null : guest.id))}
-                            >
-                              {isEditing ? "Close edit" : "Edit"}
-                            </button>
-                            <form action={deleteGuestAction}>
-                              <input type="hidden" name="eventId" value={eventId} />
-                              <input type="hidden" name="guestId" value={guest.id} />
                               <button
-                                type="submit"
-                                className="btn-secondary border-red-200 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await navigator.clipboard.writeText(inviteMessage);
+                                    setCopiedMessageGuestId(guest.id);
+                                    void logGuestWhatsappPreparedAction(eventId, guest.id);
+                                    setTimeout(() => {
+                                      setCopiedMessageGuestId(null);
+                                    }, 1800);
+                                  } catch {
+                                    setCopiedMessageGuestId(null);
+                                  }
+                                }}
+                                className={guestRowIconBtnClass}
+                                title={copiedMessageGuestId === guest.id ? "Copied" : "Copy invite message"}
+                                aria-label={
+                                  copiedMessageGuestId === guest.id ? "Invite message copied" : "Copy invite"
+                                }
                               >
-                                Delete
+                                {copiedMessageGuestId === guest.id ? (
+                                  <svg
+                                    className="h-4 w-4 text-emerald-600"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    aria-hidden="true"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    className="h-4 w-4"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    aria-hidden="true"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                    />
+                                  </svg>
+                                )}
                               </button>
-                            </form>
+                              {guest.email ? (
+                                <button
+                                  type="button"
+                                  className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-[#ddcfba] bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-700 transition hover:bg-[#faf6ef] sm:min-h-0"
+                                  disabled={emailSendingGuestId === guest.id}
+                                  title="Send invite email to this guest"
+                                  aria-label={
+                                    emailSendingGuestId === guest.id
+                                      ? "Sending email"
+                                      : emailSentGuestId === guest.id
+                                        ? "Email sent"
+                                        : "Send invite email"
+                                  }
+                                  onClick={async () => {
+                                    setEmailSendingGuestId(guest.id);
+                                    setEmailSentGuestId(null);
+                                    try {
+                                      const result = await sendGuestInviteEmailAction(eventId, guest.id);
+                                      if (result.ok && !result.skipped) {
+                                        setEmailSentGuestId(guest.id);
+                                        setTimeout(() => setEmailSentGuestId(null), 1800);
+                                        router.refresh();
+                                      }
+                                    } finally {
+                                      setEmailSendingGuestId(null);
+                                    }
+                                  }}
+                                >
+                                  <svg
+                                    className="h-3.5 w-3.5 shrink-0 text-zinc-500"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    aria-hidden="true"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                    />
+                                  </svg>
+                                  {emailSendingGuestId === guest.id
+                                    ? "Sending…"
+                                    : emailSentGuestId === guest.id
+                                      ? "Sent"
+                                      : "Email"}
+                                </button>
+                              ) : null}
+                              {whatsappDirectUrl ? (
+                                <a
+                                  href={whatsappDirectUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#128C7E]/25 bg-[#128C7E]/10 text-[#128C7E] transition hover:bg-[#128C7E]/16 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
+                                  aria-label="Send via WhatsApp"
+                                  title="Opens WhatsApp to this guest with the invite prefilled"
+                                  onClick={() => {
+                                    void logGuestWhatsappPreparedAction(eventId, guest.id);
+                                  }}
+                                >
+                                  <WhatsAppIcon className="h-[18px] w-[18px]" />
+                                </a>
+                              ) : (
+                                <span
+                                  className="inline-flex min-h-[44px] min-w-[44px] cursor-not-allowed items-center justify-center rounded-xl border border-[#128C7E]/20 bg-[#128C7E]/5 text-[#128C7E] opacity-50 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
+                                  title={
+                                    guest.phone?.trim()
+                                      ? WHATSAPP_PHONE_INVALID_INLINE
+                                      : "Add a phone number for WhatsApp."
+                                  }
+                                  aria-label="Send via WhatsApp unavailable"
+                                  aria-disabled="true"
+                                >
+                                  <WhatsAppIcon className="h-[18px] w-[18px]" />
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                className={guestRowIconBtnClass}
+                                title={isEditing ? "Close guest editor" : "Edit guest"}
+                                aria-label={isEditing ? "Close guest editor" : "Edit guest"}
+                                onClick={() => setEditingGuestId((curr) => (curr === guest.id ? null : guest.id))}
+                              >
+                                <svg
+                                  className="h-4 w-4"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                  />
+                                </svg>
+                              </button>
+                              <form action={deleteGuestAction} className="inline">
+                                <input type="hidden" name="eventId" value={eventId} />
+                                <input type="hidden" name="guestId" value={guest.id} />
+                                <button
+                                  type="submit"
+                                  className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 transition hover:bg-red-50 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
+                                  title="Delete guest"
+                                  aria-label="Delete guest"
+                                >
+                                  <svg
+                                    className="h-4 w-4"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    aria-hidden="true"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                    />
+                                  </svg>
+                                </button>
+                              </form>
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -1978,20 +2099,25 @@ export function EventGuestsPanel({
                   className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                   placeholder="Table"
                 />
-                <GuestPhoneFields
-                  key={editingGuest.id}
-                  defaultCountryCode={editingGuest.phoneCountryCode}
-                  defaultNationalDigits={editingGuest.phoneCountryCode ? (editingGuest.phone ?? "") : ""}
-                  legacyPhone={editingGuest.phoneCountryCode ? null : editingGuest.phone}
-                  showWhatsAppPreview
-                />
-                <input
-                  type="email"
-                  name="email"
-                  defaultValue={editingGuest.email ?? ""}
-                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
-                  placeholder="Email"
-                />
+                <div className="sm:col-span-2 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-2 sm:items-start">
+                  <GuestPhoneFields
+                    key={editingGuest.id}
+                    defaultCountryCode={editingGuest.phoneCountryCode}
+                    defaultNationalDigits={editingGuest.phoneCountryCode ? (editingGuest.phone ?? "") : ""}
+                    legacyPhone={editingGuest.phoneCountryCode ? null : editingGuest.phone}
+                    showWhatsAppPreview
+                  />
+                  <label className="block min-w-0 text-sm font-medium text-zinc-700">
+                    Email
+                    <input
+                      type="email"
+                      name="email"
+                      defaultValue={editingGuest.email ?? ""}
+                      className="mt-1.5 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm outline-none transition placeholder:text-zinc-400 focus:border-[#c4a574] focus:ring-2 focus:ring-[#c4a574]/30"
+                      placeholder="name@example.com"
+                    />
+                  </label>
+                </div>
                 <input
                   type="text"
                   name="notes"
@@ -2181,6 +2307,14 @@ export function EventGuestsPanel({
         guestId={communicationPreviewGuestId}
         bulkSampleNote={Boolean(communicationBulkMeta && communicationBulkMeta.count > 1)}
         selectedCount={communicationBulkMeta?.count}
+        onViewCommunicationHistory={
+          communicationPreviewGuestId
+            ? () => {
+                const g = guests.find((x) => x.id === communicationPreviewGuestId);
+                if (g) setCommHistoryGuest({ id: g.id, name: g.guestName });
+              }
+            : undefined
+        }
       />
 
       <GuestInviteCardPreviewModal

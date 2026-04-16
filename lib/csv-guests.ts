@@ -131,6 +131,8 @@ export type CsvPreviewRow = {
   duplicateInFile: boolean;
   duplicateInDatabase: boolean;
   phoneImport?: CsvPhoneImportResult;
+  /** Raw mapped CSV fields when zod validation failed (for troubleshooting / future inline fix). */
+  rawFields?: Record<string, string>;
 };
 
 export type CsvPreviewResult = {
@@ -250,6 +252,7 @@ export function previewGuestCsv(
         errors: safeParse.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`),
         duplicateInFile: false,
         duplicateInDatabase: false,
+        rawFields: obj,
       });
       return;
     }
@@ -290,4 +293,43 @@ export function previewGuestCsv(
     rowCount: rows.length,
     headerMode,
   };
+}
+
+/** Re-run validation + phone merge + duplicate flags after inline edits. */
+export function recomputeCsvPreviewRows(rows: CsvPreviewRow[], existingNames: Set<string>): CsvPreviewRow[] {
+  const seen = new Set<string>();
+  return rows.map((row) => {
+    if (!row.data) {
+      return row;
+    }
+    const pi = parseCsvPhoneRow(row.data.phone, row.data.phoneCountryCode);
+    const merged: GuestImportRow = {
+      ...row.data,
+      phone: pi.phone ?? undefined,
+      phoneCountryCode: pi.phoneCountryCode ?? undefined,
+    };
+    const valid = guestImportRowSchema.safeParse(merged);
+    if (!valid.success) {
+      return {
+        ...row,
+        data: null,
+        errors: valid.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`),
+        phoneImport: pi,
+      };
+    }
+    const norm = normalizeGuestNameKey(valid.data.guestName);
+    const duplicateInFile = seen.has(norm);
+    if (!seen.has(norm)) {
+      seen.add(norm);
+    }
+    const duplicateInDatabase = existingNames.has(norm);
+    return {
+      lineNumber: row.lineNumber,
+      data: valid.data,
+      errors: [],
+      duplicateInFile,
+      duplicateInDatabase,
+      phoneImport: pi,
+    };
+  });
 }

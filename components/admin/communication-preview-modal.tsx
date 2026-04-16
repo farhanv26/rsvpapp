@@ -31,6 +31,8 @@ type Props = {
   /** When opening from bulk selection, show that this is one sample among many. */
   bulkSampleNote?: boolean;
   selectedCount?: number;
+  /** Opens communication history for this guest (closes preview). Row-level history was removed for clarity. */
+  onViewCommunicationHistory?: () => void;
 };
 
 export function CommunicationPreviewModal({
@@ -40,6 +42,7 @@ export function CommunicationPreviewModal({
   guestId,
   bulkSampleNote,
   selectedCount,
+  onViewCommunicationHistory,
 }: Props) {
   const [tab, setTab] = useState<"whatsapp" | "email">("whatsapp");
   const [loading, setLoading] = useState(false);
@@ -297,6 +300,20 @@ export function CommunicationPreviewModal({
             </div>
           ) : null}
         </div>
+        {onViewCommunicationHistory ? (
+          <div className="shrink-0 border-t border-[#efe4d4] px-5 py-3">
+            <button
+              type="button"
+              className="text-xs font-medium text-[#6a5434] underline-offset-2 hover:text-zinc-900 hover:underline"
+              onClick={() => {
+                onViewCommunicationHistory();
+                onClose();
+              }}
+            >
+              View communication history
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

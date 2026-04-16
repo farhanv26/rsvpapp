@@ -1,11 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import {
+  guestImportRowSchema,
   normalizeGuestNameKey,
   previewGuestCsv,
   selectRowsForImport,
+  type CsvPreviewRow,
 } from "@/lib/csv-guests";
+import { parseCsvPhoneRow } from "@/lib/phone";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { logAuditActivity } from "@/lib/audit-log";
 import { prisma } from "@/lib/prisma";
@@ -43,6 +47,150 @@ export async function previewGuestCsvAction(eventId: string, csvText: string) {
   return {
     error: null,
     preview,
+  };
+}
+
+const guestImportRowsSchema = z.array(guestImportRowSchema);
+
+/** Import from client-prepared rows (after inline edits). Validates and applies duplicate rules server-side. */
+export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
+  const access = await ensureCsvEventAccess(eventId);
+  if (!access.event) {
+    return { error: access.error };
+  }
+
+  const parsed = guestImportRowsSchema.safeParse(rows);
+  if (!parsed.success) {
+    return {
+      error: "Invalid import data. Fix validation errors and try again.",
+      created: 0,
+      skippedInvalid: 0,
+      skippedDuplicateInDb: 0,
+      skippedDuplicateInFile: 0,
+    };
+  }
+
+  const guests = await prisma.guest.findMany({
+    where: { eventId },
+    select: { guestName: true },
+  });
+  const existingNames = new Set(guests.map((g) => normalizeGuestNameKey(g.guestName)));
+
+  const merged = parsed.data.map((data) => {
+    const pi = parseCsvPhoneRow(data.phone, data.phoneCountryCode);
+    return {
+      ...data,
+      phone: pi.phone ?? undefined,
+      phoneCountryCode: pi.phoneCountryCode ?? undefined,
+    };
+  });
+
+  const previewRows: CsvPreviewRow[] = merged.map((data, i) => {
+    const pi = parseCsvPhoneRow(data.phone, data.phoneCountryCode);
+    const v = guestImportRowSchema.safeParse(data);
+    if (!v.success) {
+      return {
+        lineNumber: i + 1,
+        data: null,
+        errors: v.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`),
+        duplicateInFile: false,
+        duplicateInDatabase: false,
+        phoneImport: pi,
+      };
+    }
+    return {
+      lineNumber: i + 1,
+      data: v.data,
+      errors: [],
+      duplicateInFile: false,
+      duplicateInDatabase: existingNames.has(normalizeGuestNameKey(v.data.guestName)),
+      phoneImport: pi,
+    };
+  });
+
+  const seen = new Set<string>();
+  for (const row of previewRows) {
+    if (!row.data) continue;
+    const norm = normalizeGuestNameKey(row.data.guestName);
+    row.duplicateInFile = seen.has(norm);
+    if (!seen.has(norm)) seen.add(norm);
+  }
+
+  const toCreate = selectRowsForImport(previewRows);
+
+  let skippedInvalid = 0;
+  let skippedDuplicateInDb = 0;
+  let skippedDuplicateInFile = 0;
+  for (const row of previewRows) {
+    if (!row.data) skippedInvalid += 1;
+    else if (row.duplicateInDatabase) skippedDuplicateInDb += 1;
+    else if (row.duplicateInFile) skippedDuplicateInFile += 1;
+  }
+
+  if (toCreate.length === 0) {
+    revalidatePath(`/admin/events/${eventId}`);
+    return {
+      error: null,
+      created: 0,
+      skippedInvalid,
+      skippedDuplicateInDb,
+      skippedDuplicateInFile,
+      message: "No new guests to import. Fix errors, duplicates, or validation issues.",
+    };
+  }
+
+  await prisma.$transaction(
+    toCreate.map((row) =>
+      prisma.guest.create({
+        data: {
+          eventId,
+          guestName: row.guestName,
+          greeting: row.greeting?.trim() || "Assalamu Alaikum",
+          menCount: row.menCount,
+          womenCount: row.womenCount,
+          kidsCount: row.kidsCount,
+          maxGuests: row.menCount + row.womenCount + row.kidsCount,
+          group: row.group?.trim() || null,
+          tableName: row.tableName?.trim() || null,
+          notes: row.notes?.trim() || null,
+          phone: row.phone?.trim() || null,
+          phoneCountryCode: row.phoneCountryCode?.trim() || null,
+          email: row.email?.trim() || null,
+          isFamilyInvite: row.isFamilyInvite,
+          token: generateSecureToken(),
+        },
+      }),
+    ),
+  );
+
+  if (access.admin) {
+    await logAuditActivity({
+      eventId,
+      userId: access.admin.id,
+      userName: access.admin.name,
+      actionType: "guest_bulk_imported",
+      entityType: "Guest",
+      entityId: eventId,
+      entityName: "CSV import",
+      message: `${access.admin.name} imported ${toCreate.length} guest(s) from CSV (inline editor).`,
+      metadata: {
+        created: toCreate.length,
+        skippedInvalid,
+        skippedDuplicateInDb,
+        skippedDuplicateInFile,
+      },
+    });
+  }
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath("/admin/events");
+
+  return {
+    error: null,
+    created: toCreate.length,
+    skippedInvalid,
+    skippedDuplicateInDb,
+    skippedDuplicateInFile,
   };
 }
 

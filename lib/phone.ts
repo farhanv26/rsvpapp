@@ -183,7 +183,7 @@ export function nationalDigitsMaxLength(countryCode: string): number {
 
 /** Strip to digits and cap length for the selected country. */
 export function sanitizeNationalDigitsInput(countryCode: string, raw: string): string {
-  let d = raw.replace(/\D/g, "");
+  const d = raw.replace(/\D/g, "");
   const max = nationalDigitsMaxLength(countryCode);
   return d.slice(0, max);
 }
@@ -251,6 +251,43 @@ export function parseCsvPhoneRow(
       whatsappDigits: null,
       countryLabel: null,
       validWhatsApp: false,
+    };
+  }
+
+  /**
+   * Explicit E.164 in the phone cell (e.g. +44 7415 980802) must win over a separate
+   * phoneCountryCode column — templates often default to +1 and would otherwise corrupt UK numbers.
+   */
+  if (phone.startsWith("+")) {
+    const w = normalizePhoneForWhatsApp(phone);
+    if (!w) {
+      return {
+        phoneCountryCode: null,
+        phone: phone.replace(/\D/g, "") || phone || null,
+        whatsappDigits: null,
+        countryLabel: null,
+        validWhatsApp: false,
+      };
+    }
+    const split = splitE164DigitsToGuestFields(w);
+    if (split) {
+      const opt = PHONE_COUNTRY_OPTIONS.find((o) => o.value === split.phoneCountryCode);
+      const national = sanitizeNationalDigitsInput(split.phoneCountryCode, split.national);
+      const w2 = normalizeStructuredPhoneForWhatsApp(split.phoneCountryCode, national);
+      return {
+        phoneCountryCode: split.phoneCountryCode,
+        phone: national,
+        whatsappDigits: w2,
+        countryLabel: opt?.label ?? split.phoneCountryCode,
+        validWhatsApp: w2 !== null,
+      };
+    }
+    return {
+      phoneCountryCode: null,
+      phone: phone,
+      whatsappDigits: w,
+      countryLabel: null,
+      validWhatsApp: w.length >= 8 && w.length <= 15,
     };
   }
 

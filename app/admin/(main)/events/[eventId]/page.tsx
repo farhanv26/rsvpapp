@@ -7,6 +7,7 @@ import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { GuestPhoneFields } from "@/components/admin/guest-phone-fields";
 import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
+import { normalizeGuestNameKey } from "@/lib/csv-guests";
 import { EventSectionNav } from "@/components/admin/event-section-nav";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -642,16 +643,19 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               Table
               <input name="tableName" type="text" className="input-luxe" placeholder="Table 1, A, VIP…" />
             </label>
-            <GuestPhoneFields
-              defaultCountryCode={null}
-              defaultNationalDigits=""
-              legacyPhone={null}
-              showWhatsAppPreview
-            />
-            <label className="block text-sm font-medium text-zinc-700">
-              Email
-              <input name="email" type="email" className="input-luxe" />
-            </label>
+            <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-2">
+              <GuestPhoneFields
+                variant="page"
+                defaultCountryCode={null}
+                defaultNationalDigits=""
+                legacyPhone={null}
+                showWhatsAppPreview
+              />
+              <label className="block min-w-0 text-sm font-medium text-zinc-700">
+                Email
+                <input name="email" type="email" className="input-luxe" />
+              </label>
+            </div>
             <label className="block text-sm font-medium text-zinc-700 sm:col-span-2 lg:col-span-3">
               Notes
               <input name="notes" type="text" className="input-luxe" />
@@ -676,7 +680,10 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           </form>
         </section>
 
-        <GuestCsvImport eventId={event.id} />
+        <GuestCsvImport
+          eventId={event.id}
+          existingGuestNameKeys={event.guests.map((g) => normalizeGuestNameKey(g.guestName))}
+        />
 
         <section id="dashboard-activity" className="app-card scroll-mt-24 p-6 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
