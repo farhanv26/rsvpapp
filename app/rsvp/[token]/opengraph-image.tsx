@@ -5,6 +5,7 @@ import { resolveRsvpPreviewCardSource, toAbsolutePreviewUrl } from "@/lib/rsvp-s
 export const runtime = "nodejs";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+export const revalidate = 3600;
 
 export default async function Image({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -45,6 +46,13 @@ export default async function Image({ params }: { params: Promise<{ token: strin
     : null;
   const absoluteCardSrc = toAbsolutePreviewUrl(previewSource?.chosenRawSrc ?? null);
   const title = guest?.event.coupleNames?.trim() || guest?.event.title || "RSVP Invitation";
+  console.info("[rsvp:opengraph-image] render", {
+    token,
+    hasGuest: Boolean(guest),
+    sourceUsed: previewSource?.resolvedVariantSource ?? "none",
+    sourceCard: previewSource?.chosenRawSrc ?? null,
+    absoluteCardSrc,
+  });
 
   return new ImageResponse(
     (
