@@ -318,6 +318,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                 guestName: g.guestName,
                 token: g.token,
                 greeting: g.greeting,
+                phone: g.phone,
               }))}
             />
             <DeleteEventButton

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   bulkDeleteGuestsAction,
@@ -35,7 +35,11 @@ import {
   matchesReadinessFilter,
   type GuestReadinessId,
 } from "@/lib/guest-readiness";
-import { buildGuestWhatsAppInviteMessage, getWhatsAppShareUrl } from "@/lib/whatsapp";
+import {
+  buildGuestWhatsAppInviteMessage,
+  getWhatsAppInviteUrlForGuest,
+  normalizePhoneForWhatsApp,
+} from "@/lib/whatsapp";
 import { CommunicationPreviewModal } from "@/components/admin/communication-preview-modal";
 import { GuestCommunicationHistoryModal } from "@/components/admin/guest-communication-history-modal";
 import { GuestInviteCardPreviewModal } from "@/components/admin/guest-invite-card-preview-modal";
@@ -327,6 +331,37 @@ export function EventGuestsPanel({
   const [manualRsvpSaving, setManualRsvpSaving] = useState(false);
   const [manualRsvpError, setManualRsvpError] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [guestEditError, setGuestEditError] = useState<string | null>(null);
+  const [guestEditPending, setGuestEditPending] = useState(false);
+
+  const editingGuest = useMemo(
+    () => (editingGuestId ? guests.find((g) => g.id === editingGuestId) ?? null : null),
+    [guests, editingGuestId],
+  );
+
+  useEffect(() => {
+    if (!editingGuestId) {
+      setGuestEditError(null);
+      return;
+    }
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, [editingGuestId]);
+
+  useEffect(() => {
+    if (!editingGuestId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setEditingGuestId(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [editingGuestId]);
 
   const inviteCardPreviewByGuest = useMemo(() => {
     const map = new Map<string, { safeSrc: string | null; usingLine: string }>();
@@ -1514,6 +1549,7 @@ export function EventGuestsPanel({
                       customIntroLine: inviteMessageIntro,
                       customLineOverride: inviteMessageLineOverride,
                     });
+                    const whatsappDirectUrl = getWhatsAppInviteUrlForGuest(guest.phone, inviteMessage);
                     const st = guestPrimaryStatus(guest);
                     const readiness = getGuestReadiness(guest);
                     const isEditing = editingGuestId === guest.id;
@@ -1732,22 +1768,35 @@ export function EventGuestsPanel({
                                     : "Send email"}
                               </button>
                             ) : null}
-                            <a
-                              href={getWhatsAppShareUrl(inviteMessage)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="btn-secondary px-3 py-1.5 text-xs"
-                              aria-label="Send via WhatsApp"
-                              title="Send via WhatsApp"
-                              onClick={() => {
-                                void logGuestWhatsappPreparedAction(eventId, guest.id);
-                              }}
-                            >
-                              <span className="inline-flex items-center gap-2">
-                                <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
-                                <span className="hidden sm:inline">WhatsApp</span>
+                            {whatsappDirectUrl ? (
+                              <a
+                                href={whatsappDirectUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn-secondary px-3 py-1.5 text-xs"
+                                aria-label="Send via WhatsApp"
+                                title="Opens WhatsApp to this guest with the invite prefilled"
+                                onClick={() => {
+                                  void logGuestWhatsappPreparedAction(eventId, guest.id);
+                                }}
+                              >
+                                <span className="inline-flex items-center gap-2">
+                                  <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
+                                  <span className="hidden sm:inline">WhatsApp</span>
+                                </span>
+                              </a>
+                            ) : (
+                              <span
+                                className="btn-secondary inline-flex cursor-not-allowed items-center px-3 py-1.5 text-xs opacity-50"
+                                title="Add a phone number with country code (no leading 0) for direct WhatsApp."
+                                aria-disabled="true"
+                              >
+                                <span className="inline-flex items-center gap-2">
+                                  <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
+                                  <span className="hidden sm:inline">WhatsApp</span>
+                                </span>
                               </span>
-                            </a>
+                            )}
                             <button
                               type="button"
                               className="btn-secondary px-3 py-1.5 text-xs"
@@ -1766,148 +1815,6 @@ export function EventGuestsPanel({
                               </button>
                             </form>
                           </div>
-                          {isEditing ? (
-                            <form action={updateGuestAction} className="mt-3 grid gap-2 border-t border-zinc-100 pt-3 sm:grid-cols-2">
-                              <input type="hidden" name="eventId" value={eventId} />
-                              <input type="hidden" name="guestId" value={guest.id} />
-                              <input
-                                type="text"
-                                name="guestName"
-                                defaultValue={guest.guestName}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                required
-                                placeholder="Guest name"
-                              />
-                              <input
-                                type="number"
-                                name="menCount"
-                                min={0}
-                                defaultValue={guest.menCount ?? 0}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                required
-                                placeholder="Men"
-                              />
-                              <input
-                                type="number"
-                                name="womenCount"
-                                min={0}
-                                defaultValue={guest.womenCount ?? 0}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                required
-                                placeholder="Women"
-                              />
-                              <input
-                                type="number"
-                                name="kidsCount"
-                                min={0}
-                                defaultValue={guest.kidsCount ?? 0}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                required
-                                placeholder="Kids"
-                              />
-                              <select
-                                name="greetingPreset"
-                                defaultValue={
-                                  ["Assalamu Alaikum", "Hello", "Hi", "Dear"].includes(guest.greeting)
-                                    ? guest.greeting
-                                    : "Assalamu Alaikum"
-                                }
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                              >
-                                <option value="Assalamu Alaikum">Assalamu Alaikum</option>
-                                <option value="Hello">Hello</option>
-                                <option value="Hi">Hi</option>
-                                <option value="Dear">Dear</option>
-                              </select>
-                              <input
-                                type="text"
-                                name="greetingCustom"
-                                defaultValue={
-                                  ["Assalamu Alaikum", "Hello", "Hi", "Dear"].includes(guest.greeting)
-                                    ? ""
-                                    : guest.greeting
-                                }
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                placeholder="Custom greeting (optional)"
-                              />
-                              <input
-                                type="text"
-                                name="group"
-                                defaultValue={guest.group ?? ""}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                placeholder="Category / group"
-                              />
-                              <input
-                                type="text"
-                                name="tableName"
-                                defaultValue={guest.tableName ?? ""}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                placeholder="Table"
-                              />
-                              <input
-                                type="text"
-                                name="phone"
-                                defaultValue={guest.phone ?? ""}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                placeholder="Phone"
-                              />
-                              <input
-                                type="email"
-                                name="email"
-                                defaultValue={guest.email ?? ""}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                placeholder="Email"
-                              />
-                              <input
-                                type="text"
-                                name="notes"
-                                defaultValue={guest.notes ?? ""}
-                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                placeholder="Notes"
-                              />
-                              <label className="flex items-start gap-2 sm:col-span-2">
-                                <input
-                                  type="checkbox"
-                                  name="isFamilyInvite"
-                                  value="true"
-                                  defaultChecked={guest.isFamilyInvite}
-                                  className="mt-1 h-4 w-4 rounded border-[#dccfbb] text-zinc-900"
-                                />
-                                <span className="text-xs text-zinc-700">
-                                  Family invite — use the family invite card when no size-specific card applies (see event
-                                  settings).
-                                </span>
-                              </label>
-                              <div className="sm:col-span-2 rounded-xl border border-[#e7dccb] bg-[#fbf8f2] p-3">
-                                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                                  Resolved invite card (saved guest)
-                                </p>
-                                <p className="mt-1 text-xs text-zinc-700">
-                                  {inviteCardPreviewByGuest.get(guest.id)?.usingLine ?? "Using: Default Card"}
-                                </p>
-                                <p className="mt-1 text-[11px] text-zinc-500">
-                                  Save changes after editing max guests or family invite to refresh this preview.
-                                </p>
-                                {inviteCardPreviewByGuest.get(guest.id)?.safeSrc ? (
-                                  <div className="relative mt-2 h-36 w-full max-w-xs overflow-hidden rounded-lg border border-[#e7dccb] bg-white">
-                                    {/* eslint-disable-next-line @next/next/no-img-element -- small admin preview */}
-                                    <img
-                                      src={inviteCardPreviewByGuest.get(guest.id)?.safeSrc ?? ""}
-                                      alt=""
-                                      className="h-full w-full object-contain object-center"
-                                    />
-                                  </div>
-                                ) : (
-                                  <p className="mt-2 text-xs text-zinc-500">No image for this variant.</p>
-                                )}
-                              </div>
-                              <div className="sm:col-span-2">
-                                <button type="submit" className="btn-secondary px-3 py-1.5 text-xs">
-                                  Save changes
-                                </button>
-                              </div>
-                            </form>
-                          ) : null}
                         </td>
                       </tr>
                     );
@@ -1918,6 +1825,215 @@ export function EventGuestsPanel({
           </div>
         )}
       </div>
+
+      {editingGuest ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="guest-edit-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45"
+            aria-label="Close guest editor"
+            onClick={() => {
+              if (!guestEditPending) setEditingGuestId(null);
+            }}
+          />
+          <div className="relative z-10 flex max-h-[min(92vh,52rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffdfa] shadow-xl">
+            <div className="shrink-0 border-b border-[#efe4d4] px-5 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Edit guest</p>
+                  <h3 id="guest-edit-title" className="mt-1 text-lg font-semibold text-zinc-900">
+                    {editingGuest.guestName}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary px-3 py-1.5 text-xs"
+                  disabled={guestEditPending}
+                  onClick={() => setEditingGuestId(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+              {guestEditError ? (
+                <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                  {guestEditError}
+                </p>
+              ) : null}
+              <form
+                key={editingGuest.id}
+                className="grid gap-2 sm:grid-cols-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setGuestEditError(null);
+                  setGuestEditPending(true);
+                  try {
+                    const fd = new FormData(e.currentTarget);
+                    await updateGuestAction(fd);
+                    setEditingGuestId(null);
+                    router.refresh();
+                  } catch (err) {
+                    setGuestEditError(err instanceof Error ? err.message : "Could not save guest.");
+                  } finally {
+                    setGuestEditPending(false);
+                  }
+                }}
+              >
+                <input type="hidden" name="eventId" value={eventId} />
+                <input type="hidden" name="guestId" value={editingGuest.id} />
+                <input
+                  type="text"
+                  name="guestName"
+                  defaultValue={editingGuest.guestName}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  required
+                  placeholder="Guest name"
+                />
+                <input
+                  type="number"
+                  name="menCount"
+                  min={0}
+                  defaultValue={editingGuest.menCount ?? 0}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  required
+                  placeholder="Men"
+                />
+                <input
+                  type="number"
+                  name="womenCount"
+                  min={0}
+                  defaultValue={editingGuest.womenCount ?? 0}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  required
+                  placeholder="Women"
+                />
+                <input
+                  type="number"
+                  name="kidsCount"
+                  min={0}
+                  defaultValue={editingGuest.kidsCount ?? 0}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  required
+                  placeholder="Kids"
+                />
+                <select
+                  name="greetingPreset"
+                  defaultValue={
+                    ["Assalamu Alaikum", "Hello", "Hi", "Dear"].includes(editingGuest.greeting)
+                      ? editingGuest.greeting
+                      : "Assalamu Alaikum"
+                  }
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                >
+                  <option value="Assalamu Alaikum">Assalamu Alaikum</option>
+                  <option value="Hello">Hello</option>
+                  <option value="Hi">Hi</option>
+                  <option value="Dear">Dear</option>
+                </select>
+                <input
+                  type="text"
+                  name="greetingCustom"
+                  defaultValue={
+                    ["Assalamu Alaikum", "Hello", "Hi", "Dear"].includes(editingGuest.greeting)
+                      ? ""
+                      : editingGuest.greeting
+                  }
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  placeholder="Custom greeting (optional)"
+                />
+                <input
+                  type="text"
+                  name="group"
+                  defaultValue={editingGuest.group ?? ""}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  placeholder="Category / group"
+                />
+                <input
+                  type="text"
+                  name="tableName"
+                  defaultValue={editingGuest.tableName ?? ""}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  placeholder="Table"
+                />
+                <input
+                  type="text"
+                  name="phone"
+                  defaultValue={editingGuest.phone ?? ""}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  placeholder="Phone (international, e.g. +65…)"
+                  autoComplete="tel"
+                />
+                <input
+                  type="email"
+                  name="email"
+                  defaultValue={editingGuest.email ?? ""}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  placeholder="Email"
+                />
+                {editingGuest.phone?.trim() && normalizePhoneForWhatsApp(editingGuest.phone) === null ? (
+                  <p className="sm:col-span-2 text-xs text-amber-900">
+                    This number may not open WhatsApp directly. Use a country code and drop a national leading 0 (for
+                    example <span className="font-mono">+65 9123 4567</span>).
+                  </p>
+                ) : null}
+                <input
+                  type="text"
+                  name="notes"
+                  defaultValue={editingGuest.notes ?? ""}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  placeholder="Notes"
+                />
+                <label className="flex items-start gap-2 sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    name="isFamilyInvite"
+                    value="true"
+                    defaultChecked={editingGuest.isFamilyInvite}
+                    className="mt-1 h-4 w-4 rounded border-[#dccfbb] text-zinc-900"
+                  />
+                  <span className="text-xs text-zinc-700">
+                    Family invite — use the family invite card when no size-specific card applies (see event settings).
+                  </span>
+                </label>
+                <div className="sm:col-span-2 rounded-xl border border-[#e7dccb] bg-[#fbf8f2] p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                    Resolved invite card (saved guest)
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-700">
+                    {inviteCardPreviewByGuest.get(editingGuest.id)?.usingLine ?? "Using: Default Card"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    Save changes after editing max guests or family invite to refresh this preview.
+                  </p>
+                  {inviteCardPreviewByGuest.get(editingGuest.id)?.safeSrc ? (
+                    <div className="relative mt-2 h-36 w-full max-w-xs overflow-hidden rounded-lg border border-[#e7dccb] bg-white">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- small admin preview */}
+                      <img
+                        src={inviteCardPreviewByGuest.get(editingGuest.id)?.safeSrc ?? ""}
+                        alt=""
+                        className="h-full w-full object-contain object-center"
+                      />
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-zinc-500">No image for this variant.</p>
+                  )}
+                </div>
+                <div className="sm:col-span-2 flex flex-wrap gap-2">
+                  <button type="submit" className="btn-secondary px-3 py-1.5 text-sm" disabled={guestEditPending}>
+                    {guestEditPending ? "Saving…" : "Save changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {manualRsvpGuest ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" role="dialog" aria-modal="true">

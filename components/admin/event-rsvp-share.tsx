@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import { buildGuestWhatsAppInviteMessage, getWhatsAppShareUrl } from "@/lib/whatsapp";
+import { buildGuestWhatsAppInviteMessage, getWhatsAppInviteUrlForGuest } from "@/lib/whatsapp";
 import { buildAbsoluteUrl } from "@/lib/utils";
 
 type GuestForShare = {
@@ -10,6 +10,7 @@ type GuestForShare = {
   guestName: string;
   token: string;
   greeting?: string | null;
+  phone?: string | null;
 };
 
 function Modal({
@@ -110,6 +111,11 @@ export function EventRsvpShare({
     });
   }, [eventTitle, eventCoupleNames, link, selected, inviteMessageIntro, inviteMessageLineOverride]);
 
+  const whatsappDirectUrl = useMemo(
+    () => (inviteMessage && selected ? getWhatsAppInviteUrlForGuest(selected.phone, inviteMessage) : null),
+    [inviteMessage, selected],
+  );
+
   useEffect(() => {
     if (!open) return;
     if (!link) return;
@@ -204,17 +210,28 @@ export function EventRsvpShare({
             >
               {copied ? "Copied!" : "Copy invite message"}
             </button>
-            <a
-              href={getWhatsAppShareUrl(inviteMessage)}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-secondary inline-flex items-center justify-center gap-2"
-              aria-label="Open WhatsApp message"
-              title="Open WhatsApp message"
-            >
-              <WhatsAppIcon />
-              <span>Open WhatsApp</span>
-            </a>
+            {whatsappDirectUrl ? (
+              <a
+                href={whatsappDirectUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-secondary inline-flex items-center justify-center gap-2"
+                aria-label="Open WhatsApp message for this guest"
+                title="Opens WhatsApp to this guest’s number with the invite prefilled"
+              >
+                <WhatsAppIcon />
+                <span>Open WhatsApp</span>
+              </a>
+            ) : (
+              <span
+                className="btn-secondary inline-flex cursor-not-allowed items-center justify-center gap-2 opacity-50"
+                title="Add a phone number with country code to this guest for direct WhatsApp."
+                aria-disabled="true"
+              >
+                <WhatsAppIcon />
+                <span>WhatsApp (add phone)</span>
+              </span>
+            )}
             <button
               type="button"
               className="btn-secondary"

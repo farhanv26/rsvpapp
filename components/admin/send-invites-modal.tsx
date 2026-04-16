@@ -12,6 +12,7 @@ import {
   buildGuestRsvpReminderMessage,
   buildGuestWhatsAppInviteMessage,
   getWhatsAppInviteUrlForGuest,
+  normalizePhoneForWhatsApp,
 } from "@/lib/whatsapp";
 
 /** Minimal guest fields for invite workflow (compatible with GuestPanelGuest). */
@@ -117,7 +118,12 @@ export function SendInvitesModal({
     [guests],
   );
 
-  const waStep = Math.min(waIndex, Math.max(0, sortedGuests.length - 1));
+  const waPhoneEligible = useMemo(
+    () => sortedGuests.filter((g) => normalizePhoneForWhatsApp(g.phone) !== null),
+    [sortedGuests],
+  );
+
+  const waStep = Math.min(waIndex, Math.max(0, waPhoneEligible.length - 1));
 
   const summary = useMemo(() => {
     const total = guests.length;
@@ -143,7 +149,7 @@ export function SendInvitesModal({
     });
   }, [sampleGuest, eventTitle, eventCoupleNames, siteUrl, inviteMessageIntro, inviteMessageLineOverride, isReminder]);
 
-  const waGuest = sortedGuests[waStep];
+  const waGuest = waPhoneEligible[waStep];
   const waMessage = useMemo(() => {
     if (!waGuest) return "";
     const build = isReminder ? buildGuestRsvpReminderMessage : buildGuestWhatsAppInviteMessage;
@@ -214,8 +220,9 @@ export function SendInvitesModal({
   function openNextWhatsApp() {
     if (!waGuest) return;
     const url = getWhatsAppInviteUrlForGuest(waGuest.phone, waMessage);
+    if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
-    const maxIdx = Math.max(0, sortedGuests.length - 1);
+    const maxIdx = Math.max(0, waPhoneEligible.length - 1);
     setWaIndex((i) => Math.min(i + 1, maxIdx));
   }
 
@@ -290,8 +297,9 @@ export function SendInvitesModal({
                 <p className="mt-2 text-sm text-zinc-700">
                   <span className="font-medium text-zinc-900">{summary.total}</span> selected
                   {summary.total === 1 ? " guest" : " guests"} ·{" "}
-                  <span className="text-zinc-800">{summary.withPhone}</span> with phone (direct WhatsApp when
-                  valid) · <span className="text-zinc-800">{summary.withEmail}</span> with email ·{" "}
+                  <span className="text-zinc-800">{summary.withPhone}</span> with phone on file ·{" "}
+                  <span className="text-zinc-800">{waPhoneEligible.length}</span> with WhatsApp-ready numbers ·{" "}
+                  <span className="text-zinc-800">{summary.withEmail}</span> with email ·{" "}
                   <span className="text-zinc-800">{summary.missing}</span> missing phone and email
                 </p>
                 {isReminder ? (
@@ -302,8 +310,8 @@ export function SendInvitesModal({
                 ) : null}
                 {!isReminder && summary.missing > 0 && summary.withPhone + summary.withEmail < summary.total ? (
                   <p className="mt-2 text-xs text-zinc-500">
-                    Guests without contact info can still get a generic WhatsApp share link or RSVP link; add phone or
-                    email in guest details when you can.
+                    Guests without contact info can still copy RSVP links; add a full international phone number
+                    (country code, no leading 0) for direct WhatsApp click-to-chat.
                   </p>
                 ) : null}
               </section>
@@ -335,11 +343,16 @@ export function SendInvitesModal({
                   <button
                     type="button"
                     className="btn-primary inline-flex items-center gap-2"
-                    disabled={!waGuest || isPending}
+                    disabled={!waGuest || isPending || waPhoneEligible.length === 0}
+                    title={
+                      waPhoneEligible.length === 0
+                        ? "No guests have a WhatsApp-ready phone number (country code, no leading 0)."
+                        : undefined
+                    }
                     onClick={openNextWhatsApp}
                   >
                     <WhatsAppIcon className="h-4 w-4 text-white" />
-                    Open next ({waGuest ? waStep + 1 : 0}/{sortedGuests.length})
+                    Open next ({waGuest ? waStep + 1 : 0}/{waPhoneEligible.length})
                   </button>
                   <button
                     type="button"
@@ -350,10 +363,16 @@ export function SendInvitesModal({
                     {isReminder ? "Record reminder sent (WhatsApp)" : "Mark all as invited (WhatsApp)"}
                   </button>
                 </div>
-                {waGuest ? (
+                {waPhoneEligible.length === 0 ? (
+                  <p className="mt-2 text-xs text-amber-800">
+                    No guests in this scope have a WhatsApp-ready number. Use international format with country code (e.g.{" "}
+                    <span className="font-mono">+65 9123 4567</span>) — no leading 0. You can still copy messages or RSVP
+                    links below.
+                  </p>
+                ) : waGuest ? (
                   <p className="mt-2 text-xs text-zinc-600">
                     Next: <span className="font-medium text-zinc-900">{waGuest.guestName}</span>
-                    {hasPhone(waGuest) ? " · phone on file" : " · generic share (add phone for direct chat)"}
+                    {hasPhone(waGuest) ? " · phone on file" : null}
                   </p>
                 ) : null}
               </section>

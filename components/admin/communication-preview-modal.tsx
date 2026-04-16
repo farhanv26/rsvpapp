@@ -88,6 +88,11 @@ export function CommunicationPreviewModal({
     return null;
   }
 
+  const whatsappHref =
+    preview && preview.whatsappMessage
+      ? getWhatsAppInviteUrlForGuest(preview.phone, preview.whatsappMessage)
+      : null;
+
   const phoneLabel = preview?.phone?.trim() ? preview.phone : null;
   const emailLabel = preview?.email?.trim() ? preview.email : null;
 
@@ -237,15 +242,26 @@ export function CommunicationPreviewModal({
                     >
                       {copied === "wa" ? "Copied!" : "Copy message"}
                     </button>
-                    <a
-                      href={getWhatsAppInviteUrlForGuest(preview.phone, preview.whatsappMessage)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn-secondary inline-flex items-center gap-2 text-sm"
-                    >
-                      <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
-                      Open WhatsApp
-                    </a>
+                    {whatsappHref ? (
+                      <a
+                        href={whatsappHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn-secondary inline-flex items-center gap-2 text-sm"
+                      >
+                        <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
+                        Open WhatsApp
+                      </a>
+                    ) : (
+                      <span
+                        className="btn-secondary inline-flex cursor-not-allowed items-center gap-2 text-sm opacity-50"
+                        title="Add a phone number with country code (e.g. +65…) to open WhatsApp directly for this guest."
+                        aria-disabled="true"
+                      >
+                        <WhatsAppIcon className="h-4 w-4 text-[#128C7E]" />
+                        WhatsApp (add phone)
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : preview.hasEmail ? (

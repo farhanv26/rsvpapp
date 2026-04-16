@@ -112,23 +112,40 @@ export function getWhatsAppShareUrl(message: string) {
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
-/** Returns digits-only phone suitable for wa.me/{digits} when length is sufficient; otherwise null. */
+/**
+ * Returns digits-only international number suitable for `wa.me/{digits}` (no +, no spaces).
+ * Rejects values that look like national-only numbers (leading 0) or wrong length.
+ */
 export function normalizePhoneForWhatsApp(phone: string | null | undefined): string | null {
-  if (!phone?.trim()) return null;
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 10) return null;
+  if (phone == null) return null;
+  const trimmed = String(phone).trim();
+  if (!trimmed) return null;
+
+  let digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return null;
+
+  // International dialing prefix 00 → strip so wa.me gets country code + subscriber
+  if (digits.startsWith("00") && digits.length >= 12) {
+    digits = digits.slice(2);
+  }
+
+  if (digits.length < 10 || digits.length > 15) return null;
+
+  // National format with leading 0 (no country code) — not usable for click-to-chat
+  if (digits.startsWith("0")) return null;
+
   return digits;
 }
 
-/** Prefer direct chat when phone is valid; otherwise generic share link. */
+/**
+ * Direct chat URL for a guest when a WhatsApp-safe number exists; otherwise `null` (no generic picker).
+ */
 export function getWhatsAppInviteUrlForGuest(
   phone: string | null | undefined,
   message: string,
-): string {
+): string | null {
   const n = normalizePhoneForWhatsApp(phone);
+  if (!n) return null;
   const q = encodeURIComponent(message);
-  if (n) {
-    return `https://wa.me/${n}?text=${q}`;
-  }
-  return `https://wa.me/?text=${q}`;
+  return `https://wa.me/${n}?text=${q}`;
 }
