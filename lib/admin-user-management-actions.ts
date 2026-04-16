@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSuperAdmin } from "@/lib/admin-auth";
 import { logAuditActivity } from "@/lib/audit-log";
+import { notifyUser, notifyUsers } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 const roleSchema = z.enum(["super_admin", "event_creator"]);
@@ -82,6 +83,17 @@ export async function createUserAction(
       message: `${admin.name} created user "${created.name}" (${role === "super_admin" ? "Super Admin" : "Event Creator"}).`,
       metadata: { role: created.role, active: created.active },
     });
+    await notifyUsers({
+      userIds: [admin.id, created.id],
+      type: "USER_CREATED",
+      title: `User "${created.name}" was created`,
+      description:
+        created.id === admin.id
+          ? undefined
+          : `${admin.name} created this ${role === "super_admin" ? "super admin" : "event creator"} account.`,
+      entityType: "User",
+      entityId: created.id,
+    });
   } catch (e: unknown) {
     const code =
       typeof e === "object" && e !== null && "code" in e ? (e as { code?: string }).code : undefined;
@@ -154,6 +166,14 @@ export async function updateUserAction(
         message: `${admin.name} changed "${updated.name}" role from ${target.role} to ${updated.role}.`,
         metadata: { from: target.role, to: updated.role },
       });
+      await notifyUsers({
+        userIds: [admin.id, updated.id],
+        type: "USER_ROLE_UPDATED",
+        title: `Role updated for "${updated.name}"`,
+        description: `${admin.name} changed the role to ${updated.role === "super_admin" ? "Super Admin" : "Event Creator"}.`,
+        entityType: "User",
+        entityId: updated.id,
+      });
     }
     if (resetPassword === "1") {
       await logAuditActivity({
@@ -164,6 +184,14 @@ export async function updateUserAction(
         entityId: updated.id,
         entityName: updated.name,
         message: `${admin.name} reset password for "${updated.name}".`,
+      });
+      await notifyUsers({
+        userIds: [admin.id, updated.id],
+        type: "USER_PASSWORD_RESET",
+        title: `Password reset for "${updated.name}"`,
+        description: `${admin.name} reset this account password.`,
+        entityType: "User",
+        entityId: updated.id,
       });
     }
   } catch (e: unknown) {
@@ -216,6 +244,14 @@ export async function transferEventsAction(
     entityName: "Ownership transfer",
     message: `${admin.name} transferred all events from "${from.name}" to "${to.name}".`,
     metadata: { fromUserId, toUserId, fromName: from.name, toName: to.name },
+  });
+  await notifyUsers({
+    userIds: [admin.id, to.id],
+    type: "EVENT_OWNERSHIP_TRANSFERRED",
+    title: `Events transferred to "${to.name}"`,
+    description: `${admin.name} reassigned events from "${from.name}" to "${to.name}".`,
+    entityType: "User",
+    entityId: to.id,
   });
   revalidatePath("/admin/users");
   revalidatePath("/admin/events");
@@ -287,6 +323,17 @@ export async function deactivateUserAction(
     message: `${admin.name} deactivated user "${target.name}".`,
     metadata: { transferredEvents: eventCount, transferToUserId: transferToUserId ?? null },
   });
+  await notifyUser({
+    userId: admin.id,
+    type: "USER_DEACTIVATED",
+    title: `User "${target.name}" was deactivated`,
+    description:
+      eventCount > 0 && transferToUserId
+        ? `${eventCount} event(s) were reassigned during deactivation.`
+        : `${admin.name} deactivated this account.`,
+    entityType: "User",
+    entityId: target.id,
+  });
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/login");
@@ -345,6 +392,17 @@ export async function deleteUserAction(
       role: deletedSummary.role,
       eventsOwned: deletedSummary.eventsOwned,
     },
+  });
+  await notifyUser({
+    userId: admin.id,
+    type: "USER_DELETED",
+    title: `User "${deletedSummary.name}" was deleted`,
+    description:
+      deletedSummary.eventsOwned > 0
+        ? `${deletedSummary.eventsOwned} owned event(s) were removed with the account.`
+        : `${admin.name} permanently removed this account.`,
+    entityType: "User",
+    entityId: deletedSummary.id,
   });
   revalidatePath("/admin/users");
   revalidatePath("/admin/events");

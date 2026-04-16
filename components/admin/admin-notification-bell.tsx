@@ -80,12 +80,15 @@ export function AdminNotificationBell() {
     () =>
       items.map((item) => ({
         ...item,
-        href:
-          item.eventId && (item.entityType === "Guest" || item.entityType === "RSVP")
-            ? `/admin/events/${item.eventId}`
-            : item.entityType === "Event"
-              ? `/admin/events/${item.entityId}`
-              : "/admin/events",
+        href: (() => {
+          if (item.entityType === "User") return "/admin/users";
+          if (item.type === "EVENT_DELETED") return "/admin/events";
+          if (item.eventId && (item.entityType === "Guest" || item.entityType === "RSVP")) {
+            return `/admin/events/${item.eventId}`;
+          }
+          if (item.entityType === "Event") return `/admin/events/${item.entityId}`;
+          return "/admin/events";
+        })(),
       })),
     [items],
   );
@@ -104,16 +107,20 @@ export function AdminNotificationBell() {
         ) : null}
       </summary>
 
-      <div className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] w-[22rem] max-w-[min(22rem,calc(100vw-1rem))] rounded-2xl border border-[#e7dccb] bg-[#fffcf6] p-3 shadow-lg ring-1 ring-black/5">
-        <div className="flex items-center justify-between px-2 py-1">
+      <div className="fixed inset-x-3 top-[4.75rem] z-[100] w-auto rounded-2xl border border-[#e7dccb] bg-[#fffcf6] p-3 shadow-lg ring-1 ring-black/5 sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+0.5rem)] sm:w-[22rem] sm:max-w-[min(22rem,calc(100vw-1rem))]">
+        <div className="flex items-center justify-between gap-3 px-2 py-1">
           <p className="text-sm font-semibold text-zinc-900">Notifications</p>
           {hasUnread ? (
-            <button type="button" className="text-xs font-medium text-zinc-600 hover:text-zinc-900" onClick={markAllAsRead}>
+            <button
+              type="button"
+              className="shrink-0 text-xs font-medium text-zinc-600 hover:text-zinc-900"
+              onClick={markAllAsRead}
+            >
               Mark all read
             </button>
           ) : null}
         </div>
-        <div className="mt-2 max-h-[26rem] space-y-1 overflow-auto">
+        <div className="mt-2 max-h-[min(24rem,calc(100vh-6rem))] space-y-1 overflow-auto sm:max-h-[26rem]">
           {loading ? (
             <p className="px-2 py-4 text-sm text-zinc-500">Loading notifications...</p>
           ) : mapped.length === 0 ? (
@@ -145,8 +152,10 @@ export function AdminNotificationBell() {
                   router.push(item.href);
                 }}
               >
-                <p className="text-sm font-medium text-zinc-900">{item.title}</p>
-                {item.description ? <p className="mt-0.5 text-xs text-zinc-600">{item.description}</p> : null}
+                <p className="text-sm font-medium leading-5 text-zinc-900">{item.title}</p>
+                {item.description ? (
+                  <p className="mt-0.5 break-words text-xs leading-4 text-zinc-600">{item.description}</p>
+                ) : null}
                 <p className="mt-1 text-[11px] text-zinc-500">
                   {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
                     new Date(item.createdAt),

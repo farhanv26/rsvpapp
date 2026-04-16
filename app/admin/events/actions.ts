@@ -9,6 +9,7 @@ import { dispatchEventCommunication } from "@/lib/communications";
 import { generateSecureToken } from "@/lib/security";
 import { logGuestCommunication } from "@/lib/guest-communication-log";
 import { buildGuestInviteCommunicationParts, buildGuestInviteEmailLines } from "@/lib/guest-invite-communication";
+import { notifyUser } from "@/lib/notifications";
 import { buildGuestRsvpAbsoluteUrl, getSafeImageSrc } from "@/lib/utils";
 import { eventSchema, guestSchema } from "@/lib/validation";
 import { sendEventOwnerNotificationEmail } from "@/lib/rsvp-email";
@@ -165,6 +166,15 @@ export async function createEventAction(formData: FormData) {
     entityName: parsed.data.title,
     message: `${admin.name} created event "${parsed.data.title}".`,
   });
+  await notifyUser({
+    userId: admin.id,
+    type: "EVENT_CREATED",
+    title: `Event "${parsed.data.title}" was created`,
+    description: "You can now add guests, upload cards, and send invites.",
+    entityType: "Event",
+    entityId: event.id,
+    eventId: event.id,
+  });
 
   revalidatePath("/admin/events");
   redirect(`/admin/events/${event.id}`);
@@ -296,6 +306,17 @@ export async function deleteEventAction(formData: FormData) {
       metadata: {
         guestCount: beforeDelete?._count.guests ?? 0,
       },
+    });
+    await notifyUser({
+      userId: admin.id,
+      type: "EVENT_DELETED",
+      title: `Event "${beforeDelete?.title ?? "Unknown event"}" was deleted`,
+      description:
+        beforeDelete && beforeDelete._count.guests > 0
+          ? `${beforeDelete._count.guests} guest record(s) were removed with this event.`
+          : `${admin.name} permanently removed this event.`,
+      entityType: "Event",
+      entityId: eventId,
     });
 
     revalidatePath("/admin/events");
@@ -1077,6 +1098,19 @@ export async function recordGuestRemindersSentAction(
       success: true,
     })),
   });
+  if (result.count > 0) {
+    await dispatchEventCommunication({
+      trigger: "event_updated",
+      eventId,
+      entityType: "Guest",
+      entityId: eventId,
+      title: `${result.count} guest${result.count === 1 ? "" : "s"} marked invited`,
+      description: `${admin.name} recorded invite status via ${channel}.`,
+      actorName: admin.name,
+      channels: { inApp: true, email: false },
+      metadata: { guestIds: uniqueIds, count: result.count, channel, manualInviteTracking: true },
+    });
+  }
 
   revalidatePath(`/admin/events/${eventId}`);
   return { ok: true, updated: result.count };
