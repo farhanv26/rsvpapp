@@ -16,9 +16,45 @@ type Props = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+type GuestWithEventForRsvpPage = {
+  id: string;
+  guestName: string;
+  maxGuests: number;
+  menCount: number | null;
+  womenCount: number | null;
+  kidsCount: number | null;
+  token: string;
+  attending: boolean | null;
+  attendingCount: number | null;
+  respondedAt: Date | null;
+  isFamilyInvite: boolean;
+  event: {
+    id: string;
+    ownerUserId: string | null;
+    title: string;
+    description: string | null;
+    imagePath: string | null;
+    genericCardImage: string | null;
+    cardImage1: string | null;
+    cardImage2: string | null;
+    cardImage3: string | null;
+    cardImage4: string | null;
+    familyCardImage: string | null;
+    coupleNames: string | null;
+    eventSubtitle: string | null;
+    eventDate: Date | null;
+    eventTime: string | null;
+    venue: string | null;
+    welcomeMessage: string | null;
+    inviteFontStyle: string | null;
+    rsvpDeadline: Date | null;
+  };
+  hostMessage?: string | null;
+};
+
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
-  const guest = await prisma.guest.findUnique({
+  const guest = (await prisma.guest.findUnique({
     where: { token },
     select: {
       guestName: true,
@@ -43,7 +79,27 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
         },
       },
     },
-  });
+  } as unknown as Parameters<typeof prisma.guest.findUnique>[0])) as unknown as null | {
+    guestName: string;
+    maxGuests: number;
+    menCount: number | null;
+    womenCount: number | null;
+    kidsCount: number | null;
+    isFamilyInvite: boolean;
+    event: {
+      id: string;
+      title: string;
+      coupleNames: string | null;
+      imagePath: string | null;
+      genericCardImage: string | null;
+      cardImage1: string | null;
+      cardImage2: string | null;
+      cardImage3: string | null;
+      cardImage4: string | null;
+      familyCardImage: string | null;
+      updatedAt: Date;
+    };
+  };
   if (!guest) {
     return {
       title: "Invitation RSVP",
@@ -63,17 +119,39 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     },
     { maxGuests: guest.maxGuests, isFamilyInvite: guest.isFamilyInvite },
   );
-  const safeImageSrc = getSafeImageSrc(resolvedCard.rawPath);
+  const resolvedVariantSrc = getSafeImageSrc(resolvedCard.rawPath);
+  const defaultMainSrc = getSafeImageSrc(guest.event.imagePath);
+  const genericFallbackSrc = getSafeImageSrc(guest.event.genericCardImage);
+
+  // Reliability-first metadata fallback:
+  // 1) resolved variant (if valid) -> 2) event main card -> 3) generic card.
+  const safeImageSrc = resolvedVariantSrc ?? defaultMainSrc ?? genericFallbackSrc;
   const base = getPublicSiteUrl();
-  const absoluteImageBase =
-    safeImageSrc && base && safeImageSrc.startsWith("/") ? `${base}${safeImageSrc}` : safeImageSrc ?? undefined;
+  const absoluteImageBase = !safeImageSrc
+    ? undefined
+    : safeImageSrc.startsWith("http://") || safeImageSrc.startsWith("https://")
+      ? safeImageSrc
+      : base
+        ? `${base}${safeImageSrc}`
+        : undefined;
   const absoluteImage = absoluteImageBase
     ? `${absoluteImageBase}${absoluteImageBase.includes("?") ? "&" : "?"}v=${guest.event.updatedAt.getTime()}`
     : undefined;
-  const canonical = base ? `${base}/rsvp/${token}` : `/rsvp/${token}`;
+  const canonical = base ? `${base}/rsvp/${token}` : undefined;
   const names = guest.event.coupleNames?.trim() || guest.event.title;
   const title = `${names} · RSVP Invitation`;
   const description = `You are invited to ${guest.event.title}. Please RSVP through this private invitation link.`;
+
+  console.info("[rsvp:metadata] og selection", {
+    token,
+    eventId: guest.event.id,
+    baseResolved: Boolean(base),
+    resolvedVariantSource: resolvedCard.source,
+    resolvedVariantSrc,
+    defaultMainSrc,
+    genericFallbackSrc,
+    chosenImage: absoluteImage ?? null,
+  });
 
   return {
     title,
@@ -82,12 +160,10 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
       title,
       description,
       type: "website",
-      url: canonical,
+      ...(canonical ? { url: canonical } : {}),
       images: absoluteImage ? [{ url: absoluteImage, alt: `${guest.event.title} invitation card` }] : undefined,
     },
-    alternates: {
-      canonical,
-    },
+    alternates: canonical ? { canonical } : undefined,
     twitter: {
       card: absoluteImage ? "summary_large_image" : "summary",
       title,
@@ -307,7 +383,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
     previewParam === "true" ||
     (Array.isArray(previewParam) && previewParam[0] === "1");
 
-  const guest = await prisma.guest.findUnique({
+  const guest = (await prisma.guest.findUnique({
     where: { token },
     include: {
       event: {
@@ -334,7 +410,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
         },
       },
     },
-  });
+  } as unknown as Parameters<typeof prisma.guest.findUnique>[0])) as unknown as GuestWithEventForRsvpPage | null;
 
   if (!guest) {
     return (
