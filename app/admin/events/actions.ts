@@ -111,6 +111,7 @@ export async function createEventAction(formData: FormData) {
     eventTime: formData.get("eventTime") || undefined,
     venue: formData.get("venue") || undefined,
     welcomeMessage: formData.get("welcomeMessage") || undefined,
+    inviteFontStyle: formData.get("inviteFontStyle") || "elegant_serif",
     inviteMessageIntro: formData.get("inviteMessageIntro") || undefined,
     inviteMessageLineOverride: formData.get("inviteMessageLineOverride") || undefined,
   });
@@ -150,6 +151,7 @@ export async function createEventAction(formData: FormData) {
       eventTime: parsed.data.eventTime || null,
       venue: parsed.data.venue || null,
       welcomeMessage: parsed.data.welcomeMessage || null,
+      inviteFontStyle: parsed.data.inviteFontStyle || "elegant_serif",
       inviteMessageIntro: parsed.data.inviteMessageIntro || null,
       inviteMessageLineOverride: parsed.data.inviteMessageLineOverride || null,
     },
@@ -198,6 +200,7 @@ export async function updateEventAction(formData: FormData) {
     eventTime: formData.get("eventTime") || undefined,
     venue: formData.get("venue") || undefined,
     welcomeMessage: formData.get("welcomeMessage") || undefined,
+    inviteFontStyle: formData.get("inviteFontStyle") || "elegant_serif",
     inviteMessageIntro: formData.get("inviteMessageIntro") || undefined,
     inviteMessageLineOverride: formData.get("inviteMessageLineOverride") || undefined,
   });
@@ -235,6 +238,7 @@ export async function updateEventAction(formData: FormData) {
       eventTime: parsed.data.eventTime || null,
       venue: parsed.data.venue || null,
       welcomeMessage: parsed.data.welcomeMessage || null,
+      inviteFontStyle: parsed.data.inviteFontStyle || "elegant_serif",
       inviteMessageIntro: parsed.data.inviteMessageIntro || null,
       inviteMessageLineOverride: parsed.data.inviteMessageLineOverride || null,
       ...(imagePath ? { imagePath } : {}),
@@ -340,10 +344,15 @@ export async function createGuestAction(formData: FormData) {
   }
 
   const { admin } = await ensureEventAccess(eventId, "manage");
+  const greetingPreset = String(formData.get("greetingPreset") || "").trim();
+  const greetingCustom = String(formData.get("greetingCustom") || "").trim();
+  const greetingValue = greetingCustom || greetingPreset || String(formData.get("greeting") || "").trim() || undefined;
   const parsed = guestSchema.safeParse({
     guestName: formData.get("guestName"),
-    greeting: formData.get("greeting") || undefined,
-    maxGuests: formData.get("maxGuests"),
+    greeting: greetingValue,
+    menCount: formData.get("menCount"),
+    womenCount: formData.get("womenCount"),
+    kidsCount: formData.get("kidsCount"),
     group: formData.get("group") || undefined,
     tableName: formData.get("tableName") || undefined,
     notes: formData.get("notes") || undefined,
@@ -357,11 +366,15 @@ export async function createGuestAction(formData: FormData) {
   }
 
   const createdGuest = await prisma.guest.create({
+    // Keep maxGuests in sync for backward-compatible RSVP logic.
     data: {
       eventId,
       guestName: parsed.data.guestName,
-      greeting: parsed.data.greeting?.trim() || "Assalamualaikum",
-      maxGuests: parsed.data.maxGuests,
+      greeting: parsed.data.greeting?.trim() || "Assalamu Alaikum",
+      menCount: parsed.data.menCount,
+      womenCount: parsed.data.womenCount,
+      kidsCount: parsed.data.kidsCount,
+      maxGuests: parsed.data.menCount + parsed.data.womenCount + parsed.data.kidsCount,
       group: parsed.data.group ?? null,
       tableName: parsed.data.tableName?.trim() ? parsed.data.tableName.trim() : null,
       notes: parsed.data.notes ?? null,
@@ -381,7 +394,7 @@ export async function createGuestAction(formData: FormData) {
     entityId: createdGuest.id,
     entityName: createdGuest.guestName,
     message: `${admin.name} added guest "${createdGuest.guestName}".`,
-    metadata: { maxGuests: createdGuest.maxGuests },
+    metadata: { maxGuests: createdGuest.maxGuests, menCount: createdGuest.menCount, womenCount: createdGuest.womenCount, kidsCount: createdGuest.kidsCount },
   });
   await dispatchEventCommunication({
     trigger: "guest_added",
@@ -389,11 +402,11 @@ export async function createGuestAction(formData: FormData) {
     entityType: "Guest",
     entityId: createdGuest.id,
     title: `Guest "${createdGuest.guestName}" was added`,
-    description: `Max guests: ${createdGuest.maxGuests}.`,
+    description: `Total invited: ${createdGuest.maxGuests} (M:${createdGuest.menCount}, W:${createdGuest.womenCount}, K:${createdGuest.kidsCount}).`,
     guestName: createdGuest.guestName,
     attendingCount: createdGuest.maxGuests,
     actorName: admin.name,
-    metadata: { maxGuests: createdGuest.maxGuests },
+    metadata: { maxGuests: createdGuest.maxGuests, menCount: createdGuest.menCount, womenCount: createdGuest.womenCount, kidsCount: createdGuest.kidsCount },
   });
 
   revalidatePath(`/admin/events/${eventId}`);
@@ -407,10 +420,15 @@ export async function updateGuestAction(formData: FormData) {
   }
 
   const { admin } = await ensureEventAccess(eventId, "manage");
+  const greetingPreset = String(formData.get("greetingPreset") || "").trim();
+  const greetingCustom = String(formData.get("greetingCustom") || "").trim();
+  const greetingValue = greetingCustom || greetingPreset || String(formData.get("greeting") || "").trim() || undefined;
   const parsed = guestSchema.safeParse({
     guestName: formData.get("guestName"),
-    greeting: formData.get("greeting") || undefined,
-    maxGuests: formData.get("maxGuests"),
+    greeting: greetingValue,
+    menCount: formData.get("menCount"),
+    womenCount: formData.get("womenCount"),
+    kidsCount: formData.get("kidsCount"),
     group: formData.get("group") || undefined,
     tableName: formData.get("tableName") || undefined,
     notes: formData.get("notes") || undefined,
@@ -425,7 +443,7 @@ export async function updateGuestAction(formData: FormData) {
 
   const existing = await prisma.guest.findFirst({
     where: { id: guestId, eventId },
-    select: { id: true, guestName: true, maxGuests: true },
+    select: { id: true, guestName: true, maxGuests: true, menCount: true, womenCount: true, kidsCount: true },
   });
   if (!existing) {
     throw new Error("Guest not found for this event.");
@@ -435,8 +453,11 @@ export async function updateGuestAction(formData: FormData) {
     where: { id: guestId },
     data: {
       guestName: parsed.data.guestName,
-      greeting: parsed.data.greeting?.trim() || "Assalamualaikum",
-      maxGuests: parsed.data.maxGuests,
+      greeting: parsed.data.greeting?.trim() || "Assalamu Alaikum",
+      menCount: parsed.data.menCount,
+      womenCount: parsed.data.womenCount,
+      kidsCount: parsed.data.kidsCount,
+      maxGuests: parsed.data.menCount + parsed.data.womenCount + parsed.data.kidsCount,
       group: parsed.data.group ?? null,
       tableName: parsed.data.tableName?.trim() ? parsed.data.tableName.trim() : null,
       notes: parsed.data.notes ?? null,
@@ -459,6 +480,9 @@ export async function updateGuestAction(formData: FormData) {
       previousName: existing.guestName,
       previousMaxGuests: existing.maxGuests,
       maxGuests: updatedGuest.maxGuests,
+      menCount: updatedGuest.menCount,
+      womenCount: updatedGuest.womenCount,
+      kidsCount: updatedGuest.kidsCount,
     },
   });
   await dispatchEventCommunication({
@@ -1363,7 +1387,7 @@ export async function getGuestCommunicationPreviewAction(eventId: string, guestI
     ok: true as const,
     preview: {
       guestName: guest.guestName,
-      greeting: guest.greeting?.trim() || "Assalamualaikum",
+      greeting: guest.greeting?.trim() || "Assalamu Alaikum",
       coupleNames: guest.event.coupleNames,
       inviteIntroLine: inviteParts.introLine,
       randomizedLine: inviteParts.randomizedLine,

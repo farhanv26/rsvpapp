@@ -24,6 +24,9 @@ export const eventSchema = z.object({
   eventTime: z.string().trim().min(1, "Event time is required."),
   venue: z.string().trim().optional(),
   welcomeMessage: z.string().trim().optional(),
+  inviteFontStyle: z
+    .enum(["elegant_serif", "romantic_script", "soft_script", "modern_clean", "classic_formal"])
+    .default("elegant_serif"),
   inviteMessageIntro: z.string().trim().max(180, "Invite intro must be 180 characters or less.").optional(),
   inviteMessageLineOverride: z
     .string()
@@ -89,7 +92,9 @@ export const guestSchema = z
   .object({
     guestName: z.string().trim().min(1, "Guest name is required."),
     greeting: z.string().trim().max(80, "Greeting must be 80 characters or less.").optional(),
-    maxGuests: z.coerce.number().int().min(1, "Max guests must be at least 1."),
+    menCount: z.coerce.number().int().min(0, "Men count cannot be negative."),
+    womenCount: z.coerce.number().int().min(0, "Women count cannot be negative."),
+    kidsCount: z.coerce.number().int().min(0, "Kids count cannot be negative."),
     group: z.string().trim().max(120, "Group must be 120 characters or less.").optional(),
     tableName: z.string().trim().max(120, "Table must be 120 characters or less.").optional(),
     notes: z.string().trim().optional(),
@@ -98,6 +103,14 @@ export const guestSchema = z
     isFamilyInvite: z.preprocess((v) => v === "true" || v === "on", z.boolean()).optional().default(false),
   })
   .superRefine((data, ctx) => {
+    const total = data.menCount + data.womenCount + data.kidsCount;
+    if (total < 1) {
+      ctx.addIssue({
+        code: "custom",
+        message: "At least one guest is required across Men, Women, and Kids.",
+        path: ["menCount"],
+      });
+    }
     const e = data.email?.trim();
     if (e) {
       const ok = z.string().email().safeParse(e);

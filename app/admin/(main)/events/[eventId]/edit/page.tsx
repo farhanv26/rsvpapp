@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { updateEventAction } from "@/app/admin/events/actions";
 import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
 import { EventInviteVariantsFields } from "@/components/admin/event-invite-variants-fields";
+import { EventFontStyleField } from "@/components/admin/event-font-style-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 import { SafeEventImage } from "@/components/safe-event-image";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
@@ -34,6 +35,7 @@ export default async function EditEventPage({ params }: Props) {
       welcomeMessage: true,
       inviteMessageIntro: true,
       inviteMessageLineOverride: true,
+      inviteFontStyle: true,
       imagePath: true,
       genericCardImage: true,
       cardImage1: true,
@@ -121,6 +123,8 @@ export default async function EditEventPage({ params }: Props) {
             eventTimeDefault={event.eventTime ?? ""}
           />
         </section>
+
+        <EventFontStyleField defaultValue={event.inviteFontStyle} />
 
         <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <div>

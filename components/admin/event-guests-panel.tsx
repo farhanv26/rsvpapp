@@ -46,6 +46,9 @@ export type GuestPanelGuest = {
   id: string;
   guestName: string;
   greeting: string;
+  menCount: number;
+  womenCount: number;
+  kidsCount: number;
   maxGuests: number;
   token: string;
   attending: boolean | null;
@@ -65,6 +68,11 @@ export type GuestPanelGuest = {
   updatedAt: string;
   isFamilyInvite: boolean;
 };
+
+function totalGuestCount(guest: Pick<GuestPanelGuest, "menCount" | "womenCount" | "kidsCount" | "maxGuests">) {
+  const computed = (guest.menCount ?? 0) + (guest.womenCount ?? 0) + (guest.kidsCount ?? 0);
+  return computed > 0 ? computed : guest.maxGuests;
+}
 
 type Props = {
   eventId: string;
@@ -324,7 +332,7 @@ export function EventGuestsPanel({
     const map = new Map<string, { safeSrc: string | null; usingLine: string }>();
     for (const g of guests) {
       const r = resolveInviteCardImage(inviteCardEvent, {
-        maxGuests: g.maxGuests,
+        maxGuests: totalGuestCount(g),
         isFamilyInvite: g.isFamilyInvite,
       });
       map.set(g.id, {
@@ -482,7 +490,7 @@ export function EventGuestsPanel({
           return a.guestName.localeCompare(b.guestName);
         }
         case "maxGuestsDesc":
-          return b.maxGuests - a.maxGuests;
+          return totalGuestCount(b) - totalGuestCount(a);
         case "updatedDesc":
         default:
           return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
@@ -667,10 +675,13 @@ export function EventGuestsPanel({
     return [
       [
         "Guest Name",
+        "Men",
+        "Women",
+        "Kids",
+        "Total Guests",
         "Greeting",
         "Category (group)",
         "Table",
-        "Max Guests",
         "RSVP Status",
         "Readiness",
         "Follow-up",
@@ -688,10 +699,13 @@ export function EventGuestsPanel({
       ...source.map((guest) => {
         return [
           guest.guestName,
-          guest.greeting || "Assalamualaikum",
+          String(guest.menCount ?? 0),
+          String(guest.womenCount ?? 0),
+          String(guest.kidsCount ?? 0),
+          String(totalGuestCount(guest)),
+          guest.greeting || "Assalamu Alaikum",
           guest.group ?? "",
           guest.tableName ?? "",
-          String(guest.maxGuests),
           statusLabel(guestPrimaryStatus(guest)),
           getGuestReadiness(guest).label,
           getGuestFollowUpState(guest).label,
@@ -858,7 +872,7 @@ export function EventGuestsPanel({
               <option value="groupAsc">Category (A-Z)</option>
               <option value="tableAsc">Table (A-Z)</option>
               <option value="status">RSVP status</option>
-              <option value="maxGuestsDesc">Max guests (high to low)</option>
+              <option value="maxGuestsDesc">Total guests (high to low)</option>
             </select>
             <button type="button" className="btn-secondary" onClick={clearFilters}>
               Reset
@@ -1292,12 +1306,15 @@ export function EventGuestsPanel({
             const rows = [
               [
                 "Guest Name",
+                "Men",
+                "Women",
+                "Kids",
+                "Total Guests",
                 "Greeting",
                 "Token",
                 "RSVP Link",
                 "Category",
                 "Table",
-                "Max Guests",
                 "Attending (true/false)",
                 "Attending Count",
                 "Responded At (ISO)",
@@ -1316,12 +1333,15 @@ export function EventGuestsPanel({
                 const attendingBool = st === "attending";
                 return [
                   guest.guestName,
-                  guest.greeting || "Assalamualaikum",
+                  String(guest.menCount ?? 0),
+                  String(guest.womenCount ?? 0),
+                  String(guest.kidsCount ?? 0),
+                  String(totalGuestCount(guest)),
+                  guest.greeting || "Assalamu Alaikum",
                   guest.token,
                   link,
                   guest.group ?? "",
                   guest.tableName ?? "",
-                  String(guest.maxGuests),
                   String(attendingBool),
                   String(guest.attendingCount ?? 0),
                   guest.respondedAt ?? "",
@@ -1349,10 +1369,13 @@ export function EventGuestsPanel({
             const rows = [
               [
                 "Guest Name",
+                "Men",
+                "Women",
+                "Kids",
+                "Total Guests",
                 "Greeting",
                 "Category",
                 "Table",
-                "Max Guests",
                 "RSVP Status",
                 "Attending Count",
                 "Response Time",
@@ -1363,10 +1386,13 @@ export function EventGuestsPanel({
               ],
               ...confirmed.map((guest) => [
                 guest.guestName,
-                guest.greeting || "Assalamualaikum",
+                String(guest.menCount ?? 0),
+                String(guest.womenCount ?? 0),
+                String(guest.kidsCount ?? 0),
+                String(totalGuestCount(guest)),
+                guest.greeting || "Assalamu Alaikum",
                 guest.group ?? "",
                 guest.tableName ?? "",
-                String(guest.maxGuests),
                 statusLabel(guestPrimaryStatus(guest)),
                 String(guest.attendingCount ?? 0),
                 formatDate(guest.respondedAt),
@@ -1523,8 +1549,8 @@ export function EventGuestsPanel({
                             <div className="min-w-0">
                               <p className="truncate font-semibold text-zinc-900">{guest.guestName}</p>
                               <p className="mt-1 text-xs text-zinc-600">
-                                {guest.greeting || "Assalamualaikum"} · {guest.maxGuests} guest
-                                {guest.maxGuests === 1 ? "" : "s"}
+                                Men {guest.menCount ?? 0} · Women {guest.womenCount ?? 0} · Kids {guest.kidsCount ?? 0} ·{" "}
+                                Total {totalGuestCount(guest)}
                               </p>
                               {(guest.phone || guest.email) ? (
                                 <p className="mt-1 truncate text-[11px] text-zinc-500">
@@ -1754,20 +1780,55 @@ export function EventGuestsPanel({
                               />
                               <input
                                 type="number"
-                                name="maxGuests"
-                                min={1}
-                                defaultValue={guest.maxGuests}
+                                name="menCount"
+                                min={0}
+                                defaultValue={guest.menCount ?? 0}
                                 className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
                                 required
-                                placeholder="Max guests"
+                                placeholder="Men"
                               />
                               <input
-                                type="text"
-                                name="greeting"
-                                list="guest-greeting-options"
-                                defaultValue={guest.greeting || "Assalamualaikum"}
+                                type="number"
+                                name="womenCount"
+                                min={0}
+                                defaultValue={guest.womenCount ?? 0}
                                 className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
-                                placeholder="Greeting"
+                                required
+                                placeholder="Women"
+                              />
+                              <input
+                                type="number"
+                                name="kidsCount"
+                                min={0}
+                                defaultValue={guest.kidsCount ?? 0}
+                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
+                                required
+                                placeholder="Kids"
+                              />
+                              <select
+                                name="greetingPreset"
+                                defaultValue={
+                                  ["Assalamu Alaikum", "Hello", "Hi", "Dear"].includes(guest.greeting)
+                                    ? guest.greeting
+                                    : "Assalamu Alaikum"
+                                }
+                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
+                              >
+                                <option value="Assalamu Alaikum">Assalamu Alaikum</option>
+                                <option value="Hello">Hello</option>
+                                <option value="Hi">Hi</option>
+                                <option value="Dear">Dear</option>
+                              </select>
+                              <input
+                                type="text"
+                                name="greetingCustom"
+                                defaultValue={
+                                  ["Assalamu Alaikum", "Hello", "Hi", "Dear"].includes(guest.greeting)
+                                    ? ""
+                                    : guest.greeting
+                                }
+                                className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-xs"
+                                placeholder="Custom greeting (optional)"
                               />
                               <input
                                 type="text"
@@ -2077,12 +2138,6 @@ export function EventGuestsPanel({
           email: g.email,
         }))}
       />
-      <datalist id="guest-greeting-options">
-        <option value="Assalamualaikum" />
-        <option value="Hello" />
-        <option value="Hi" />
-        <option value="Dear" />
-      </datalist>
     </div>
   );
 }

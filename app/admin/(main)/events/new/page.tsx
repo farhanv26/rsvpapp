@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createEventAction } from "@/app/admin/events/actions";
 import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
 import { EventInviteVariantsFields } from "@/components/admin/event-invite-variants-fields";
+import { EventFontStyleField } from "@/components/admin/event-font-style-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 import { requireCurrentAdminUser } from "@/lib/admin-auth";
 
@@ -68,6 +69,8 @@ export default async function NewEventPage() {
         <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <EventSchedulingFields />
         </section>
+
+        <EventFontStyleField />
 
         <section className="app-card-muted space-y-4 p-4 sm:p-5">
           <div>

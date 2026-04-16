@@ -63,7 +63,10 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   }
 
   const totalFamilies = event.guests.length;
-  const totalMaximumInvited = event.guests.reduce((sum, guest) => sum + guest.maxGuests, 0);
+  const totalMaximumInvited = event.guests.reduce(
+    (sum, guest) => sum + ((guest.menCount ?? 0) + (guest.womenCount ?? 0) + (guest.kidsCount ?? 0) || guest.maxGuests),
+    0,
+  );
   const totalResponded = event.guests.filter((guest) => guest.respondedAt).length;
   const totalPending = event.guests.filter((guest) => !guest.respondedAt).length;
   const totalAttendingFamilies = event.guests.filter((guest) => guest.attending === true).length;
@@ -144,7 +147,10 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const guestsSerialized = event.guests.map((g) => ({
     id: g.id,
     guestName: g.guestName,
-    greeting: (g as unknown as { greeting?: string | null }).greeting ?? "Assalamualaikum",
+    greeting: (g as unknown as { greeting?: string | null }).greeting ?? "Assalamu Alaikum",
+    menCount: g.menCount ?? 0,
+    womenCount: g.womenCount ?? 0,
+    kidsCount: g.kidsCount ?? 0,
     maxGuests: g.maxGuests,
     token: g.token,
     attending: g.attending,
@@ -594,33 +600,35 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
-              Max guests
-              <input
-                name="maxGuests"
-                type="number"
-                min={1}
-                defaultValue={1}
-                className="input-luxe"
-                required
-              />
+              Men
+              <input name="menCount" type="number" min={0} defaultValue={1} className="input-luxe" required />
+            </label>
+            <label className="block text-sm font-medium text-zinc-700">
+              Women
+              <input name="womenCount" type="number" min={0} defaultValue={0} className="input-luxe" required />
+            </label>
+            <label className="block text-sm font-medium text-zinc-700">
+              Kids
+              <input name="kidsCount" type="number" min={0} defaultValue={0} className="input-luxe" required />
             </label>
             <label className="block text-sm font-medium text-zinc-700">
               Greeting
+              <select name="greetingPreset" defaultValue="Assalamu Alaikum" className="input-luxe">
+                <option value="Assalamu Alaikum">Assalamu Alaikum</option>
+                <option value="Hello">Hello</option>
+                <option value="Hi">Hi</option>
+                <option value="Dear">Dear</option>
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-zinc-700">
+              Custom greeting (optional)
               <input
-                name="greeting"
+                name="greetingCustom"
                 type="text"
-                list="greeting-options"
-                defaultValue="Assalamualaikum"
                 className="input-luxe"
-                placeholder="Assalamualaikum"
+                placeholder="Override greeting if needed"
               />
             </label>
-            <datalist id="greeting-options">
-              <option value="Assalamualaikum" />
-              <option value="Hello" />
-              <option value="Hi" />
-              <option value="Dear" />
-            </datalist>
             <label className="block text-sm font-medium text-zinc-700">
               Group / category
               <input name="group" type="text" className="input-luxe" placeholder="Family, VIP, Bride side…" />

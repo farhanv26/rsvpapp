@@ -67,7 +67,7 @@ export function getInviteIntroLine(input: {
 }
 
 export function buildGuestInviteMessageParts(input: GuestWhatsAppMessageInput) {
-  const greeting = input.greeting?.trim() || "Assalamualaikum";
+  const greeting = input.greeting?.trim() || "Assalamu Alaikum";
   const introLine = getInviteIntroLine({
     eventTitle: input.eventTitle,
     coupleNames: input.coupleNames,
@@ -99,7 +99,7 @@ export function buildGuestWhatsAppInviteMessage(input: GuestWhatsAppMessageInput
 }
 
 export function buildGuestRsvpReminderMessage(input: GuestWhatsAppMessageInput) {
-  const greeting = input.greeting?.trim() || "Assalamualaikum";
+  const greeting = input.greeting?.trim() || "Assalamu Alaikum";
   return `${greeting} ${input.guestName},
 
 Just a friendly reminder to please RSVP for our ${input.eventTitle}.

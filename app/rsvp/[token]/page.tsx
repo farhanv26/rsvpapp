@@ -23,6 +23,9 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     select: {
       guestName: true,
       maxGuests: true,
+      menCount: true,
+      womenCount: true,
+      kidsCount: true,
       isFamilyInvite: true,
       event: {
         select: {
@@ -181,6 +184,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
           eventTime: true,
           venue: true,
           welcomeMessage: true,
+          inviteFontStyle: true,
           rsvpDeadline: true,
         },
       },
@@ -234,6 +238,17 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   const hasCeremonyDetails = Boolean(ev.eventDate || ev.eventTime || ev.venue);
   const displayNames = ev.coupleNames?.trim() || ev.title;
   const showScriptNames = Boolean(ev.coupleNames?.trim());
+  const inviteCapacity = (guest.menCount ?? 0) + (guest.womenCount ?? 0) + (guest.kidsCount ?? 0) || guest.maxGuests;
+  const headingClass =
+    ev.inviteFontStyle === "romantic_script"
+      ? `${script} text-[2.6rem] sm:text-[3rem]`
+      : ev.inviteFontStyle === "soft_script"
+        ? "text-[2.5rem] sm:text-[2.9rem] [font-family:var(--font-wedding-script-alt),cursive]"
+      : ev.inviteFontStyle === "modern_clean"
+        ? "font-sans text-4xl tracking-wide"
+        : ev.inviteFontStyle === "classic_formal"
+          ? "font-serif text-4xl uppercase tracking-[0.14em]"
+          : `${serif} text-4xl`;
   const panelClass = "border-[#e7dccb] bg-[#fffdfa] shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]";
   const detailClass = "border-[#e7dccb] bg-[#fbf8f2]";
 
@@ -274,8 +289,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
             ) : null}
 
             <div className="space-y-3">
-              <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">Wedding invitation</p>
-              <h1 className={`mt-3 leading-[1.15] text-zinc-900 ${showScriptNames ? `${script} text-[2.6rem] sm:text-[3rem]` : `${serif} text-4xl`}`}>
+              <h1 className={`mt-1 leading-[1.15] text-zinc-900 ${showScriptNames ? `${script} text-[2.6rem] sm:text-[3rem]` : headingClass}`}>
                 {displayNames}
               </h1>
               {showScriptNames ? <p className={`mt-2 text-lg text-zinc-600 ${serif}`}>{ev.title}</p> : null}
@@ -325,8 +339,8 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
                     <span className="block">We would be honored to celebrate with you.</span>
                     <span className="mt-2 block">
                       Your invitation includes up to{" "}
-                      <span className="font-semibold text-zinc-900">{guest.maxGuests}</span>{" "}
-                      {guest.maxGuests === 1 ? "guest" : "guests"}.
+                      <span className="font-semibold text-zinc-900">{inviteCapacity}</span>{" "}
+                      {inviteCapacity === 1 ? "guest" : "guests"}.
                     </span>
                   </>
                 )}

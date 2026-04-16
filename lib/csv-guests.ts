@@ -11,7 +11,9 @@ export const guestImportRowSchema = z
   .object({
     guestName: z.string().trim().min(1, "guestName is required"),
     greeting: z.string().trim().max(80, "greeting must be 80 characters or less").optional(),
-    maxGuests: z.coerce.number().int().min(1, "maxGuests must be at least 1"),
+    menCount: z.coerce.number().int().min(0, "men must be 0 or greater"),
+    womenCount: z.coerce.number().int().min(0, "women must be 0 or greater"),
+    kidsCount: z.coerce.number().int().min(0, "kids must be 0 or greater"),
     group: z.string().trim().optional(),
     tableName: z.string().trim().max(120).optional(),
     notes: z.string().optional(),
@@ -23,6 +25,10 @@ export const guestImportRowSchema = z
     }, z.boolean()),
   })
   .superRefine((data, ctx) => {
+    const total = data.menCount + data.womenCount + data.kidsCount;
+    if (total < 1) {
+      ctx.addIssue({ code: "custom", message: "total guests must be at least 1", path: ["menCount"] });
+    }
     if (data.email && data.email.length > 0) {
       const ok = z.string().email().safeParse(data.email);
       if (!ok.success) {
@@ -42,8 +48,13 @@ function mapHeaderToField(header: string): string | null {
   const map: Record<string, string> = {
     guestname: "guestName",
     "guest name": "guestName",
-    maxguests: "maxGuests",
-    "max guests": "maxGuests",
+    men: "menCount",
+    mencount: "menCount",
+    women: "womenCount",
+    womencount: "womenCount",
+    kids: "kidsCount",
+    kidscount: "kidsCount",
+    children: "kidsCount",
     group: "group",
     tablename: "tableName",
     "table name": "tableName",
@@ -148,9 +159,9 @@ export function previewGuestCsv(
   if (!mapped.has("guestName")) {
     requiredHeadersMissing.push("guestName");
   }
-  if (!mapped.has("maxGuests")) {
-    requiredHeadersMissing.push("maxGuests");
-  }
+  if (!mapped.has("menCount")) requiredHeadersMissing.push("men");
+  if (!mapped.has("womenCount")) requiredHeadersMissing.push("women");
+  if (!mapped.has("kidsCount")) requiredHeadersMissing.push("kids");
 
   const rows: CsvPreviewRow[] = [];
   const seenInFile = new Set<string>();
@@ -163,7 +174,9 @@ export function previewGuestCsv(
     const obj = rowToFields(raw);
     const safeParse = guestImportRowSchema.safeParse({
       guestName: obj.guestName ?? "",
-      maxGuests: obj.maxGuests === "" ? undefined : obj.maxGuests,
+      menCount: obj.menCount === "" ? undefined : obj.menCount,
+      womenCount: obj.womenCount === "" ? undefined : obj.womenCount,
+      kidsCount: obj.kidsCount === "" ? undefined : obj.kidsCount,
       group: obj.group || undefined,
       tableName: obj.tableName || undefined,
       greeting: obj.greeting || undefined,

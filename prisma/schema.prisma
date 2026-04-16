@@ -29,6 +29,7 @@ model Event {
   eventTime     String?
   venue         String?
   welcomeMessage String?
+  inviteFontStyle String   @default("elegant_serif")
   inviteMessageIntro String?
   inviteMessageLineOverride String?
   genericCardImage String?
@@ -100,7 +101,10 @@ model Guest {
   id             String   @id @default(cuid())
   eventId        String
   guestName      String
-  greeting       String   @default("Assalamualaikum")
+  greeting       String   @default("Assalamu Alaikum")
+  menCount       Int      @default(0)
+  womenCount     Int      @default(0)
+  kidsCount      Int      @default(0)
   maxGuests      Int
   token          String   @unique
   attending      Boolean?
