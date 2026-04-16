@@ -88,15 +88,25 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 }
 
 function CeremonyDetails({
+  eventTitle,
+  eventSubtitle,
+  description,
   eventDate,
   eventTime,
   venue,
+  showCalendarActions,
 }: {
+  eventTitle: string;
+  eventSubtitle: string | null;
+  description: string | null;
   eventDate: Date | null;
   eventTime: string | null;
   venue: string | null;
+  showCalendarActions: boolean;
 }) {
   const dateLine = eventDate ? new Intl.DateTimeFormat("en-US", { dateStyle: "full" }).format(eventDate) : null;
+  const displayTime = formatEventTime(eventTime);
+  const calendarPayload = buildCalendarPayload({ eventTitle, eventSubtitle, description, eventDate, eventTime, venue });
 
   return (
     <div className="mx-auto max-w-md rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-5 py-5">
@@ -104,15 +114,98 @@ function CeremonyDetails({
         {dateLine ? (
           <DetailLine label="Date" value={dateLine} icon="calendar" />
         ) : null}
-        {eventTime ? (
-          <DetailLine label="Time" value={eventTime} icon="clock" />
+        {displayTime ? (
+          <DetailLine label="Time" value={displayTime} icon="clock" />
         ) : null}
         {venue ? (
           <DetailLine label="Venue" value={venue} icon="pin" />
         ) : null}
+        {showCalendarActions && calendarPayload ? (
+          <div className="pt-2">
+            <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">Add to calendar</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <a
+                href={calendarPayload.googleUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#d8c4a0] bg-[#fff7ea] px-3.5 py-1.5 text-xs font-semibold text-[#6c4f26] transition hover:border-[#c8aa78] hover:bg-[#ffefd4]"
+              >
+                <span aria-hidden="true">📅</span>
+                Google
+              </a>
+              <a
+                href={calendarPayload.icsDataUrl}
+                download="event-invitation.ics"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#dccfbb] bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:border-[#cbb79a] hover:bg-[#faf5ec]"
+              >
+                <span aria-hidden="true">✉️</span>
+                Apple / Outlook (.ics)
+              </a>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function formatEventTime(raw: string | null) {
+  if (!raw) return null;
+  const t = raw.trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+  if (!m) return t;
+  const h24 = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h24) || !Number.isFinite(min)) return t;
+  const period = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${String(min).padStart(2, "0")} ${period}`;
+}
+
+function buildCalendarPayload(input: {
+  eventTitle: string;
+  eventSubtitle: string | null;
+  description: string | null;
+  eventDate: Date | null;
+  eventTime: string | null;
+  venue: string | null;
+}) {
+  if (!input.eventDate) return null;
+  const [hStr, mStr] = (input.eventTime ?? "18:00").split(":");
+  const hour = Number(hStr);
+  const minute = Number(mStr);
+  const start = new Date(input.eventDate);
+  if (Number.isFinite(hour)) start.setHours(hour);
+  if (Number.isFinite(minute)) start.setMinutes(minute);
+  start.setSeconds(0, 0);
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  const toGCal = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const summary = input.eventSubtitle?.trim() || input.eventTitle;
+  const details = [input.description?.trim(), input.venue ? `Venue: ${input.venue}` : ""].filter(Boolean).join("\n");
+  const googleUrl =
+    "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+    `&text=${encodeURIComponent(summary)}` +
+    `&dates=${toGCal(start)}/${toGCal(end)}` +
+    `&details=${encodeURIComponent(details)}` +
+    `&location=${encodeURIComponent(input.venue ?? "")}`;
+
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//RSVP App//EN",
+    "BEGIN:VEVENT",
+    `UID:rsvp-${start.getTime()}@rsvpapp`,
+    `DTSTAMP:${toGCal(new Date())}`,
+    `DTSTART:${toGCal(start)}`,
+    `DTEND:${toGCal(end)}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${details.replace(/\n/g, "\\n")}`,
+    `LOCATION:${(input.venue ?? "").replace(/\n/g, " ")}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const icsDataUrl = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
+  return { googleUrl, icsDataUrl };
 }
 
 function DetailLine({
@@ -237,7 +330,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   const isRsvpClosed = deadlineMeta?.status === "closed";
   const hasCeremonyDetails = Boolean(ev.eventDate || ev.eventTime || ev.venue);
   const displayNames = ev.coupleNames?.trim() || ev.title;
-  const showScriptNames = Boolean(ev.coupleNames?.trim());
+  const hasCoupleNames = Boolean(ev.coupleNames?.trim());
   const inviteCapacity = (guest.menCount ?? 0) + (guest.womenCount ?? 0) + (guest.kidsCount ?? 0) || guest.maxGuests;
   const headingClass =
     ev.inviteFontStyle === "romantic_script"
@@ -249,6 +342,16 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
         : ev.inviteFontStyle === "classic_formal"
           ? "font-serif text-4xl uppercase tracking-[0.14em]"
           : `${serif} text-4xl`;
+  const salutationClass =
+    ev.inviteFontStyle === "romantic_script"
+      ? `${script} text-2xl sm:text-[2rem]`
+      : ev.inviteFontStyle === "soft_script"
+        ? "text-[2rem] sm:text-[2.15rem] [font-family:var(--font-wedding-script-alt),cursive]"
+        : ev.inviteFontStyle === "modern_clean"
+          ? "font-sans text-2xl tracking-wide"
+          : ev.inviteFontStyle === "classic_formal"
+            ? "font-serif text-2xl uppercase tracking-[0.1em]"
+            : `${serif} text-2xl`;
   const panelClass = "border-[#e7dccb] bg-[#fffdfa] shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]";
   const detailClass = "border-[#e7dccb] bg-[#fbf8f2]";
 
@@ -283,21 +386,28 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
                   src={safeImageSrc}
                   alt={ev.title}
                   hintText="Tap to enlarge invitation"
-                  previewHeightClassName="h-[25rem] sm:h-[36rem]"
                 />
               </div>
             ) : null}
 
             <div className="space-y-3">
-              <h1 className={`mt-1 leading-[1.15] text-zinc-900 ${showScriptNames ? `${script} text-[2.6rem] sm:text-[3rem]` : headingClass}`}>
+              <h1 className={`mt-1 leading-[1.15] text-zinc-900 ${headingClass}`}>
                 {displayNames}
               </h1>
-              {showScriptNames ? <p className={`mt-2 text-lg text-zinc-600 ${serif}`}>{ev.title}</p> : null}
+              {hasCoupleNames ? <p className={`mt-2 text-lg text-zinc-600 ${serif}`}>{ev.title}</p> : null}
               {ev.eventSubtitle ? <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-600">{ev.eventSubtitle}</p> : null}
             </div>
 
             {hasCeremonyDetails ? (
-              <CeremonyDetails eventDate={ev.eventDate} eventTime={ev.eventTime} venue={ev.venue} />
+              <CeremonyDetails
+                eventTitle={ev.title}
+                eventSubtitle={ev.eventSubtitle}
+                description={ev.description}
+                eventDate={ev.eventDate}
+                eventTime={ev.eventTime}
+                venue={ev.venue}
+                showCalendarActions={hasResponded && guest.attending === true}
+              />
             ) : null}
             {ev.rsvpDeadline ? (
               <div className="space-y-2">
@@ -330,7 +440,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
             ) : null}
 
             <div className={`mx-auto max-w-md rounded-2xl border px-5 py-5 text-center ${detailClass}`}>
-              <p className={`text-2xl text-zinc-900 ${script}`}>Dear {guest.guestName},</p>
+              <p className={`text-zinc-900 ${salutationClass}`}>Dear {guest.guestName},</p>
               <p className="mt-3 text-base leading-relaxed text-zinc-700">
                 {hasResponded && guest.attending === false ? (
                   "We are sorry you will not be able to attend, but we completely understand."

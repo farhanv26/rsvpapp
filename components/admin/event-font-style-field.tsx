@@ -42,6 +42,22 @@ const FONT_OPTIONS = [
 
 type FontStyleId = (typeof FONT_OPTIONS)[number]["id"];
 
+function headingPreviewClass(style: FontStyleId) {
+  if (style === "romantic_script") return "text-[2.6rem] sm:text-[3rem]";
+  if (style === "soft_script") return "text-[2.5rem] sm:text-[2.9rem]";
+  if (style === "modern_clean") return "text-4xl tracking-wide";
+  if (style === "classic_formal") return "text-4xl uppercase tracking-[0.14em]";
+  return "text-4xl tracking-wide";
+}
+
+function salutationPreviewClass(style: FontStyleId) {
+  if (style === "romantic_script") return "text-2xl sm:text-[2rem]";
+  if (style === "soft_script") return "text-[2rem] sm:text-[2.15rem]";
+  if (style === "modern_clean") return "text-2xl tracking-wide";
+  if (style === "classic_formal") return "text-2xl uppercase tracking-[0.1em]";
+  return "text-2xl";
+}
+
 export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaultValue?: string | null }) {
   const initial = FONT_OPTIONS.some((x) => x.id === defaultValue) ? (defaultValue as FontStyleId) : "elegant_serif";
   const [selected, setSelected] = useState<FontStyleId>(initial);
@@ -126,8 +142,14 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
                     selected === option.id ? "bg-[#f8f1e5]" : ""
                   }`}
                 >
-                  <p className={`text-2xl text-zinc-900 ${option.className}`} style={option.style}>
+                  <p className={`text-zinc-900 ${headingPreviewClass(option.id)} ${option.className}`} style={option.style}>
                     {previewCoupleNames}
+                  </p>
+                  <p className={`mt-1 text-zinc-800 ${salutationPreviewClass(option.id)} ${option.className}`} style={option.style}>
+                    Dear {previewEventTitle},
+                  </p>
+                  <p className={`mt-1 text-zinc-800 ${salutationPreviewClass(option.id)} ${option.className}`} style={option.style}>
+                    Will you be attending?
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {option.label} · {option.helper}
@@ -141,10 +163,17 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
 
       <div className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-5 text-center">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-zinc-500">Live preview</p>
-        <p className={`mt-3 text-3xl text-zinc-900 ${active.className}`} style={active.style}>
+        <p className={`mt-3 text-zinc-900 ${headingPreviewClass(selected)} ${active.className}`} style={active.style}>
           {previewCoupleNames}
         </p>
         <p className="mt-2 text-sm text-zinc-600">{previewEventTitle}</p>
+        <p className={`mt-4 text-zinc-900 ${salutationPreviewClass(selected)} ${active.className}`} style={active.style}>
+          Dear Javed &amp; Family,
+        </p>
+        <p className={`mt-2 text-zinc-900 ${salutationPreviewClass(selected)} ${active.className}`} style={active.style}>
+          Will you be attending?
+        </p>
+        <p className="mt-1 text-xs text-zinc-500">These are the exact RSVP portions that will use this style.</p>
       </div>
     </section>
   );

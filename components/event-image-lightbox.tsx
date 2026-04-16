@@ -17,6 +17,17 @@ export function EventImageLightbox({
   previewHeightClassName = "h-[26rem] sm:h-[32rem]",
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [imageRatio, setImageRatio] = useState<number>(3 / 4);
+
+  useEffect(() => {
+    const img = new window.Image();
+    img.onload = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        setImageRatio(img.naturalWidth / img.naturalHeight);
+      }
+    };
+    img.src = src;
+  }, [src]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,13 +50,14 @@ export function EventImageLightbox({
           aria-label="Open full invitation preview"
         >
           <div
-            className={`relative w-full overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffdfa] ${previewHeightClassName}`}
+            className={`relative w-full overflow-hidden rounded-2xl border border-[#e7dccb] bg-transparent ${previewHeightClassName}`}
+            style={previewHeightClassName ? undefined : { aspectRatio: imageRatio }}
           >
             <SafeEventImage
               src={src}
               alt={alt}
               fill
-              className="object-contain object-center transition-transform duration-300 group-hover:scale-[1.01]"
+              className="object-cover object-center transition-transform duration-300 group-hover:scale-[1.01]"
               fallbackLabel="Invitation image unavailable"
             />
           </div>
@@ -71,12 +83,12 @@ export function EventImageLightbox({
             >
               ×
             </button>
-            <div className="relative h-[78vh] w-full overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffdfa]">
+            <div className="relative mx-auto w-full max-w-[92vw] overflow-hidden rounded-2xl border border-[#e7dccb] bg-transparent" style={{ aspectRatio: imageRatio, maxHeight: "78vh" }}>
               <SafeEventImage
                 src={src}
                 alt={alt}
                 fill
-                className="object-contain object-center"
+                className="object-cover object-center"
                 sizes="100vw"
                 priority
                 fallbackLabel="Invitation image unavailable"
