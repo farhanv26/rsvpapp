@@ -14,7 +14,7 @@ export function EventImageLightbox({
   src,
   alt,
   hintText = "View full invitation",
-  previewHeightClassName = "h-[26rem] sm:h-[32rem]",
+  previewHeightClassName = "",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [imageRatio, setImageRatio] = useState<number>(3 / 4);
@@ -50,14 +50,14 @@ export function EventImageLightbox({
           aria-label="Open full invitation preview"
         >
           <div
-            className={`relative w-full overflow-hidden rounded-2xl border border-[#e7dccb] bg-transparent ${previewHeightClassName}`}
+            className={`relative w-full overflow-hidden rounded-2xl border border-[#e7dccb] bg-transparent ${previewHeightClassName || ""}`}
             style={previewHeightClassName ? undefined : { aspectRatio: imageRatio }}
           >
             <SafeEventImage
               src={src}
               alt={alt}
               fill
-              className="object-cover object-center transition-transform duration-300 group-hover:scale-[1.01]"
+              className="object-contain object-center transition-transform duration-300 group-hover:scale-[1.01]"
               fallbackLabel="Invitation image unavailable"
             />
           </div>
@@ -83,12 +83,15 @@ export function EventImageLightbox({
             >
               ×
             </button>
-            <div className="relative mx-auto w-full max-w-[92vw] overflow-hidden rounded-2xl border border-[#e7dccb] bg-transparent" style={{ aspectRatio: imageRatio, maxHeight: "78vh" }}>
+            <div
+              className="relative mx-auto w-full max-w-[92vw] overflow-hidden rounded-2xl border border-[#e7dccb] bg-transparent"
+              style={{ aspectRatio: imageRatio, maxHeight: "78vh" }}
+            >
               <SafeEventImage
                 src={src}
                 alt={alt}
                 fill
-                className="object-cover object-center"
+                className="object-contain object-center"
                 sizes="100vw"
                 priority
                 fallbackLabel="Invitation image unavailable"

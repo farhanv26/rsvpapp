@@ -121,31 +121,73 @@ function CeremonyDetails({
           <DetailLine label="Venue" value={venue} icon="pin" />
         ) : null}
         {showCalendarActions && calendarPayload ? (
-          <div className="pt-2">
+          <div className="pt-2 text-center">
             <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">Add to calendar</p>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <a
                 href={calendarPayload.googleUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full border border-[#d8c4a0] bg-[#fff7ea] px-3.5 py-1.5 text-xs font-semibold text-[#6c4f26] transition hover:border-[#c8aa78] hover:bg-[#ffefd4]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#dadde3] bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-[#c7ccd6] hover:bg-[#f8fafc]"
               >
-                <span aria-hidden="true">📅</span>
-                Google
+                <GoogleCalendarLogo />
+                <span>Google</span>
               </a>
               <a
                 href={calendarPayload.icsDataUrl}
-                download="event-invitation.ics"
-                className="inline-flex items-center gap-1.5 rounded-full border border-[#dccfbb] bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:border-[#cbb79a] hover:bg-[#faf5ec]"
+                download="event-invitation-apple.ics"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#dadde3] bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-[#c7ccd6] hover:bg-[#f8fafc]"
               >
-                <span aria-hidden="true">✉️</span>
-                Apple / Outlook (.ics)
+                <AppleCalendarLogo />
+                <span>Apple</span>
+              </a>
+              <a
+                href={calendarPayload.icsDataUrl}
+                download="event-invitation-outlook.ics"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#dadde3] bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-[#c7ccd6] hover:bg-[#f8fafc]"
+              >
+                <OutlookLogo />
+                <span>Outlook (.ics)</span>
               </a>
             </div>
           </div>
         ) : null}
       </div>
     </div>
+  );
+}
+
+function GoogleCalendarLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="17" rx="3" fill="#fff" stroke="#dadce0" />
+      <rect x="3" y="4" width="18" height="5" rx="3" fill="#34A853" />
+      <rect x="8.8" y="11" width="6.4" height="6.2" rx="1.1" fill="#4285F4" />
+      <path d="M12 12.5v3M10.6 14h2.8" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function AppleCalendarLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="17" rx="3" fill="#fff" stroke="#d1d5db" />
+      <rect x="3" y="4" width="18" height="5" rx="3" fill="#ef4444" />
+      <text x="12" y="17" textAnchor="middle" fontSize="7" fontWeight="700" fill="#111827">
+        12
+      </text>
+    </svg>
+  );
+}
+
+function OutlookLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2.5" fill="#2563eb" />
+      <rect x="4.8" y="7" width="7.2" height="10" rx="1.2" fill="#1d4ed8" />
+      <circle cx="8.4" cy="12" r="2.1" fill="#fff" />
+      <path d="M12.8 9.2h6.2M12.8 12h6.2M12.8 14.8h6.2" stroke="#dbeafe" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
   );
 }
 
