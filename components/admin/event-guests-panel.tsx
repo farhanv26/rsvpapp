@@ -12,6 +12,7 @@ import {
   recordGuestManualRsvpAction,
   sendBulkGuestInviteEmailsAction,
   sendGuestInviteEmailAction,
+  triggerGuestSendAction,
   updateGuestAction,
 } from "@/app/admin/events/actions";
 import { ReviewDuplicatesModal } from "@/components/admin/review-duplicates-modal";
@@ -38,10 +39,12 @@ import {
 import { GuestPhoneFields } from "@/components/admin/guest-phone-fields";
 import {
   formatGuestPhoneLabel,
-  normalizePhoneForWhatsAppGuestRecord,
-  WHATSAPP_PHONE_INVALID_INLINE,
 } from "@/lib/phone";
-import { buildGuestWhatsAppInviteMessage, getWhatsAppInviteUrlForGuest } from "@/lib/whatsapp";
+import {
+  buildGuestWhatsAppInviteMessage,
+  getSmsInviteUrlForGuest,
+  getWhatsAppInviteUrlForGuest,
+} from "@/lib/whatsapp";
 import { CommunicationPreviewModal } from "@/components/admin/communication-preview-modal";
 import { GuestCommunicationHistoryModal } from "@/components/admin/guest-communication-history-modal";
 import { GuestInviteCardPreviewModal } from "@/components/admin/guest-invite-card-preview-modal";
@@ -116,6 +119,17 @@ function statusLabel(status: ReturnType<typeof guestPrimaryStatus>) {
   return "Not Invited";
 }
 
+function statusLabelWithCount(guest: GuestPanelGuest) {
+  const status = guestPrimaryStatus(guest);
+  if (status === "attending") {
+    const count = Math.max(guest.attendingCount ?? 0, 1);
+    return `Attending · ${count} attending`;
+  }
+  if (status === "declined") return "Declined";
+  if (status === "invited") return "Invited";
+  return "Not Invited";
+}
+
 const filterTabs: {
   id: "all" | "attending" | "declined" | "invited" | "not_invited";
   label: string;
@@ -163,14 +177,6 @@ const duplicateFilterTabs: { id: DuplicateFilterId; label: string }[] = [
   { id: "has_duplicates", label: "Duplicates / Possible" },
   { id: "clean", label: "Clean" },
 ];
-
-function duplicateBadgeClass(strength: DuplicateStrength): string | null {
-  if (strength === "none") return null;
-  const base =
-    "mt-1 inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight";
-  if (strength === "strong") return `${base} border border-rose-200/90 bg-rose-50 text-rose-900`;
-  return `${base} border border-orange-200/80 bg-orange-50/90 text-orange-950`;
-}
 
 function duplicateBadgeLabel(strength: DuplicateStrength): string | null {
   if (strength === "none") return null;
@@ -257,6 +263,21 @@ function WhatsAppIcon({ className }: { className?: string }) {
         fill="currentColor"
         d="M16.02 5.33c-5.88 0-10.67 4.78-10.67 10.67 0 1.89.5 3.74 1.45 5.37L5.33 26.7l5.46-1.43c1.57.85 3.33 1.3 5.22 1.3 5.88 0 10.67-4.78 10.67-10.67S21.9 5.33 16.02 5.33Zm0 19.35c-1.68 0-3.33-.45-4.77-1.3l-.34-.2-3.24.85.86-3.16-.22-.33c-.92-1.43-1.41-3.08-1.41-4.78 0-4.95 4.03-8.98 8.98-8.98S25 10.81 25 15.76s-4.03 8.92-8.98 8.92Z"
       />
+    </svg>
+  );
+}
+
+function MessageIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+      <path
+        d="M21 11.5a8.5 8.5 0 01-8.5 8.5H7l-4 3v-5.5A8.5 8.5 0 1112.5 3 8.5 8.5 0 0121 11.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M8 10h8M8 13h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -1567,23 +1588,15 @@ export function EventGuestsPanel({
                       inviteMessage,
                       guest.phoneCountryCode,
                     );
+                    const messageDirectUrl = getSmsInviteUrlForGuest(
+                      guest.phone,
+                      inviteMessage,
+                      guest.phoneCountryCode,
+                    );
                     const st = guestPrimaryStatus(guest);
                     const readiness = getGuestReadiness(guest);
                     const isEditing = editingGuestId === guest.id;
-                    const statusBadges = [
-                      { label: statusLabel(st).toUpperCase(), kind: "status" as const },
-                      ...(readiness.id === "missing_contact"
-                        ? [{ label: "MISSING CONTACT", kind: "warning" as const }]
-                        : []),
-                      ...(readiness.id === "missing_email"
-                        ? [{ label: "MISSING EMAIL", kind: "warning" as const }]
-                        : []),
-                      ...(readiness.id === "missing_phone"
-                        ? [{ label: "MISSING PHONE", kind: "warning" as const }]
-                        : []),
-                    ];
-                    const visibleStatusBadges = statusBadges.slice(0, 4);
-                    const hiddenStatusCount = Math.max(0, statusBadges.length - visibleStatusBadges.length);
+                    const statusText = statusLabelWithCount(guest);
 
                     return (
                       <tr
@@ -1615,13 +1628,15 @@ export function EventGuestsPanel({
                         </td>
                         <td className="px-3 py-3 align-top">
                           <div className="flex flex-wrap gap-1.5">
-                            {visibleStatusBadges.map((badge) => (
-                              <span key={badge.label} className={compactStatusBadgeClass(badge.kind)}>
-                                {badge.label}
-                              </span>
-                            ))}
-                            {hiddenStatusCount > 0 ? (
-                              <span className={compactStatusBadgeClass("meta")}>+{hiddenStatusCount} more</span>
+                            <span className={compactStatusBadgeClass("status")}>{statusText}</span>
+                            {readiness.id === "missing_contact" ? (
+                              <span className={compactStatusBadgeClass("warning")}>Missing contact</span>
+                            ) : null}
+                            {readiness.id === "missing_email" ? (
+                              <span className={compactStatusBadgeClass("warning")}>Missing email</span>
+                            ) : null}
+                            {readiness.id === "missing_phone" ? (
+                              <span className={compactStatusBadgeClass("warning")}>Missing phone</span>
                             ) : null}
                           </div>
                           {st === "invited" && guest.lastReminderAt ? (
@@ -1876,34 +1891,40 @@ export function EventGuestsPanel({
                                       : "Email"}
                                 </button>
                               ) : null}
-                              {whatsappDirectUrl ? (
+                              <div className="inline-flex items-center gap-1">
                                 <a
                                   href={whatsappDirectUrl}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#128C7E]/25 bg-[#128C7E]/10 text-[#128C7E] transition hover:bg-[#128C7E]/16 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
                                   aria-label="Send via WhatsApp"
-                                  title="Opens WhatsApp to this guest with the invite prefilled"
+                                  title={
+                                    guest.phone?.trim()
+                                      ? "Opens WhatsApp directly to this guest with the invite prefilled"
+                                      : "Opens WhatsApp with the invite prefilled (choose recipient)"
+                                  }
                                   onClick={() => {
-                                    void logGuestWhatsappPreparedAction(eventId, guest.id);
+                                    void triggerGuestSendAction(eventId, guest.id, "whatsapp");
                                   }}
                                 >
                                   <WhatsAppIcon className="h-[18px] w-[18px]" />
                                 </a>
-                              ) : (
-                                <span
-                                  className="inline-flex min-h-[44px] min-w-[44px] cursor-not-allowed items-center justify-center rounded-xl border border-[#128C7E]/20 bg-[#128C7E]/5 text-[#128C7E] opacity-50 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
+                                <a
+                                  href={messageDirectUrl}
+                                  className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-sky-300/45 bg-sky-50 text-sky-700 transition hover:bg-sky-100 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
+                                  aria-label="Send via Message / iMessage"
                                   title={
                                     guest.phone?.trim()
-                                      ? WHATSAPP_PHONE_INVALID_INLINE
-                                      : "Add a phone number for WhatsApp."
+                                      ? "Opens Message / iMessage directly to this guest with the invite prefilled"
+                                      : "Opens Message / iMessage compose with the invite prefilled (choose recipient)"
                                   }
-                                  aria-label="Send via WhatsApp unavailable"
-                                  aria-disabled="true"
+                                  onClick={() => {
+                                    void triggerGuestSendAction(eventId, guest.id, "imessage");
+                                  }}
                                 >
-                                  <WhatsAppIcon className="h-[18px] w-[18px]" />
-                                </span>
-                              )}
+                                  <MessageIcon className="h-[16px] w-[16px]" />
+                                </a>
+                              </div>
                               <button
                                 type="button"
                                 className={guestRowIconBtnClass}

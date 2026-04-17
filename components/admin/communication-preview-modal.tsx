@@ -194,7 +194,7 @@ export function CommunicationPreviewModal({
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Message structure</p>
                 <ul className="mt-2 space-y-1 text-sm text-zinc-700">
                   <li>
-                    <span className="text-zinc-500">Greeting:</span> {preview.greeting} {preview.guestName},
+                    <span className="text-zinc-500">Greeting:</span> {preview.greeting} {preview.guestName}.
                   </li>
                   <li>
                     <span className="text-zinc-500">Intro:</span> {preview.inviteIntroLine}

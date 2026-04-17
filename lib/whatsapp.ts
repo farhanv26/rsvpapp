@@ -87,14 +87,15 @@ export function buildGuestInviteMessageParts(input: GuestWhatsAppMessageInput) {
     eventTitle: input.eventTitle,
     customLineOverride: input.customLineOverride,
   });
-  const greetingLine = `${greeting} ${input.guestName},`;
+  const greetingLine = `${greeting} ${input.guestName}.`;
+  const introWithPunctuation = /[.!?]$/.test(introLine) ? introLine : `${introLine}.`;
   return {
     greetingLine,
-    introLine,
+    introLine: introWithPunctuation,
     randomizedLine,
     finalMessage: `${greetingLine}
 
-${introLine}
+${introWithPunctuation}
 
 ${randomizedLine}
 
@@ -128,9 +129,30 @@ export function getWhatsAppInviteUrlForGuest(
   phone: string | null | undefined,
   message: string,
   phoneCountryCode?: string | null,
-): string | null {
-  const n = normalizePhoneForWhatsAppGuestRecord({ phone, phoneCountryCode });
-  if (!n) return null;
+) {
+  const n = normalizePhoneForWhatsAppGuestRecord({ phone, phoneCountryCode }) ?? fallbackWhatsAppDigits(phone, phoneCountryCode);
   const q = encodeURIComponent(message);
+  if (!n) return `https://wa.me/?text=${q}`;
   return `https://wa.me/${n}?text=${q}`;
+}
+
+function fallbackWhatsAppDigits(phone: string | null | undefined, phoneCountryCode?: string | null): string | null {
+  const cc = phoneCountryCode?.replace(/\D/g, "") ?? "";
+  const raw = phone?.replace(/\D/g, "") ?? "";
+  if (!raw) return null;
+  const withoutLeadingZero = raw.replace(/^0+/, "");
+  const merged = `${cc}${withoutLeadingZero}` || raw;
+  if (merged.length >= 8 && merged.length <= 15) return merged;
+  if (raw.length >= 8 && raw.length <= 15) return raw;
+  return null;
+}
+
+export function getSmsInviteUrlForGuest(
+  phone: string | null | undefined,
+  message: string,
+  phoneCountryCode?: string | null,
+) {
+  const whatsappDigits = normalizePhoneForWhatsAppGuestRecord({ phone, phoneCountryCode }) ?? fallbackWhatsAppDigits(phone, phoneCountryCode);
+  if (!whatsappDigits) return `sms:?&body=${encodeURIComponent(message)}`;
+  return `sms:${whatsappDigits}?&body=${encodeURIComponent(message)}`;
 }

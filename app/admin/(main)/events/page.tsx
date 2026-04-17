@@ -59,6 +59,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
       attendingCount: number | null;
       maxGuests: number;
       respondedAt: Date | null;
+      invitedAt: Date | null;
     }>;
   }> = [];
   let loadError: null | {
@@ -94,6 +95,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
             attendingCount: true,
             maxGuests: true,
             respondedAt: true,
+            invitedAt: true,
           },
         },
       },
@@ -196,7 +198,10 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   const isFilteredEmptyList = totalEventsInScope > 0 && renderedEvents.length === 0;
   const hasActiveCreatorFilters = Boolean(liveQuery) || creatorStatusFilter !== "all";
   const hasActiveSuperOwnerFilter = isSuper && ownerFilter !== "all";
-  const invitedFamilies = visibleEvents.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0);
+  const invitedFamilies = visibleEvents.reduce(
+    (sum, event) => sum + (Array.isArray(event.guests) ? event.guests.filter((guest) => Boolean(guest.invitedAt)).length : 0),
+    0,
+  );
   const respondedFamilies = visibleEvents.reduce(
     (sum, event) => sum + (Array.isArray(event.guests) ? event.guests.filter((guest) => Boolean(guest.respondedAt)).length : 0),
     0,
@@ -232,7 +237,12 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
     (Array.isArray(event.guests) ? event.guests.filter((guest) => Boolean(guest.respondedAt)).length : 0) === 0,
   ).length;
   const missingCardCount = visibleEvents.filter((event) => !getSafeImageSrc(event.imagePath)).length;
-  const creatorInvitedFamilies = creatorFilteredEvents.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0);
+  const creatorInvitedFamilies = creatorFilteredEvents.reduce(
+    (sum, event) =>
+      sum +
+      (Array.isArray(event.guests) ? event.guests.filter((guest) => Boolean(guest.invitedAt)).length : 0),
+    0,
+  );
   const creatorConfirmed = creatorFilteredEvents.reduce(
     (sum, event) =>
       sum +

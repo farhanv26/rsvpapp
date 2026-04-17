@@ -9,6 +9,7 @@ import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { GuestCsvImport } from "@/components/admin/guest-csv-import";
 import { normalizeGuestNameKey } from "@/lib/csv-guests";
 import { EventSectionNav } from "@/components/admin/event-section-nav";
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { countInvitedAwaitingRsvp } from "@/lib/guest-followup";
@@ -70,6 +71,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     0,
   );
   const totalResponded = event.guests.filter((guest) => guest.respondedAt).length;
+  const invitedFamilies = event.guests.filter((guest) => guest.invitedAt).length;
   const totalPending = event.guests.filter((guest) => !guest.respondedAt).length;
   const totalAttendingFamilies = event.guests.filter((guest) => guest.attending === true).length;
   const totalDeclinedFamilies = event.guests.filter((guest) => guest.attending === false).length;
@@ -115,7 +117,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const guestsWithoutTable = event.guests.filter((g) => !g.tableName?.trim()).length;
   const guestsWithoutGroup = event.guests.filter((g) => !g.group?.trim()).length;
 
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
   const [commLogsForHints, commTotalLogs, commDistinctGuests, commWeekLogs] = await Promise.all([
     prisma.guestCommunicationLog.findMany({
       where: { eventId: event.id },
@@ -230,6 +233,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     "communication_email_guest_reminder_sent",
     "guest_reminder_recorded",
   ];
+  const sectionStoragePrefix = `${admin.id}:${event.id}`;
 
   return (
     <main className="min-h-screen">
@@ -337,31 +341,38 @@ export default async function EventDashboardPage({ params, searchParams }: Props
         <EventSectionNav
           items={[
             { id: "dashboard-overview", label: "Overview" },
+            { id: "dashboard-stats", label: "Stats" },
             { id: "dashboard-readiness", label: "Readiness" },
             { id: "dashboard-seating", label: "Seating" },
-            { id: "dashboard-activity", label: "Activity" },
             { id: "dashboard-communications", label: "Communications" },
             { id: "event-guests", label: "Guests" },
-            { id: "dashboard-report", label: "Report" },
+            { id: "dashboard-tools", label: "Invite tools" },
+            { id: "dashboard-activity", label: "Activity" },
           ]}
         />
 
-        <section id="dashboard-overview" className="app-card scroll-mt-24 overflow-hidden">
-          {safeImageSrc ? (
-            <div className="p-5 sm:p-7">
-              <EventImageLightbox
-                src={safeImageSrc}
-                alt={event.title}
-                hintText="View full invitation"
-                previewHeightClassName="h-[18rem] sm:h-[30rem]"
-              />
-            </div>
-          ) : (
-            <div className="flex h-44 w-full items-center justify-center bg-[#f7f1e8] text-sm text-zinc-500">
-              No invitation image uploaded
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2 border-t border-[#efe4d4] px-5 py-3 sm:px-7">
+        <CollapsibleSection
+          id="dashboard-overview"
+          title="Overview"
+          storageKey={`${sectionStoragePrefix}:overview`}
+          className="scroll-mt-24"
+        >
+          <section className="app-card overflow-hidden">
+            {safeImageSrc ? (
+              <div className="p-5 sm:p-7">
+                <EventImageLightbox
+                  src={safeImageSrc}
+                  alt={event.title}
+                  hintText="View full invitation"
+                  previewHeightClassName="h-[18rem] sm:h-[30rem]"
+                />
+              </div>
+            ) : (
+              <div className="flex h-44 w-full items-center justify-center bg-[#f7f1e8] text-sm text-zinc-500">
+                No invitation image uploaded
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 border-t border-[#efe4d4] px-5 py-3 sm:px-7">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Invite cards:</span>
             {getSafeImageSrc(event.imagePath) ? (
               <span className="rounded-full border border-[#e3d8c7] bg-[#fbf8f2] px-2.5 py-0.5 text-xs text-zinc-700">
@@ -403,15 +414,23 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               </span>
             ) : null}
           </div>
-          <div className="space-y-3 p-6 text-sm leading-relaxed text-zinc-700 sm:p-8">
-            {event.eventSubtitle ? <p className="text-zinc-600">{event.eventSubtitle}</p> : null}
-            {event.welcomeMessage ? <p>{event.welcomeMessage}</p> : null}
-            {event.description ? <p className="text-zinc-600">{event.description}</p> : null}
-          </div>
-        </section>
+            <div className="space-y-3 p-6 text-sm leading-relaxed text-zinc-700 sm:p-8">
+              {event.eventSubtitle ? <p className="text-zinc-600">{event.eventSubtitle}</p> : null}
+              {event.welcomeMessage ? <p>{event.welcomeMessage}</p> : null}
+              {event.description ? <p className="text-zinc-600">{event.description}</p> : null}
+            </div>
+          </section>
+        </CollapsibleSection>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard label="Invited families" value={totalFamilies} />
+        <CollapsibleSection
+          id="dashboard-stats"
+          title="Stats"
+          storageKey={`${sectionStoragePrefix}:stats`}
+          className="scroll-mt-24"
+        >
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard label="Total families" value={totalFamilies} />
+          <StatCard label="Invited families" value={invitedFamilies} />
           <StatCard label="Max invited" value={totalMaximumInvited} />
           <StatCard label="Responded families" value={totalResponded} sub={`${totalPending} pending`} />
           <StatCard label="Confirmed attendees" value={totalConfirmedAttendees} />
@@ -423,31 +442,45 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           />
           <StatCard label="Response rate" value={`${Math.round(responseRate * 100)}%`} />
           <StatCard label="Attendance rate" value={`${Math.round(attendanceRate * 100)}%`} />
-        </section>
+          </section>
+        </CollapsibleSection>
 
         {totalFamilies > 0 ? (
-          <section
-            className={`app-card p-5 sm:p-6 ${
-              needsFollowUpCount > 0 ? "border-amber-200/80 bg-amber-50/40" : ""
-            }`}
+          <CollapsibleSection
+            id="dashboard-followup"
+            title="Follow-up"
+            storageKey={`${sectionStoragePrefix}:followup`}
+            className="scroll-mt-24"
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs follow-up</p>
-            <p className="mt-1 text-sm text-zinc-700">
-              Invited guests who have not RSVP&apos;d yet — nudge them from the guest list when you&apos;re ready.
-            </p>
-            <p
-              className={`mt-3 text-3xl font-semibold tabular-nums ${
-                needsFollowUpCount > 0 ? "text-amber-950" : "text-zinc-400"
+            <section
+              className={`app-card p-5 sm:p-6 ${
+                needsFollowUpCount > 0 ? "border-amber-200/80 bg-amber-50/40" : ""
               }`}
             >
-              {needsFollowUpCount}
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">invited, awaiting response</p>
-          </section>
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs follow-up</p>
+              <p className="mt-1 text-sm text-zinc-700">
+                Invited guests who have not RSVP&apos;d yet — nudge them from the guest list when you&apos;re ready.
+              </p>
+              <p
+                className={`mt-3 text-3xl font-semibold tabular-nums ${
+                  needsFollowUpCount > 0 ? "text-amber-950" : "text-zinc-400"
+                }`}
+              >
+                {needsFollowUpCount}
+              </p>
+              <p className="mt-1 text-xs text-zinc-600">invited, awaiting response</p>
+            </section>
+          </CollapsibleSection>
         ) : null}
 
         {totalFamilies > 0 ? (
-          <section id="dashboard-readiness" className="app-card scroll-mt-24 p-5 sm:p-6">
+          <CollapsibleSection
+            id="dashboard-readiness"
+            title="Readiness"
+            storageKey={`${sectionStoragePrefix}:readiness`}
+            className="scroll-mt-24"
+          >
+          <section className="app-card p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact &amp; invite readiness</p>
             <p className="mt-1 text-sm text-zinc-600">
               Who can be invited now, who still needs contact details, and who has already responded.
@@ -489,10 +522,17 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               </p>
             ) : null}
           </section>
+          </CollapsibleSection>
         ) : null}
 
         {totalFamilies > 0 ? (
-          <section id="dashboard-seating" className="app-card scroll-mt-24 p-5 sm:p-6">
+          <CollapsibleSection
+            id="dashboard-seating"
+            title="Seating & grouping"
+            storageKey={`${sectionStoragePrefix}:seating`}
+            className="scroll-mt-24"
+          >
+          <section className="app-card p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Seating &amp; groups</p>
             <p className="mt-1 text-sm text-zinc-600">
               Categories, table labels, and who still needs assignments.
@@ -520,9 +560,16 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               </div>
             </div>
           </section>
+          </CollapsibleSection>
         ) : null}
 
         {totalFamilies > 0 ? (
+          <CollapsibleSection
+            id="dashboard-hygiene"
+            title="List hygiene"
+            storageKey={`${sectionStoragePrefix}:hygiene`}
+            className="scroll-mt-24"
+          >
           <section className="app-card p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">List hygiene</p>
             <p className="mt-1 text-sm text-zinc-600">
@@ -564,31 +611,45 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               </div>
             </div>
           </section>
+          </CollapsibleSection>
         ) : null}
 
         {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
-          <section
-            className={`app-card p-5 ${
-              deadlineMeta.status === "closed"
-                ? "border-zinc-300 bg-zinc-100/60"
-                : deadlineMeta.status === "closes_today"
-                  ? "border-rose-200 bg-rose-50"
-                  : "border-amber-200 bg-amber-50"
-            }`}
+          <CollapsibleSection
+            id="dashboard-deadline"
+            title="RSVP deadline"
+            storageKey={`${sectionStoragePrefix}:deadline`}
+            className="scroll-mt-24"
           >
-            <p className="text-sm font-semibold text-zinc-900">
-              {deadlineMeta.status === "closed"
-                ? "RSVP is closed for this event."
-                : deadlineMeta.status === "closes_today"
-                  ? "RSVP closes today."
-                  : `RSVP closes soon (${deadlineMeta.daysRemaining} day${
-                      deadlineMeta.daysRemaining === 1 ? "" : "s"
-                    } remaining).`}
-            </p>
-          </section>
+            <section
+              className={`app-card p-5 ${
+                deadlineMeta.status === "closed"
+                  ? "border-zinc-300 bg-zinc-100/60"
+                  : deadlineMeta.status === "closes_today"
+                    ? "border-rose-200 bg-rose-50"
+                    : "border-amber-200 bg-amber-50"
+              }`}
+            >
+              <p className="text-sm font-semibold text-zinc-900">
+                {deadlineMeta.status === "closed"
+                  ? "RSVP is closed for this event."
+                  : deadlineMeta.status === "closes_today"
+                    ? "RSVP closes today."
+                    : `RSVP closes soon (${deadlineMeta.daysRemaining} day${
+                        deadlineMeta.daysRemaining === 1 ? "" : "s"
+                      } remaining).`}
+              </p>
+            </section>
+          </CollapsibleSection>
         ) : null}
 
-        <section id="dashboard-report" className="app-card scroll-mt-24 p-6 sm:p-8">
+        <CollapsibleSection
+          id="dashboard-tools"
+          title="Invite tools"
+          storageKey={`${sectionStoragePrefix}:tools`}
+          className="scroll-mt-24"
+        >
+        <section className="app-card p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-zinc-900">Add one guest</h2>
           <p className="mt-1 text-sm text-zinc-600">
             Optional: category (e.g. Bride side), table, contact, and notes.
@@ -684,74 +745,18 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           eventId={event.id}
           existingGuestNameKeys={event.guests.map((g) => normalizeGuestNameKey(g.guestName))}
         />
+        </CollapsibleSection>
 
-        <section id="dashboard-activity" className="app-card scroll-mt-24 p-6 sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold text-zinc-900">Event activity</h2>
-            <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">{eventAuditActivity.length} items</span>
-          </div>
-          <form method="get" className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]">
-            <input
-              name="activityQ"
-              defaultValue={activityQ}
-              placeholder="Search activity..."
-              className="input-luxe mt-0"
-            />
-            <select name="activityAction" defaultValue={activityAction} className="input-luxe mt-0">
-              {eventActivityActionOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-            <button type="submit" className="btn-secondary">
-              Filter
-            </button>
-          </form>
-          {eventAuditActivity.length === 0 ? (
-            <p className="mt-4 rounded-2xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-4 py-6 text-sm text-zinc-600">
-              No activity matched your filters yet.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
-                <article className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
-                  <p className="text-sm font-medium text-zinc-900">
-                    {deadlineMeta.status === "closed"
-                      ? "Reminder · RSVP closed today"
-                      : deadlineMeta.status === "closes_today"
-                        ? "Reminder · RSVP closes today"
-                        : `Reminder · RSVP closes in ${deadlineMeta.daysRemaining} day${
-                            deadlineMeta.daysRemaining === 1 ? "" : "s"
-                          }`}
-                  </p>
-                </article>
-              ) : null}
-              {eventAuditActivity.map((activity) => (
-                <article
-                  key={activity.id}
-                  className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-3"
-                >
-                  <p className="text-sm font-medium text-zinc-900">
-                    {activity.message}
-                  </p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">
-                    {activity.userName} · {formatActionLabel(activity.actionType)}
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {new Intl.DateTimeFormat("en-US", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }).format(activity.createdAt)}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        
 
         {totalFamilies > 0 ? (
-          <section id="dashboard-communications" className="app-card scroll-mt-24 p-5 sm:p-6">
+          <CollapsibleSection
+            id="dashboard-communications"
+            title="Communications"
+            storageKey={`${sectionStoragePrefix}:communications`}
+            className="scroll-mt-24"
+          >
+            <section className="app-card p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Communications (logged)</p>
             <p className="mt-2 text-sm text-zinc-700">
               <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.totalLogs}</span> actions
@@ -767,20 +772,101 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               Open any row&apos;s communication history for the full timeline (WhatsApp, email, manual marks,
               reminders).
             </p>
-          </section>
+            </section>
+          </CollapsibleSection>
         ) : null}
 
-        <EventGuestsPanel
-          eventId={event.id}
-          eventTitle={event.title}
-          eventCoupleNames={event.coupleNames}
-          inviteMessageIntro={event.inviteMessageIntro}
-          inviteMessageLineOverride={event.inviteMessageLineOverride}
-          guests={guestsSerialized}
-          siteUrl={getPublicSiteUrl()}
-          inviteCardEvent={inviteCardEvent}
-          communicationLastByGuest={communicationLastByGuest}
-        />
+        <CollapsibleSection
+          id="event-guests"
+          title="Guests"
+          storageKey={`${sectionStoragePrefix}:guests`}
+          className="scroll-mt-24"
+        >
+          <EventGuestsPanel
+            eventId={event.id}
+            eventTitle={event.title}
+            eventCoupleNames={event.coupleNames}
+            inviteMessageIntro={event.inviteMessageIntro}
+            inviteMessageLineOverride={event.inviteMessageLineOverride}
+            guests={guestsSerialized}
+            siteUrl={getPublicSiteUrl()}
+            inviteCardEvent={inviteCardEvent}
+            communicationLastByGuest={communicationLastByGuest}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          id="dashboard-activity"
+          title="Event activity"
+          storageKey={`${sectionStoragePrefix}:activity`}
+          className="scroll-mt-24"
+          defaultOpen={false}
+        >
+          <section className="app-card p-6 sm:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-zinc-900">Event activity</h2>
+              <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">{eventAuditActivity.length} items</span>
+            </div>
+            <form method="get" className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]">
+              <input
+                name="activityQ"
+                defaultValue={activityQ}
+                placeholder="Search activity..."
+                className="input-luxe mt-0"
+              />
+              <select name="activityAction" defaultValue={activityAction} className="input-luxe mt-0">
+                {eventActivityActionOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="btn-secondary">
+                Filter
+              </button>
+            </form>
+            {eventAuditActivity.length === 0 ? (
+              <p className="mt-4 rounded-2xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-4 py-6 text-sm text-zinc-600">
+                No activity matched your filters yet.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
+                  <article className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
+                    <p className="text-sm font-medium text-zinc-900">
+                      {deadlineMeta.status === "closed"
+                        ? "Reminder · RSVP closed today"
+                        : deadlineMeta.status === "closes_today"
+                          ? "Reminder · RSVP closes today"
+                          : `Reminder · RSVP closes in ${deadlineMeta.daysRemaining} day${
+                              deadlineMeta.daysRemaining === 1 ? "" : "s"
+                            }`}
+                    </p>
+                  </article>
+                ) : null}
+                {eventAuditActivity.map((activity) => (
+                  <article
+                    key={activity.id}
+                    className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-3"
+                  >
+                    <p className="text-sm font-medium text-zinc-900">
+                      {activity.message}
+                    </p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">
+                      {activity.userName} · {formatActionLabel(activity.actionType)}
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {new Intl.DateTimeFormat("en-US", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      }).format(activity.createdAt)}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </CollapsibleSection>
       </div>
     </main>
   );

@@ -19,7 +19,7 @@ import {
   buildGuestWhatsAppInviteMessage,
   normalizePhoneForWhatsAppGuestRecord,
 } from "@/lib/whatsapp";
-import { DEFAULT_PHONE_COUNTRY, formatGuestPhoneLabel } from "@/lib/phone";
+import { DEFAULT_PHONE_COUNTRY } from "@/lib/phone";
 
 function parseGuestPhoneFromForm(formData: FormData): { phone: string | null; phoneCountryCode: string | null } {
   const national = String(formData.get("phone") ?? "").replace(/\D/g, "");
@@ -1159,7 +1159,7 @@ export async function recordGuestRemindersSentAction(
   return { ok: true, updated: result.count };
 }
 
-export type InviteChannelTracked = "whatsapp" | "email" | "manual";
+export type InviteChannelTracked = "whatsapp" | "email" | "manual" | "imessage";
 
 export async function markGuestsInvitedAction(
   eventId: string,
@@ -1195,7 +1195,7 @@ export async function markGuestsInvitedAction(
   });
 
   const inviteCommChannel =
-    channel === "whatsapp" ? "whatsapp" : channel === "email" ? "email" : "manual";
+    channel === "whatsapp" ? "whatsapp" : channel === "email" ? "email" : channel === "imessage" ? "manual" : "manual";
   await prisma.guestCommunicationLog.createMany({
     data: uniqueIds.map((gid) => ({
       eventId,
@@ -1211,6 +1211,58 @@ export async function markGuestsInvitedAction(
 
   revalidatePath(`/admin/events/${eventId}`);
   return { ok: true, updated: result.count };
+}
+
+export async function triggerGuestSendAction(
+  eventId: string,
+  guestId: string,
+  channel: "whatsapp" | "imessage",
+) {
+  const { admin } = await ensureEventAccess(eventId, "manage");
+  const guest = await prisma.guest.findFirst({
+    where: { id: guestId, eventId },
+    select: { id: true, guestName: true, invitedAt: true },
+  });
+  if (!guest) {
+    throw new Error("Guest not found for this event.");
+  }
+  const now = new Date();
+  await prisma.guest.update({
+    where: { id: guest.id },
+    data: {
+      invitedAt: guest.invitedAt ?? now,
+      inviteChannelLastUsed: channel,
+      inviteCount: { increment: 1 },
+    },
+  });
+  await logAuditActivity({
+    eventId,
+    userId: admin.id,
+    userName: admin.name,
+    actionType: channel === "whatsapp" ? "communication_whatsapp_prepared" : "communication_imessage_prepared",
+    entityType: "Guest",
+    entityId: guest.id,
+    entityName: guest.guestName,
+    message:
+      channel === "whatsapp"
+        ? `${admin.name} opened a WhatsApp invite for "${guest.guestName}".`
+        : `${admin.name} opened a Message/iMessage invite for "${guest.guestName}".`,
+  });
+  await logGuestCommunication({
+    eventId,
+    guestId: guest.id,
+    userId: admin.id,
+    actorName: admin.name,
+    channel: channel === "whatsapp" ? "whatsapp" : "manual",
+    actionKey: channel === "whatsapp" ? "whatsapp_prepared" : "imessage_prepared",
+    label:
+      channel === "whatsapp"
+        ? "WhatsApp message prepared / opened"
+        : "Message / iMessage compose opened",
+    success: true,
+  });
+  revalidatePath(`/admin/events/${eventId}`);
+  return { ok: true as const };
 }
 
 export async function recordGuestManualRsvpAction(input: {
