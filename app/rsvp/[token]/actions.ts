@@ -27,6 +27,7 @@ export async function submitRsvpAction(formData: FormData) {
         select: {
           rsvpDeadline: true,
           title: true,
+          coupleNames: true,
           ownerUserId: true,
         },
       },
@@ -138,15 +139,20 @@ export async function submitRsvpAction(formData: FormData) {
       respondedAt: now.toISOString(),
     },
   });
+  const eventDisplay = guest.event.coupleNames?.trim() || guest.event.title || "your event";
   await dispatchEventCommunication({
     trigger: wasResponded ? "rsvp_updated" : "rsvp_submitted",
     eventId: guest.eventId,
     entityType: "RSVP",
     entityId: guest.id,
     title: wasResponded
-      ? `RSVP updated for ${guest.guestName}`
-      : `New RSVP submitted for ${guest.guestName}`,
-    description: nextAttending ? `${nextAttendingCount ?? 0} attending.` : "Declined invitation.",
+      ? `${guest.guestName} updated RSVP · ${eventDisplay}`
+      : nextAttending
+        ? `${guest.guestName} RSVP’d — ${nextAttendingCount ?? 0} attending · ${eventDisplay}`
+        : `${guest.guestName} declined · ${eventDisplay}`,
+    description: nextAttending
+      ? `Open the guest list if you need to adjust seating or follow up.`
+      : `They declined for ${eventDisplay}.`,
     guestName: guest.guestName,
     attendingLabel: nextAttending ? "Attending" : "Declined",
     attendingCount: nextAttendingCount,

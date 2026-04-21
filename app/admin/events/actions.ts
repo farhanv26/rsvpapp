@@ -9,7 +9,7 @@ import { dispatchEventCommunication } from "@/lib/communications";
 import { generateSecureToken } from "@/lib/security";
 import { logGuestCommunication } from "@/lib/guest-communication-log";
 import { buildGuestInviteCommunicationParts, buildGuestInviteEmailLines } from "@/lib/guest-invite-communication";
-import { notifyUser } from "@/lib/notifications";
+import { notifyEventOwner, notifyUser } from "@/lib/notifications";
 import { buildGuestRsvpAbsoluteUrl, getSafeImageSrc } from "@/lib/utils";
 import { eventSchema, guestSchema } from "@/lib/validation";
 import { sendEventOwnerNotificationEmail } from "@/lib/rsvp-email";
@@ -184,8 +184,8 @@ export async function createEventAction(formData: FormData) {
   await notifyUser({
     userId: admin.id,
     type: "EVENT_CREATED",
-    title: `Event "${parsed.data.title}" was created`,
-    description: "You can now add guests, upload cards, and send invites.",
+    title: `New event: ${parsed.data.title}`,
+    description: "Add guests, upload invite cards, and start sending when you are ready.",
     entityType: "Event",
     entityId: event.id,
     eventId: event.id,
@@ -275,8 +275,8 @@ export async function updateEventAction(formData: FormData) {
       eventId,
       entityType: "Event",
       entityId: eventId,
-      title: `Event "${updatedEvent.title}" was updated`,
-      description: `${admin.name} updated event details.`,
+      title: `${updatedEvent.coupleNames?.trim() || updatedEvent.title} — event details updated`,
+      description: `${admin.name} saved changes to ceremony text, cards, or schedule — take a look when you can.`,
       actorName: admin.name,
       metadata: {
         title: updatedEvent.title,
@@ -327,11 +327,11 @@ export async function deleteEventAction(formData: FormData) {
     await notifyUser({
       userId: admin.id,
       type: "EVENT_DELETED",
-      title: `Event "${beforeDelete?.title ?? "Unknown event"}" was deleted`,
+      title: `Deleted event: ${beforeDelete?.title ?? "Unknown event"}`,
       description:
         beforeDelete && beforeDelete._count.guests > 0
-          ? `${beforeDelete._count.guests} guest record(s) were removed with this event.`
-          : `${admin.name} permanently removed this event.`,
+          ? `Permanently removed with ${beforeDelete._count.guests} guest/family record(s), RSVPs, and related logs.`
+          : `Permanently removed by ${admin.name}.`,
       entityType: "Event",
       entityId: eventId,
     });
@@ -412,13 +412,19 @@ export async function createGuestAction(formData: FormData) {
     message: `${admin.name} added guest "${createdGuest.guestName}".`,
     metadata: { maxGuests: createdGuest.maxGuests, menCount: createdGuest.menCount, womenCount: createdGuest.womenCount, kidsCount: createdGuest.kidsCount },
   });
+  const eventLabel = (await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { title: true, coupleNames: true },
+  })) ?? { title: "", coupleNames: null as string | null };
+  const eventDisplay = eventLabel.coupleNames?.trim() || eventLabel.title || "your event";
+
   await dispatchEventCommunication({
     trigger: "guest_added",
     eventId,
     entityType: "Guest",
     entityId: createdGuest.id,
-    title: `Guest "${createdGuest.guestName}" was added`,
-    description: `Total invited: ${createdGuest.maxGuests} (M:${createdGuest.menCount}, W:${createdGuest.womenCount}, K:${createdGuest.kidsCount}).`,
+    title: `${createdGuest.guestName} added to ${eventDisplay}`,
+    description: `${admin.name} added this family (${createdGuest.maxGuests} max invited · ${createdGuest.menCount} men, ${createdGuest.womenCount} women, ${createdGuest.kidsCount} kids).`,
     guestName: createdGuest.guestName,
     attendingCount: createdGuest.maxGuests,
     actorName: admin.name,
@@ -504,13 +510,18 @@ export async function updateGuestAction(formData: FormData) {
       kidsCount: updatedGuest.kidsCount,
     },
   });
+  const ev = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { title: true, coupleNames: true },
+  });
+  const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
   await dispatchEventCommunication({
     trigger: "event_updated",
     eventId,
     entityType: "Guest",
     entityId: guestId,
-    title: `Guest "${updatedGuest.guestName}" was updated`,
-    description: `Updated by ${admin.name}.`,
+    title: `${updatedGuest.guestName} · guest details updated`,
+    description: `${admin.name} saved changes for ${eventDisplay}.`,
     guestName: updatedGuest.guestName,
     actorName: admin.name,
     channels: { inApp: true, email: false },
@@ -535,6 +546,12 @@ export async function deleteGuestAction(formData: FormData) {
     throw new Error("Guest not found for this event.");
   }
 
+  const ev = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { title: true, coupleNames: true },
+  });
+  const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
+
   await prisma.guest.delete({ where: { id: guestId } });
 
   await logAuditActivity({
@@ -553,8 +570,8 @@ export async function deleteGuestAction(formData: FormData) {
     eventId,
     entityType: "Guest",
     entityId: guestId,
-    title: `Guest "${existing.guestName}" was removed`,
-    description: `Deleted by ${admin.name}.`,
+    title: `Guest removed from ${eventDisplay}`,
+    description: `${existing.guestName} was deleted by ${admin.name}. RSVP and invite history for this guest are gone.`,
     guestName: existing.guestName,
     actorName: admin.name,
     metadata: { maxGuests: existing.maxGuests },
@@ -586,6 +603,12 @@ export async function bulkDeleteGuestsAction(formData: FormData) {
     select: { id: true, guestName: true },
   });
 
+  const ev = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { title: true, coupleNames: true },
+  });
+  const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
+
   await prisma.guest.deleteMany({
     where: {
       eventId,
@@ -609,13 +632,18 @@ export async function bulkDeleteGuestsAction(formData: FormData) {
     },
   });
   if (matchedGuests.length > 0) {
+    const sample = matchedGuests
+      .slice(0, 3)
+      .map((g) => g.guestName)
+      .join(", ");
+    const more = matchedGuests.length > 3 ? ` (+${matchedGuests.length - 3} more)` : "";
     await dispatchEventCommunication({
       trigger: "guest_deleted",
       eventId,
       entityType: "Guest",
       entityId: eventId,
-      title: `${matchedGuests.length} guests were removed`,
-      description: `Bulk deletion completed by ${admin.name}.`,
+      title: `${matchedGuests.length} guests removed from ${eventDisplay}`,
+      description: `${admin.name} bulk-deleted: ${sample}${more}.`,
       actorName: admin.name,
       metadata: {
         count: matchedGuests.length,
@@ -1142,16 +1170,21 @@ export async function recordGuestRemindersSentAction(
     })),
   });
   if (result.count > 0) {
+    const ev = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { title: true, coupleNames: true },
+    });
+    const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
     await dispatchEventCommunication({
       trigger: "event_updated",
       eventId,
       entityType: "Guest",
       entityId: eventId,
-      title: `${result.count} guest${result.count === 1 ? "" : "s"} marked invited`,
-      description: `${admin.name} recorded invite status via ${channel}.`,
+      title: `${result.count} guest${result.count === 1 ? "" : "s"} still need follow-up · ${eventDisplay}`,
+      description: `${admin.name} logged RSVP reminders (${channel === "whatsapp" ? "WhatsApp" : "manual / offline"}).`,
       actorName: admin.name,
       channels: { inApp: true, email: false },
-      metadata: { guestIds: uniqueIds, count: result.count, channel, manualInviteTracking: true },
+      metadata: { guestIds: eligibleIds, count: result.count, channel, manualInviteTracking: true },
     });
   }
 
@@ -1209,8 +1242,113 @@ export async function markGuestsInvitedAction(
     })),
   });
 
+  if (result.count > 0) {
+    const ev = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { title: true, coupleNames: true },
+    });
+    const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
+    const named = await prisma.guest.findMany({
+      where: { eventId, id: { in: uniqueIds } },
+      select: { guestName: true },
+      take: 4,
+    });
+    const sample = named.map((g) => g.guestName).join(", ");
+    const more = result.count > named.length ? ` +${result.count - named.length} more` : "";
+    await notifyEventOwner({
+      eventId,
+      type: "GUEST_INVITE_MARKED",
+      title:
+        result.count === 1 && named[0]
+          ? `“${named[0].guestName}” was marked invited · ${eventDisplay}`
+          : `${result.count} guests marked invited · ${eventDisplay}`,
+      description: `${admin.name} via ${channel}.${sample ? ` Includes: ${sample}${more}.` : ""}`,
+      entityType: "Guest",
+      entityId: eventId,
+    });
+  }
+
   revalidatePath(`/admin/events/${eventId}`);
   return { ok: true, updated: result.count };
+}
+
+export async function markGuestsUninvitedAction(eventId: string, guestIds: string[]) {
+  const { admin } = await ensureEventAccess(eventId, "manage");
+  const uniqueIds = Array.from(new Set(guestIds.map((id) => id.trim()).filter(Boolean)));
+  if (uniqueIds.length === 0) {
+    return { ok: true as const, updated: 0 };
+  }
+
+  const eventRow = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { title: true, coupleNames: true },
+  });
+  const eventDisplay = eventRow?.coupleNames?.trim() || eventRow?.title || "this event";
+
+  const guests = await prisma.guest.findMany({
+    where: { eventId, id: { in: uniqueIds } },
+    select: { id: true, guestName: true, invitedAt: true },
+  });
+  const previouslyInvited = guests.filter((g) => g.invitedAt);
+
+  const result = await prisma.guest.updateMany({
+    where: { eventId, id: { in: uniqueIds } },
+    data: {
+      invitedAt: null,
+      inviteChannelLastUsed: null,
+      lastReminderAt: null,
+      inviteCount: 0,
+    },
+  });
+
+  if (result.count > 0) {
+    await logAuditActivity({
+      eventId,
+      userId: admin.id,
+      userName: admin.name,
+      actionType: "guest_invite_cleared",
+      entityType: "Guest",
+      entityId: eventId,
+      entityName: "Invite reset",
+      message: `${admin.name} set ${result.count} guest(s) back to uninvited.`,
+      metadata: { guestIds: uniqueIds, count: result.count },
+    });
+
+    await prisma.guestCommunicationLog.createMany({
+      data: uniqueIds.map((gid) => ({
+        eventId,
+        guestId: gid,
+        userId: admin.id,
+        actorName: admin.name,
+        channel: "manual",
+        actionKey: "invite_cleared",
+        label: "Invite status reset to uninvited",
+        detail: "Invite timestamp cleared; RSVP responses on file were not changed.",
+        success: true,
+      })),
+    });
+
+    const sample = previouslyInvited
+      .slice(0, 3)
+      .map((g) => g.guestName)
+      .join(", ");
+    const more = previouslyInvited.length > 3 ? ` +${previouslyInvited.length - 3} more` : "";
+
+    await notifyEventOwner({
+      eventId,
+      type: "GUEST_INVITE_CLEARED",
+      title:
+        result.count === 1 && previouslyInvited[0]
+          ? `“${previouslyInvited[0].guestName}” set back to uninvited`
+          : `${result.count} guests set back to uninvited`,
+      description: `${eventDisplay} — ${admin.name} cleared invite tracking.${sample ? ` Includes: ${sample}${more}.` : ""} Existing RSVPs were left unchanged.`,
+      entityType: "Guest",
+      entityId: previouslyInvited[0]?.id ?? uniqueIds[0] ?? eventId,
+    });
+  }
+
+  revalidatePath(`/admin/events/${eventId}`);
+  return { ok: true as const, updated: result.count };
 }
 
 export async function triggerGuestSendAction(
@@ -1285,6 +1423,7 @@ export async function recordGuestManualRsvpAction(input: {
       attending: true,
       attendingCount: true,
       respondedAt: true,
+      event: { select: { title: true, coupleNames: true } },
     },
   });
   if (!guest) {
@@ -1354,13 +1493,17 @@ export async function recordGuestManualRsvpAction(input: {
     },
   });
 
+  const eventDisplay =
+    guest.event.coupleNames?.trim() || guest.event.title || "this event";
   await dispatchEventCommunication({
     trigger: wasResponded ? "rsvp_updated" : "rsvp_submitted",
     eventId: input.eventId,
     entityType: "RSVP",
     entityId: guest.id,
-    title: `Manual RSVP recorded for ${guest.guestName}`,
-    description: nextAttending ? `${nextAttendingCount} attending.` : "Declined invitation.",
+    title: nextAttending
+      ? `${guest.guestName} — ${nextAttendingCount} attending · ${eventDisplay}`
+      : `${guest.guestName} declined · ${eventDisplay}`,
+    description: `${admin.name} recorded this RSVP manually.${wasResponded ? " (updated)" : ""}`,
     guestName: guest.guestName,
     attendingLabel: nextAttending ? "Attending" : "Declined",
     attendingCount: nextAttending ? nextAttendingCount : null,

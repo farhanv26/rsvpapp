@@ -66,10 +66,17 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   }
 
   const totalFamilies = event.guests.length;
-  const totalMaximumInvited = event.guests.reduce(
-    (sum, guest) => sum + ((guest.menCount ?? 0) + (guest.womenCount ?? 0) + (guest.kidsCount ?? 0) || guest.maxGuests),
-    0,
-  );
+  const guestInvitedCapacity = (g: (typeof event.guests)[number]) => {
+    const m = g.menCount ?? 0;
+    const w = g.womenCount ?? 0;
+    const k = g.kidsCount ?? 0;
+    const sum = m + w + k;
+    return sum > 0 ? sum : g.maxGuests;
+  };
+  const totalMaximumInvited = event.guests.reduce((sum, guest) => sum + guestInvitedCapacity(guest), 0);
+  const totalMen = event.guests.reduce((sum, g) => sum + (g.menCount ?? 0), 0);
+  const totalWomen = event.guests.reduce((sum, g) => sum + (g.womenCount ?? 0), 0);
+  const totalKids = event.guests.reduce((sum, g) => sum + (g.kidsCount ?? 0), 0);
   const totalResponded = event.guests.filter((guest) => guest.respondedAt).length;
   const invitedFamilies = event.guests.filter((guest) => guest.invitedAt).length;
   const totalPending = event.guests.filter((guest) => !guest.respondedAt).length;
@@ -230,6 +237,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     "communication_whatsapp_prepared",
     "communication_whatsapp_bulk_prepared",
     "guest_invite_marked",
+    "guest_invite_cleared",
     "communication_email_guest_reminder_sent",
     "guest_reminder_recorded",
   ];
@@ -342,12 +350,14 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           items={[
             { id: "dashboard-overview", label: "Overview" },
             { id: "dashboard-stats", label: "Stats" },
-            { id: "dashboard-readiness", label: "Readiness" },
-            { id: "dashboard-seating", label: "Seating" },
-            { id: "dashboard-communications", label: "Communications" },
-            { id: "event-guests", label: "Guests" },
             { id: "dashboard-tools", label: "Invite tools" },
-            { id: "dashboard-activity", label: "Activity" },
+            { id: "event-guests", label: "Guests" },
+            { id: "dashboard-activity", label: "Event activity" },
+            { id: "dashboard-followup", label: "Follow-up" },
+            { id: "dashboard-readiness", label: "Readiness" },
+            { id: "dashboard-seating", label: "Seating & grouping" },
+            { id: "dashboard-hygiene", label: "List hygiene" },
+            { id: "dashboard-communications", label: "Communications" },
           ]}
         />
 
@@ -427,11 +437,15 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           title="Stats"
           storageKey={`${sectionStoragePrefix}:stats`}
           className="scroll-mt-24"
+          defaultOpen={false}
         >
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard label="Total families" value={totalFamilies} />
           <StatCard label="Invited families" value={invitedFamilies} />
           <StatCard label="Max invited" value={totalMaximumInvited} />
+          <StatCard label="Total men" value={totalMen} />
+          <StatCard label="Total women" value={totalWomen} />
+          <StatCard label="Total kids" value={totalKids} />
           <StatCard label="Responded families" value={totalResponded} sub={`${totalPending} pending`} />
           <StatCard label="Confirmed attendees" value={totalConfirmedAttendees} />
           <StatCard label="Declined families" value={totalDeclinedFamilies} />
@@ -444,204 +458,6 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           <StatCard label="Attendance rate" value={`${Math.round(attendanceRate * 100)}%`} />
           </section>
         </CollapsibleSection>
-
-        {totalFamilies > 0 ? (
-          <CollapsibleSection
-            id="dashboard-followup"
-            title="Follow-up"
-            storageKey={`${sectionStoragePrefix}:followup`}
-            className="scroll-mt-24"
-          >
-            <section
-              className={`app-card p-5 sm:p-6 ${
-                needsFollowUpCount > 0 ? "border-amber-200/80 bg-amber-50/40" : ""
-              }`}
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs follow-up</p>
-              <p className="mt-1 text-sm text-zinc-700">
-                Invited guests who have not RSVP&apos;d yet — nudge them from the guest list when you&apos;re ready.
-              </p>
-              <p
-                className={`mt-3 text-3xl font-semibold tabular-nums ${
-                  needsFollowUpCount > 0 ? "text-amber-950" : "text-zinc-400"
-                }`}
-              >
-                {needsFollowUpCount}
-              </p>
-              <p className="mt-1 text-xs text-zinc-600">invited, awaiting response</p>
-            </section>
-          </CollapsibleSection>
-        ) : null}
-
-        {totalFamilies > 0 ? (
-          <CollapsibleSection
-            id="dashboard-readiness"
-            title="Readiness"
-            storageKey={`${sectionStoragePrefix}:readiness`}
-            className="scroll-mt-24"
-          >
-          <section className="app-card p-5 sm:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact &amp; invite readiness</p>
-            <p className="mt-1 text-sm text-zinc-600">
-              Who can be invited now, who still needs contact details, and who has already responded.
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90">Ready to send</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
-                  {readinessOverview.readyToSend}
-                </p>
-                <p className="mt-1 text-xs text-emerald-900/80">Phone &amp; email on file, not invited</p>
-              </div>
-              <div className="rounded-2xl border border-rose-200/70 bg-rose-50/50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-900/80">Missing contact</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-rose-950">
-                  {readinessOverview.missingContact}
-                </p>
-                <p className="mt-1 text-xs text-rose-900/75">No phone or email yet</p>
-              </div>
-              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-950/90">Already invited</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-950">
-                  {readinessOverview.alreadyInvited}
-                </p>
-                <p className="mt-1 text-xs text-amber-950/80">Awaiting RSVP</p>
-              </div>
-              <div className="rounded-2xl border border-violet-200/70 bg-violet-50/60 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900/85">Responded</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-violet-950">
-                  {readinessOverview.responded}
-                </p>
-                <p className="mt-1 text-xs text-violet-900/80">RSVP submitted</p>
-              </div>
-            </div>
-            {(readinessOverview.missingPhone > 0 || readinessOverview.missingEmail > 0) ? (
-              <p className="mt-3 text-xs text-zinc-500">
-                Partial contact: {readinessOverview.missingPhone} missing phone (email only),{" "}
-                {readinessOverview.missingEmail} missing email (phone only).
-              </p>
-            ) : null}
-          </section>
-          </CollapsibleSection>
-        ) : null}
-
-        {totalFamilies > 0 ? (
-          <CollapsibleSection
-            id="dashboard-seating"
-            title="Seating & grouping"
-            storageKey={`${sectionStoragePrefix}:seating`}
-            className="scroll-mt-24"
-          >
-          <section className="app-card p-5 sm:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Seating &amp; groups</p>
-            <p className="mt-1 text-sm text-zinc-600">
-              Categories, table labels, and who still needs assignments.
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl border border-sky-200/80 bg-sky-50/50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-950/85">Categories used</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-sky-950">{distinctGroupCategories}</p>
-                <p className="mt-1 text-xs text-sky-950/75">Distinct group labels</p>
-              </div>
-              <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-950/85">Tables used</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-indigo-950">{distinctTables}</p>
-                <p className="mt-1 text-xs text-indigo-950/75">Distinct table names</p>
-              </div>
-              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-950/90">No table yet</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-950">{guestsWithoutTable}</p>
-                <p className="mt-1 text-xs text-amber-950/80">Families not assigned</p>
-              </div>
-              <div className="rounded-2xl border border-zinc-200/90 bg-zinc-50/80 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">No category yet</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-900">{guestsWithoutGroup}</p>
-                <p className="mt-1 text-xs text-zinc-600">No group label</p>
-              </div>
-            </div>
-          </section>
-          </CollapsibleSection>
-        ) : null}
-
-        {totalFamilies > 0 ? (
-          <CollapsibleSection
-            id="dashboard-hygiene"
-            title="List hygiene"
-            storageKey={`${sectionStoragePrefix}:hygiene`}
-            className="scroll-mt-24"
-          >
-          <section className="app-card p-5 sm:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">List hygiene</p>
-            <p className="mt-1 text-sm text-zinc-600">
-              Duplicate signals, missing contact, and families ready for a first invite.
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div
-                className={`rounded-2xl border px-4 py-3 ${
-                  duplicateGuestsDetected > 0
-                    ? "border-rose-200/80 bg-rose-50/50"
-                    : "border-zinc-200/80 bg-zinc-50/50"
-                }`}
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Possible duplicates</p>
-                <p
-                  className={`mt-1 text-2xl font-semibold tabular-nums ${
-                    duplicateGuestsDetected > 0 ? "text-rose-950" : "text-zinc-400"
-                  }`}
-                >
-                  {duplicateGuestsDetected}
-                </p>
-                <p className="mt-1 text-xs text-zinc-600">
-                  {duplicateGroupsCount} group{duplicateGroupsCount === 1 ? "" : "s"} (same name, phone, or email)
-                </p>
-              </div>
-              <div className="rounded-2xl border border-rose-200/70 bg-rose-50/50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-900/80">Missing contact</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-rose-950">
-                  {readinessOverview.missingContact}
-                </p>
-                <p className="mt-1 text-xs text-rose-900/75">No phone or email</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90">Send-ready</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
-                  {readinessOverview.readyToSend}
-                </p>
-                <p className="mt-1 text-xs text-emerald-900/80">Phone &amp; email, not invited</p>
-              </div>
-            </div>
-          </section>
-          </CollapsibleSection>
-        ) : null}
-
-        {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
-          <CollapsibleSection
-            id="dashboard-deadline"
-            title="RSVP deadline"
-            storageKey={`${sectionStoragePrefix}:deadline`}
-            className="scroll-mt-24"
-          >
-            <section
-              className={`app-card p-5 ${
-                deadlineMeta.status === "closed"
-                  ? "border-zinc-300 bg-zinc-100/60"
-                  : deadlineMeta.status === "closes_today"
-                    ? "border-rose-200 bg-rose-50"
-                    : "border-amber-200 bg-amber-50"
-              }`}
-            >
-              <p className="text-sm font-semibold text-zinc-900">
-                {deadlineMeta.status === "closed"
-                  ? "RSVP is closed for this event."
-                  : deadlineMeta.status === "closes_today"
-                    ? "RSVP closes today."
-                    : `RSVP closes soon (${deadlineMeta.daysRemaining} day${
-                        deadlineMeta.daysRemaining === 1 ? "" : "s"
-                      } remaining).`}
-              </p>
-            </section>
-          </CollapsibleSection>
-        ) : null}
 
         <CollapsibleSection
           id="dashboard-tools"
@@ -747,35 +563,6 @@ export default async function EventDashboardPage({ params, searchParams }: Props
         />
         </CollapsibleSection>
 
-        
-
-        {totalFamilies > 0 ? (
-          <CollapsibleSection
-            id="dashboard-communications"
-            title="Communications"
-            storageKey={`${sectionStoragePrefix}:communications`}
-            className="scroll-mt-24"
-          >
-            <section className="app-card p-5 sm:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Communications (logged)</p>
-            <p className="mt-2 text-sm text-zinc-700">
-              <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.totalLogs}</span> actions
-              logged ·{" "}
-              <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.guestsWithLogs}</span>{" "}
-              guests with history ·{" "}
-              <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.weekLogs}</span> in the
-              last 7 days ·{" "}
-              <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.guestsWithNoLogs}</span>{" "}
-              guests with no comm log yet
-            </p>
-            <p className="mt-2 text-xs text-zinc-500">
-              Open any row&apos;s communication history for the full timeline (WhatsApp, email, manual marks,
-              reminders).
-            </p>
-            </section>
-          </CollapsibleSection>
-        ) : null}
-
         <CollapsibleSection
           id="event-guests"
           title="Guests"
@@ -867,6 +654,236 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             )}
           </section>
         </CollapsibleSection>
+
+        {totalFamilies > 0 ? (
+          <CollapsibleSection
+            id="dashboard-followup"
+            title="Follow-up"
+            storageKey={`${sectionStoragePrefix}:followup`}
+            className="scroll-mt-24"
+            defaultOpen={false}
+          >
+            <section
+              className={`app-card p-5 sm:p-6 ${
+                needsFollowUpCount > 0 ? "border-amber-200/80 bg-amber-50/40" : ""
+              }`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs follow-up</p>
+              <p className="mt-1 text-sm text-zinc-700">
+                Invited guests who have not RSVP&apos;d yet — nudge them from the guest list when you&apos;re ready.
+              </p>
+              <p
+                className={`mt-3 text-3xl font-semibold tabular-nums ${
+                  needsFollowUpCount > 0 ? "text-amber-950" : "text-zinc-400"
+                }`}
+              >
+                {needsFollowUpCount}
+              </p>
+              <p className="mt-1 text-xs text-zinc-600">invited, awaiting response</p>
+            </section>
+          </CollapsibleSection>
+        ) : null}
+
+        {totalFamilies > 0 ? (
+          <CollapsibleSection
+            id="dashboard-readiness"
+            title="Readiness"
+            storageKey={`${sectionStoragePrefix}:readiness`}
+            className="scroll-mt-24"
+            defaultOpen={false}
+          >
+            <section className="app-card p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact &amp; invite readiness</p>
+              <p className="mt-1 text-sm text-zinc-600">
+                Who can be invited now, who still needs contact details, and who has already responded.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90">Ready to send</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
+                    {readinessOverview.readyToSend}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-900/80">Phone &amp; email on file, not invited</p>
+                </div>
+                <div className="rounded-2xl border border-rose-200/70 bg-rose-50/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-900/80">Missing contact</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-rose-950">
+                    {readinessOverview.missingContact}
+                  </p>
+                  <p className="mt-1 text-xs text-rose-900/75">No phone or email yet</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-950/90">Already invited</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-950">
+                    {readinessOverview.alreadyInvited}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-950/80">Awaiting RSVP</p>
+                </div>
+                <div className="rounded-2xl border border-violet-200/70 bg-violet-50/60 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900/85">Responded</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-violet-950">
+                    {readinessOverview.responded}
+                  </p>
+                  <p className="mt-1 text-xs text-violet-900/80">RSVP submitted</p>
+                </div>
+              </div>
+              {(readinessOverview.missingPhone > 0 || readinessOverview.missingEmail > 0) ? (
+                <p className="mt-3 text-xs text-zinc-500">
+                  Partial contact: {readinessOverview.missingPhone} missing phone (email only),{" "}
+                  {readinessOverview.missingEmail} missing email (phone only).
+                </p>
+              ) : null}
+            </section>
+          </CollapsibleSection>
+        ) : null}
+
+        {totalFamilies > 0 ? (
+          <CollapsibleSection
+            id="dashboard-seating"
+            title="Seating & grouping"
+            storageKey={`${sectionStoragePrefix}:seating`}
+            className="scroll-mt-24"
+            defaultOpen={false}
+          >
+            <section className="app-card p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Seating &amp; groups</p>
+              <p className="mt-1 text-sm text-zinc-600">
+                Categories, table labels, and who still needs assignments.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-2xl border border-sky-200/80 bg-sky-50/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-950/85">Categories used</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-sky-950">{distinctGroupCategories}</p>
+                  <p className="mt-1 text-xs text-sky-950/75">Distinct group labels</p>
+                </div>
+                <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-950/85">Tables used</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-indigo-950">{distinctTables}</p>
+                  <p className="mt-1 text-xs text-indigo-950/75">Distinct table names</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-950/90">No table yet</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-950">{guestsWithoutTable}</p>
+                  <p className="mt-1 text-xs text-amber-950/80">Families not assigned</p>
+                </div>
+                <div className="rounded-2xl border border-zinc-200/90 bg-zinc-50/80 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">No category yet</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-900">{guestsWithoutGroup}</p>
+                  <p className="mt-1 text-xs text-zinc-600">No group label</p>
+                </div>
+              </div>
+            </section>
+          </CollapsibleSection>
+        ) : null}
+
+        {totalFamilies > 0 ? (
+          <CollapsibleSection
+            id="dashboard-hygiene"
+            title="List hygiene"
+            storageKey={`${sectionStoragePrefix}:hygiene`}
+            className="scroll-mt-24"
+            defaultOpen={false}
+          >
+            <section className="app-card p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">List hygiene</p>
+              <p className="mt-1 text-sm text-zinc-600">
+                Duplicate signals, missing contact, and families ready for a first invite.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div
+                  className={`rounded-2xl border px-4 py-3 ${
+                    duplicateGuestsDetected > 0
+                      ? "border-rose-200/80 bg-rose-50/50"
+                      : "border-zinc-200/80 bg-zinc-50/50"
+                  }`}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Possible duplicates</p>
+                  <p
+                    className={`mt-1 text-2xl font-semibold tabular-nums ${
+                      duplicateGuestsDetected > 0 ? "text-rose-950" : "text-zinc-400"
+                    }`}
+                  >
+                    {duplicateGuestsDetected}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-600">
+                    {duplicateGroupsCount} group{duplicateGroupsCount === 1 ? "" : "s"} (same name, phone, or email)
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-rose-200/70 bg-rose-50/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-900/80">Missing contact</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-rose-950">
+                    {readinessOverview.missingContact}
+                  </p>
+                  <p className="mt-1 text-xs text-rose-900/75">No phone or email</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800/90">Send-ready</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
+                    {readinessOverview.readyToSend}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-900/80">Phone &amp; email, not invited</p>
+                </div>
+              </div>
+            </section>
+          </CollapsibleSection>
+        ) : null}
+
+        {totalFamilies > 0 ? (
+          <CollapsibleSection
+            id="dashboard-communications"
+            title="Communications"
+            storageKey={`${sectionStoragePrefix}:communications`}
+            className="scroll-mt-24"
+            defaultOpen={false}
+          >
+            <section className="app-card p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Communications (logged)</p>
+              <p className="mt-2 text-sm text-zinc-700">
+                <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.totalLogs}</span> actions
+                logged ·{" "}
+                <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.guestsWithLogs}</span>{" "}
+                guests with history ·{" "}
+                <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.weekLogs}</span> in the
+                last 7 days ·{" "}
+                <span className="font-semibold tabular-nums text-zinc-900">{communicationStats.guestsWithNoLogs}</span>{" "}
+                guests with no comm log yet
+              </p>
+              <p className="mt-2 text-xs text-zinc-500">
+                Open any row&apos;s communication history for the full timeline (WhatsApp, email, manual marks,
+                reminders).
+              </p>
+            </section>
+          </CollapsibleSection>
+        ) : null}
+
+        {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" || deadlineMeta?.status === "closed" ? (
+          <CollapsibleSection
+            id="dashboard-deadline"
+            title="RSVP deadline"
+            storageKey={`${sectionStoragePrefix}:deadline`}
+            className="scroll-mt-24"
+          >
+            <section
+              className={`app-card p-5 ${
+                deadlineMeta.status === "closed"
+                  ? "border-zinc-300 bg-zinc-100/60"
+                  : deadlineMeta.status === "closes_today"
+                    ? "border-rose-200 bg-rose-50"
+                    : "border-amber-200 bg-amber-50"
+              }`}
+            >
+              <p className="text-sm font-semibold text-zinc-900">
+                {deadlineMeta.status === "closed"
+                  ? "RSVP is closed for this event."
+                  : deadlineMeta.status === "closes_today"
+                    ? "RSVP closes today."
+                    : `RSVP closes soon (${deadlineMeta.daysRemaining} day${
+                        deadlineMeta.daysRemaining === 1 ? "" : "s"
+                      } remaining).`}
+              </p>
+            </section>
+          </CollapsibleSection>
+        ) : null}
       </div>
     </main>
   );

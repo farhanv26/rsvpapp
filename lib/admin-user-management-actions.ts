@@ -37,9 +37,15 @@ const deactivateSchema = z.object({
   transferToUserId: z.string().optional(),
 });
 
-const deleteSchema = z.object({
-  userId: z.string().min(1),
-});
+const deleteSchema = z
+  .object({
+    userId: z.string().min(1),
+    confirmDelete: z.enum(["1"]).optional(),
+  })
+  .refine((data) => data.confirmDelete === "1", {
+    message: "Confirm deletion before continuing.",
+    path: ["confirmDelete"],
+  });
 
 async function countOtherActiveSuperAdmins(excludeUserId: string) {
   return prisma.user.count({
@@ -86,11 +92,11 @@ export async function createUserAction(
     await notifyUsers({
       userIds: [admin.id, created.id],
       type: "USER_CREATED",
-      title: `User "${created.name}" was created`,
+      title: `New account: ${created.name}`,
       description:
         created.id === admin.id
           ? undefined
-          : `${admin.name} created this ${role === "super_admin" ? "super admin" : "event creator"} account.`,
+          : `${admin.name} added a ${role === "super_admin" ? "super admin" : "event creator"} login.`,
       entityType: "User",
       entityId: created.id,
     });
@@ -346,9 +352,13 @@ export async function deleteUserAction(
   formData: FormData,
 ): Promise<UserManageResult> {
   const admin = await requireSuperAdmin();
-  const parsed = deleteSchema.safeParse({ userId: formData.get("userId") });
+  const parsed = deleteSchema.safeParse({
+    userId: formData.get("userId"),
+    confirmDelete: formData.get("confirmDelete") === "1" ? ("1" as const) : undefined,
+  });
   if (!parsed.success) {
-    return { ok: false, error: "Invalid request." };
+    const msg = parsed.error.flatten().fieldErrors.confirmDelete?.[0] ?? "Invalid request.";
+    return { ok: false, error: msg };
   }
   const { userId } = parsed.data;
   if (userId === admin.id) {
@@ -396,11 +406,11 @@ export async function deleteUserAction(
   await notifyUser({
     userId: admin.id,
     type: "USER_DELETED",
-    title: `User "${deletedSummary.name}" was deleted`,
+    title: `Removed user: ${deletedSummary.name}`,
     description:
       deletedSummary.eventsOwned > 0
-        ? `${deletedSummary.eventsOwned} owned event(s) were removed with the account.`
-        : `${admin.name} permanently removed this account.`,
+        ? `${deletedSummary.eventsOwned} event(s) they owned were deleted with all guest and RSVP data.`
+        : `Account permanently removed by ${admin.name}.`,
     entityType: "User",
     entityId: deletedSummary.id,
   });

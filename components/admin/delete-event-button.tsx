@@ -18,6 +18,7 @@ export function DeleteEventButton({
   redirectToListOnSuccess = false,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -47,7 +48,10 @@ export function DeleteEventButton({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setAcknowledged(false);
+          setOpen(true);
+        }}
         className={className ?? "btn-secondary border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"}
       >
         {label}
@@ -59,12 +63,21 @@ export function DeleteEventButton({
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
               Confirm deletion
             </p>
-            <h3 className="mt-3 text-xl font-semibold text-zinc-900">
-              Are you sure you want to delete this event?
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-              This will permanently remove the event and its guest list.
+            <h3 className="mt-3 text-xl font-semibold text-zinc-900">Delete this event permanently?</h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+              This removes the event and <span className="font-semibold text-zinc-900">all guests</span>, RSVP answers,
+              communication logs, seating data, and activity history for this event. Other users and their events are
+              not affected.
             </p>
+            <label className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/60 px-3 py-2.5 text-sm text-rose-950">
+              <input
+                type="checkbox"
+                checked={acknowledged}
+                onChange={(e) => setAcknowledged(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-rose-300"
+              />
+              <span>I understand this cannot be undone.</span>
+            </label>
 
             {error ? (
               <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -72,10 +85,7 @@ export function DeleteEventButton({
               </p>
             ) : null}
 
-            <div className="mt-6 flex gap-3">
-              <button type="button" onClick={runDelete} disabled={isPending} className="btn-danger flex-1">
-                {isPending ? "Deleting..." : "Delete Event"}
-              </button>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
               <button
                 type="button"
                 onClick={() => {
@@ -87,6 +97,14 @@ export function DeleteEventButton({
                 className="btn-secondary flex-1"
               >
                 Cancel
+              </button>
+              <button
+                type="button"
+                onClick={runDelete}
+                disabled={isPending || !acknowledged}
+                className="btn-danger flex-1"
+              >
+                {isPending ? "Deleting..." : "Delete event permanently"}
               </button>
             </div>
           </div>

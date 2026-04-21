@@ -394,9 +394,16 @@ export function UserManagementPanel({ initialUsers }: { initialUsers: UserRowSer
         <Modal title={`Delete ${deleteTarget.name}?`} onClose={() => setDeleteTarget(null)}>
           <form action={deleteAction} className="space-y-4">
             <input type="hidden" name="userId" value={deleteTarget.id} />
-            <p className="text-sm text-zinc-600">
-              This permanently deletes the user and all owned events, guests, RSVP responses, and activity logs.
+            <p className="text-sm leading-relaxed text-zinc-700">
+              This permanently deletes <span className="font-semibold text-zinc-900">{deleteTarget.name}</span> and{" "}
+              <span className="font-semibold text-zinc-900">every event they own</span>, including all guests, RSVP
+              responses, communication logs tied to those events, and related notifications. Other users are not
+              deleted.
             </p>
+            <label className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/60 px-3 py-2.5 text-sm text-rose-950">
+              <input type="checkbox" name="confirmDelete" value="1" className="mt-0.5 h-4 w-4 rounded border-rose-300" required />
+              <span>I understand this cannot be undone.</span>
+            </label>
             {deleteTarget.role === "super_admin" ? (
               <label className="flex items-center gap-2 text-sm text-zinc-700">
                 <input type="checkbox" name="allowSuperAdminDelete" value="1" />
@@ -408,8 +415,8 @@ export function UserManagementPanel({ initialUsers }: { initialUsers: UserRowSer
               <button type="button" className="btn-secondary" onClick={() => setDeleteTarget(null)}>
                 Cancel
               </button>
-              <button type="submit" className="rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">
-                Delete user
+              <button type="submit" className="btn-danger px-4 py-2 text-sm font-semibold">
+                Delete user permanently
               </button>
             </div>
           </form>
