@@ -60,8 +60,8 @@ function scheduleBackgroundTask(task: () => Promise<void>, label: string) {
 }
 
 async function queueEventOwnerEmail(input: DispatchEventCommunicationInput) {
-  const event = await prisma.event.findUnique({
-    where: { id: input.eventId },
+  const event = await prisma.event.findFirst({
+    where: { id: input.eventId, deletedAt: null },
     select: { id: true, title: true, ownerUserId: true },
   });
 

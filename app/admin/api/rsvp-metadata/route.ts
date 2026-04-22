@@ -16,8 +16,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "token is required" }, { status: 400 });
   }
 
-  const guest = await prisma.guest.findUnique({
-    where: { token },
+  const guest = await prisma.guest.findFirst({
+    where: { token, deletedAt: null, event: { deletedAt: null } },
     select: {
       guestName: true,
       maxGuests: true,

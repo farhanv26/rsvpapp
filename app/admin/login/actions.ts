@@ -13,8 +13,8 @@ export async function loginAdminAction(formData: FormData) {
     redirect("/admin/login?error=invalid");
   }
 
-  const user = await prisma.user.findUnique({
-    where: { name: adminUser },
+  const user = await prisma.user.findFirst({
+    where: { name: adminUser, deletedAt: null },
     select: { id: true, name: true, role: true, passwordHash: true, active: true },
   });
 

@@ -20,17 +20,18 @@ export function CollapsibleSection({
   children,
 }: Props) {
   const key = useMemo(() => `dashboard-section:${storageKey}`, [storageKey]);
-  const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return defaultOpen;
+  /** Always match SSR + first client paint to avoid hydration mismatch (production vs local). */
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
     try {
       const saved = window.localStorage.getItem(`dashboard-section:${storageKey}`);
-      if (saved === "0") return false;
-      if (saved === "1") return true;
+      if (saved === "0") setOpen(false);
+      else if (saved === "1") setOpen(true);
     } catch {
-      // Ignore storage errors; keep runtime behavior stable.
+      // Ignore storage errors.
     }
-    return defaultOpen;
-  });
+  }, [storageKey]);
 
   useEffect(() => {
     try {

@@ -19,8 +19,8 @@ export const dynamic = "force-dynamic";
 export default async function EditEventPage({ params }: Props) {
   const admin = await requireCurrentAdminUser();
   const { eventId } = await params;
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     select: {
       id: true,
       ownerUserId: true,

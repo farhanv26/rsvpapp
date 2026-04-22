@@ -222,8 +222,8 @@ export function ReviewDuplicatesModal({
                                         const w = deletionWarnings(g);
                                         const msg =
                                           w.length > 0
-                                            ? `Delete “${g.guestName}”?\n\n${w.join("\n")}\n\nThis cannot be undone.`
-                                            : `Delete “${g.guestName}”? This cannot be undone.`;
+                                            ? `Move “${g.guestName}” to trash?\n\n${w.join("\n")}\n\nYou can restore from the guest list.`
+                                            : `Move “${g.guestName}” to trash? You can restore from the guest list.`;
                                         if (!confirm(msg)) e.preventDefault();
                                       }}
                                     >

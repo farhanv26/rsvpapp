@@ -63,11 +63,12 @@ export function DeleteEventButton({
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
               Confirm deletion
             </p>
-            <h3 className="mt-3 text-xl font-semibold text-zinc-900">Delete this event permanently?</h3>
+            <h3 className="mt-3 text-xl font-semibold text-zinc-900">Move this event to trash?</h3>
             <p className="mt-2 text-sm leading-relaxed text-zinc-700">
-              This removes the event and <span className="font-semibold text-zinc-900">all guests</span>, RSVP answers,
-              communication logs, seating data, and activity history for this event. Other users and their events are
-              not affected.
+              The event and <span className="font-semibold text-zinc-900">all guest data</span> are hidden from the
+              dashboard and public RSVP until you restore the event from{" "}
+              <span className="font-semibold text-zinc-900">Deleted events</span>. Nothing is purged immediately. Other
+              users and their events are not affected.
             </p>
             <label className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/60 px-3 py-2.5 text-sm text-rose-950">
               <input
@@ -76,7 +77,7 @@ export function DeleteEventButton({
                 onChange={(e) => setAcknowledged(e.target.checked)}
                 className="mt-0.5 h-4 w-4 rounded border-rose-300"
               />
-              <span>I understand this cannot be undone.</span>
+              <span>I understand this will hide the event until I restore or permanently remove it later.</span>
             </label>
 
             {error ? (
@@ -104,7 +105,7 @@ export function DeleteEventButton({
                 disabled={isPending || !acknowledged}
                 className="btn-danger flex-1"
               >
-                {isPending ? "Deleting..." : "Delete event permanently"}
+                {isPending ? "Working…" : "Move event to trash"}
               </button>
             </div>
           </div>

@@ -17,8 +17,8 @@ import { generateSecureToken } from "@/lib/security";
 
 async function ensureCsvEventAccess(eventId: string) {
   const admin = await requireCurrentAdminUser();
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     select: { id: true, ownerUserId: true },
   });
   if (!event) {
@@ -37,7 +37,7 @@ export async function previewGuestCsvAction(eventId: string, csvText: string) {
   }
 
   const guests = await prisma.guest.findMany({
-    where: { eventId },
+    where: { eventId, deletedAt: null },
     select: { guestName: true },
   });
   const existing = new Set(guests.map((g) => normalizeGuestNameKey(g.guestName)));
@@ -71,7 +71,7 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
   }
 
   const guests = await prisma.guest.findMany({
-    where: { eventId },
+    where: { eventId, deletedAt: null },
     select: { guestName: true },
   });
   const existingNames = new Set(guests.map((g) => normalizeGuestNameKey(g.guestName)));
@@ -201,7 +201,7 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
   }
 
   const guests = await prisma.guest.findMany({
-    where: { eventId },
+    where: { eventId, deletedAt: null },
     select: { guestName: true },
   });
   const existing = new Set(guests.map((g) => normalizeGuestNameKey(g.guestName)));

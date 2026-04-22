@@ -55,8 +55,8 @@ type GuestWithEventForRsvpPage = {
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
-  const guest = (await prisma.guest.findUnique({
-    where: { token },
+  const guest = (await prisma.guest.findFirst({
+    where: { token, deletedAt: null, event: { deletedAt: null } },
     select: {
       guestName: true,
       maxGuests: true,
@@ -80,7 +80,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
         },
       },
     },
-  } as unknown as Parameters<typeof prisma.guest.findUnique>[0])) as unknown as null | {
+  } as unknown as Parameters<typeof prisma.guest.findFirst>[0])) as unknown as null | {
     guestName: string;
     maxGuests: number;
     menCount: number | null;
@@ -368,8 +368,8 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
     previewParam === "true" ||
     (Array.isArray(previewParam) && previewParam[0] === "1");
 
-  const guest = (await prisma.guest.findUnique({
-    where: { token },
+  const guest = (await prisma.guest.findFirst({
+    where: { token, deletedAt: null, event: { deletedAt: null } },
     include: {
       event: {
         select: {
@@ -395,7 +395,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
         },
       },
     },
-  } as unknown as Parameters<typeof prisma.guest.findUnique>[0])) as unknown as GuestWithEventForRsvpPage | null;
+  } as unknown as Parameters<typeof prisma.guest.findFirst>[0])) as unknown as GuestWithEventForRsvpPage | null;
 
   if (!guest) {
     return (

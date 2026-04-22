@@ -79,6 +79,7 @@ async function createUniqueSlug(baseTitle: string, eventId?: string) {
     const existing = await prisma.event.findFirst({
       where: {
         slug: candidate,
+        deletedAt: null,
         ...(eventId ? { id: { not: eventId } } : {}),
       },
       select: { id: true },
@@ -95,8 +96,8 @@ async function createUniqueSlug(baseTitle: string, eventId?: string) {
 
 async function ensureEventAccess(eventId: string, mode: "view" | "manage" = "manage") {
   const admin = await requireCurrentAdminUser();
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     select: { id: true, ownerUserId: true },
   });
   if (!event) {
@@ -302,13 +303,15 @@ export async function deleteEventAction(formData: FormData) {
       return { ok: false, error: "This event no longer exists." };
     }
 
-    const beforeDelete = await prisma.event.findUnique({
-      where: { id: eventId },
-      select: { id: true, title: true, _count: { select: { guests: true } } },
+    const beforeDelete = await prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+      select: { id: true, title: true, _count: { select: { guests: { where: { deletedAt: null } } } } },
     });
 
-    await prisma.event.delete({
+    const now = new Date();
+    await prisma.event.update({
       where: { id: eventId },
+      data: { deletedAt: now },
     });
 
     await logAuditActivity({
@@ -319,7 +322,7 @@ export async function deleteEventAction(formData: FormData) {
       entityType: "Event",
       entityId: eventId,
       entityName: beforeDelete?.title ?? "Deleted event",
-      message: `${admin.name} deleted event "${beforeDelete?.title ?? "Unknown event"}".`,
+      message: `${admin.name} moved event "${beforeDelete?.title ?? "Unknown event"}" to trash (soft delete).`,
       metadata: {
         guestCount: beforeDelete?._count.guests ?? 0,
       },
@@ -327,11 +330,11 @@ export async function deleteEventAction(formData: FormData) {
     await notifyUser({
       userId: admin.id,
       type: "EVENT_DELETED",
-      title: `Deleted event: ${beforeDelete?.title ?? "Unknown event"}`,
+      title: `Event in trash: ${beforeDelete?.title ?? "Unknown event"}`,
       description:
         beforeDelete && beforeDelete._count.guests > 0
-          ? `Permanently removed with ${beforeDelete._count.guests} guest/family record(s), RSVPs, and related logs.`
-          : `Permanently removed by ${admin.name}.`,
+          ? `Moved to trash with ${beforeDelete._count.guests} guest/family record(s). You can restore it from Deleted events while data is retained.`
+          : `Moved to trash by ${admin.name}. Restore anytime from Deleted events.`,
       entityType: "Event",
       entityId: eventId,
     });
@@ -412,8 +415,8 @@ export async function createGuestAction(formData: FormData) {
     message: `${admin.name} added guest "${createdGuest.guestName}".`,
     metadata: { maxGuests: createdGuest.maxGuests, menCount: createdGuest.menCount, womenCount: createdGuest.womenCount, kidsCount: createdGuest.kidsCount },
   });
-  const eventLabel = (await prisma.event.findUnique({
-    where: { id: eventId },
+  const eventLabel = (await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     select: { title: true, coupleNames: true },
   })) ?? { title: "", coupleNames: null as string | null };
   const eventDisplay = eventLabel.coupleNames?.trim() || eventLabel.title || "your event";
@@ -466,7 +469,7 @@ export async function updateGuestAction(formData: FormData) {
   }
 
   const existing = await prisma.guest.findFirst({
-    where: { id: guestId, eventId },
+    where: { id: guestId, eventId, deletedAt: null },
     select: { id: true, guestName: true, maxGuests: true, menCount: true, womenCount: true, kidsCount: true },
   });
   if (!existing) {
@@ -510,8 +513,8 @@ export async function updateGuestAction(formData: FormData) {
       kidsCount: updatedGuest.kidsCount,
     },
   });
-  const ev = await prisma.event.findUnique({
-    where: { id: eventId },
+  const ev = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     select: { title: true, coupleNames: true },
   });
   const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
@@ -539,20 +542,23 @@ export async function deleteGuestAction(formData: FormData) {
 
   const { admin } = await ensureEventAccess(eventId, "manage");
   const existing = await prisma.guest.findFirst({
-    where: { id: guestId, eventId },
+    where: { id: guestId, eventId, deletedAt: null },
     select: { id: true, guestName: true, maxGuests: true },
   });
   if (!existing) {
     throw new Error("Guest not found for this event.");
   }
 
-  const ev = await prisma.event.findUnique({
-    where: { id: eventId },
+  const ev = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     select: { title: true, coupleNames: true },
   });
   const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
 
-  await prisma.guest.delete({ where: { id: guestId } });
+  await prisma.guest.update({
+    where: { id: guestId },
+    data: { deletedAt: new Date() },
+  });
 
   await logAuditActivity({
     eventId,
@@ -562,7 +568,7 @@ export async function deleteGuestAction(formData: FormData) {
     entityType: "Guest",
     entityId: guestId,
     entityName: existing.guestName,
-    message: `${admin.name} deleted guest "${existing.guestName}".`,
+    message: `${admin.name} moved guest "${existing.guestName}" to trash.`,
     metadata: { maxGuests: existing.maxGuests },
   });
   await dispatchEventCommunication({
@@ -571,7 +577,7 @@ export async function deleteGuestAction(formData: FormData) {
     entityType: "Guest",
     entityId: guestId,
     title: `Guest removed from ${eventDisplay}`,
-    description: `${existing.guestName} was deleted by ${admin.name}. RSVP and invite history for this guest are gone.`,
+    description: `${existing.guestName} was moved to trash by ${admin.name}. Restore from the guest list while the event is active.`,
     guestName: existing.guestName,
     actorName: admin.name,
     metadata: { maxGuests: existing.maxGuests },
@@ -599,21 +605,24 @@ export async function bulkDeleteGuestsAction(formData: FormData) {
   }
 
   const matchedGuests = await prisma.guest.findMany({
-    where: { eventId, id: { in: guestIds } },
+    where: { eventId, deletedAt: null, id: { in: guestIds } },
     select: { id: true, guestName: true },
   });
 
-  const ev = await prisma.event.findUnique({
-    where: { id: eventId },
+  const ev = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     select: { title: true, coupleNames: true },
   });
   const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
 
-  await prisma.guest.deleteMany({
+  const now = new Date();
+  await prisma.guest.updateMany({
     where: {
       eventId,
+      deletedAt: null,
       id: { in: guestIds },
     },
+    data: { deletedAt: now },
   });
 
   await logAuditActivity({
@@ -686,7 +695,7 @@ export async function bulkUpdateGuestPlanningAction(formData: FormData) {
   }
 
   const result = await prisma.guest.updateMany({
-    where: { eventId, id: { in: guestIds } },
+    where: { eventId, deletedAt: null, id: { in: guestIds } },
     data,
   });
 
@@ -708,7 +717,7 @@ export async function bulkUpdateGuestPlanningAction(formData: FormData) {
 export async function logGuestWhatsappPreparedAction(eventId: string, guestId: string) {
   const { admin } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId },
+    where: { id: guestId, eventId, deletedAt: null },
     select: {
       id: true,
       guestName: true,
@@ -765,7 +774,7 @@ export async function logBulkWhatsappPreparedAction(eventId: string, guestIds: s
     return;
   }
   const guests = await prisma.guest.findMany({
-    where: { eventId, id: { in: uniqueIds } },
+    where: { eventId, deletedAt: null, id: { in: uniqueIds } },
     select: { id: true, guestName: true },
   });
 
@@ -801,7 +810,7 @@ export async function logBulkWhatsappPreparedAction(eventId: string, guestIds: s
 export async function sendGuestInviteEmailAction(eventId: string, guestId: string) {
   const { admin } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId },
+    where: { id: guestId, eventId, deletedAt: null },
     select: {
       id: true,
       guestName: true,
@@ -946,7 +955,7 @@ export async function sendBulkGuestInviteEmailsAction(eventId: string, guestIds:
 export async function sendGuestReminderEmailAction(eventId: string, guestId: string) {
   const { admin } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId },
+    where: { id: guestId, eventId, deletedAt: null },
     select: {
       id: true,
       guestName: true,
@@ -1124,6 +1133,7 @@ export async function recordGuestRemindersSentAction(
   const eligible = await prisma.guest.findMany({
     where: {
       eventId,
+      deletedAt: null,
       id: { in: uniqueIds },
       invitedAt: { not: null },
       respondedAt: null,
@@ -1136,7 +1146,7 @@ export async function recordGuestRemindersSentAction(
   }
 
   const result = await prisma.guest.updateMany({
-    where: { eventId, id: { in: eligibleIds } },
+    where: { eventId, deletedAt: null, id: { in: eligibleIds } },
     data: { lastReminderAt: now },
   });
 
@@ -1170,8 +1180,8 @@ export async function recordGuestRemindersSentAction(
     })),
   });
   if (result.count > 0) {
-    const ev = await prisma.event.findUnique({
-      where: { id: eventId },
+    const ev = await prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
       select: { title: true, coupleNames: true },
     });
     const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
@@ -1207,7 +1217,7 @@ export async function markGuestsInvitedAction(
 
   const now = new Date();
   const result = await prisma.guest.updateMany({
-    where: { eventId, id: { in: uniqueIds } },
+    where: { eventId, deletedAt: null, id: { in: uniqueIds } },
     data: {
       invitedAt: now,
       inviteChannelLastUsed: channel,
@@ -1243,13 +1253,13 @@ export async function markGuestsInvitedAction(
   });
 
   if (result.count > 0) {
-    const ev = await prisma.event.findUnique({
-      where: { id: eventId },
+    const ev = await prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
       select: { title: true, coupleNames: true },
     });
     const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
     const named = await prisma.guest.findMany({
-      where: { eventId, id: { in: uniqueIds } },
+      where: { eventId, deletedAt: null, id: { in: uniqueIds } },
       select: { guestName: true },
       take: 4,
     });
@@ -1279,20 +1289,20 @@ export async function markGuestsUninvitedAction(eventId: string, guestIds: strin
     return { ok: true as const, updated: 0 };
   }
 
-  const eventRow = await prisma.event.findUnique({
-    where: { id: eventId },
+  const eventRow = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     select: { title: true, coupleNames: true },
   });
   const eventDisplay = eventRow?.coupleNames?.trim() || eventRow?.title || "this event";
 
   const guests = await prisma.guest.findMany({
-    where: { eventId, id: { in: uniqueIds } },
+    where: { eventId, deletedAt: null, id: { in: uniqueIds } },
     select: { id: true, guestName: true, invitedAt: true },
   });
   const previouslyInvited = guests.filter((g) => g.invitedAt);
 
   const result = await prisma.guest.updateMany({
-    where: { eventId, id: { in: uniqueIds } },
+    where: { eventId, deletedAt: null, id: { in: uniqueIds } },
     data: {
       invitedAt: null,
       inviteChannelLastUsed: null,
@@ -1358,7 +1368,7 @@ export async function triggerGuestSendAction(
 ) {
   const { admin } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId },
+    where: { id: guestId, eventId, deletedAt: null },
     select: { id: true, guestName: true, invitedAt: true },
   });
   if (!guest) {
@@ -1414,7 +1424,7 @@ export async function recordGuestManualRsvpAction(input: {
 }) {
   const { admin } = await ensureEventAccess(input.eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: input.guestId, eventId: input.eventId },
+    where: { id: input.guestId, eventId: input.eventId, deletedAt: null },
     select: {
       id: true,
       guestName: true,
@@ -1554,7 +1564,7 @@ export type GuestCommunicationPreviewPayload = {
 export async function getGuestCommunicationPreviewAction(eventId: string, guestId: string) {
   await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId },
+    where: { id: guestId, eventId, deletedAt: null },
     select: {
       guestName: true,
       greeting: true,
@@ -1718,4 +1728,71 @@ export async function getGuestCommunicationHistoryAction(
       }),
     ),
   };
+}
+
+export async function restoreGuestAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "");
+  const guestId = String(formData.get("guestId") || "");
+  if (!eventId || !guestId) {
+    redirect("/admin/events");
+  }
+  const { admin } = await ensureEventAccess(eventId, "manage");
+  const guest = await prisma.guest.findFirst({
+    where: { id: guestId, eventId, deletedAt: { not: null } },
+    select: { id: true, guestName: true },
+  });
+  if (!guest) {
+    redirect(`/admin/events/${eventId}?restore=guest_error`);
+  }
+  await prisma.guest.update({
+    where: { id: guestId },
+    data: { deletedAt: null },
+  });
+  await logAuditActivity({
+    eventId,
+    userId: admin.id,
+    userName: admin.name,
+    actionType: "guest_updated",
+    entityType: "Guest",
+    entityId: guestId,
+    entityName: guest.guestName,
+    message: `${admin.name} restored guest "${guest.guestName}" from trash.`,
+  });
+  revalidatePath(`/admin/events/${eventId}`);
+  redirect(`/admin/events/${eventId}?restored=guest`);
+}
+
+export async function restoreEventAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "");
+  if (!eventId) {
+    redirect("/admin/events/deleted?restore=error");
+  }
+  const admin = await requireCurrentAdminUser();
+  const ev = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: { not: null } },
+    select: { id: true, ownerUserId: true, title: true },
+  });
+  if (!ev) {
+    redirect("/admin/events/deleted?restore=error");
+  }
+  if (!isSuperAdmin(admin) && ev.ownerUserId !== admin.id) {
+    redirect("/admin/events/deleted?restore=forbidden");
+  }
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { deletedAt: null },
+  });
+  await logAuditActivity({
+    eventId,
+    userId: admin.id,
+    userName: admin.name,
+    actionType: "event_updated",
+    entityType: "Event",
+    entityId: eventId,
+    entityName: ev.title,
+    message: `${admin.name} restored event "${ev.title}" from trash.`,
+  });
+  revalidatePath("/admin/events");
+  revalidatePath(`/admin/events/${eventId}`);
+  redirect(`/admin/events/${eventId}?restored=event`);
 }

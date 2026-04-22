@@ -19,7 +19,7 @@ model Event {
   owner         User?    @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
   title         String
   theme         String   @default("modern")
-  slug          String   @unique
+  slug          String
   description   String?
   imagePath     String?
   coupleNames   String?
@@ -40,24 +40,29 @@ model Event {
   familyCardImage  String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
   guests        Guest[]
   rsvpActivities RsvpActivity[]
   communicationLogs GuestCommunicationLog[]
 
+  @@index([slug])
   @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([ownerUserId, deletedAt])
 }
 
 model User {
   id           String   @id @default(cuid())
-  name         String   @unique
+  name         String
   passwordHash String
   role         String
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
   events       Event[]
   guestCommunicationLogs GuestCommunicationLog[]
 
+  @@index([name])
   @@index([active, name])
 }
 
@@ -106,7 +111,7 @@ model Guest {
   womenCount     Int      @default(0)
   kidsCount      Int      @default(0)
   maxGuests      Int
-  token          String   @unique
+  token          String
   attending      Boolean?
   attendingCount Int?
   respondedAt    DateTime?
@@ -126,12 +131,14 @@ model Guest {
   lastReminderAt         DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   rsvpActivities RsvpActivity[]
   communicationLogs GuestCommunicationLog[]
 
   @@index([eventId])
+  @@index([eventId, deletedAt])
   @@index([token])
 }
 

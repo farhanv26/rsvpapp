@@ -14,8 +14,8 @@ export async function requireCurrentAdminUser() {
 
   try {
     const session = await readAdminSessionToken(token);
-    const row = await prisma.user.findUnique({
-      where: { id: session.userId },
+    const row = await prisma.user.findFirst({
+      where: { id: session.userId, deletedAt: null },
       select: { id: true, name: true, role: true, active: true },
     });
     if (!row || !row.active) {
@@ -36,8 +36,8 @@ export async function getOptionalAdminUser() {
   }
   try {
     const session = await readAdminSessionToken(token);
-    const row = await prisma.user.findUnique({
-      where: { id: session.userId },
+    const row = await prisma.user.findFirst({
+      where: { id: session.userId, deletedAt: null },
       select: { id: true, name: true, role: true, active: true },
     });
     if (!row || !row.active) {

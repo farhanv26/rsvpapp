@@ -6,6 +6,7 @@ import {
   createUserAction,
   deactivateUserAction,
   deleteUserAction,
+  restoreUserFromTrashFormAction,
   transferEventsAction,
   updateUserAction,
   type UserManageResult,
@@ -19,6 +20,14 @@ export type UserRowSerialized = {
   active: boolean;
   createdAt: string;
   _count: { events: number };
+};
+
+export type TrashUserRow = {
+  id: string;
+  name: string;
+  role: string;
+  deletedAt: string;
+  eventsCount: number;
 };
 
 function Modal({
@@ -61,7 +70,13 @@ function FieldError({ messages }: { messages?: string[] }) {
   return <p className="mt-1 text-xs text-rose-700">{messages[0]}</p>;
 }
 
-export function UserManagementPanel({ initialUsers }: { initialUsers: UserRowSerialized[] }) {
+export function UserManagementPanel({
+  initialUsers,
+  trashUsers = [],
+}: {
+  initialUsers: UserRowSerialized[];
+  trashUsers?: TrashUserRow[];
+}) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserRowSerialized | null>(null);
@@ -390,19 +405,47 @@ export function UserManagementPanel({ initialUsers }: { initialUsers: UserRowSer
         </Modal>
       ) : null}
 
+      {trashUsers.length > 0 ? (
+        <div className="app-card p-6 sm:p-8">
+          <p className="section-title">Recently deleted users</p>
+          <h2 className="headline-display mt-2 text-xl">Trash</h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            Restore a user to sign-in and dashboard access. Owned events are restored together when possible.
+          </p>
+          <ul className="mt-4 divide-y divide-[#ebe4d6] rounded-2xl border border-[#ebe4d6]">
+            {trashUsers.map((u) => (
+              <li key={u.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-zinc-900">{u.name}</p>
+                  <p className="text-xs text-zinc-500">
+                    {formatAdminRoleLabel(u.role)} · {u.eventsCount} event{u.eventsCount === 1 ? "" : "s"} · Deleted{" "}
+                    {new Date(u.deletedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                </div>
+                <form action={restoreUserFromTrashFormAction}>
+                  <input type="hidden" name="userId" value={u.id} />
+                  <button type="submit" className="btn-secondary text-sm">
+                    Restore user
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {deleteTarget ? (
-        <Modal title={`Delete ${deleteTarget.name}?`} onClose={() => setDeleteTarget(null)}>
+        <Modal title={`Move ${deleteTarget.name} to trash?`} onClose={() => setDeleteTarget(null)}>
           <form action={deleteAction} className="space-y-4">
             <input type="hidden" name="userId" value={deleteTarget.id} />
             <p className="text-sm leading-relaxed text-zinc-700">
-              This permanently deletes <span className="font-semibold text-zinc-900">{deleteTarget.name}</span> and{" "}
-              <span className="font-semibold text-zinc-900">every event they own</span>, including all guests, RSVP
-              responses, communication logs tied to those events, and related notifications. Other users are not
-              deleted.
+              This moves <span className="font-semibold text-zinc-900">{deleteTarget.name}</span> and{" "}
+              <span className="font-semibold text-zinc-900">their active events</span> to trash. Guests and RSVPs stay
+              on file until you restore or permanently remove data later. Other users are not affected.
             </p>
             <label className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/60 px-3 py-2.5 text-sm text-rose-950">
               <input type="checkbox" name="confirmDelete" value="1" className="mt-0.5 h-4 w-4 rounded border-rose-300" required />
-              <span>I understand this cannot be undone.</span>
+              <span>I understand this account will be hidden until restored from trash.</span>
             </label>
             {deleteTarget.role === "super_admin" ? (
               <label className="flex items-center gap-2 text-sm text-zinc-700">
@@ -416,7 +459,7 @@ export function UserManagementPanel({ initialUsers }: { initialUsers: UserRowSer
                 Cancel
               </button>
               <button type="submit" className="btn-danger px-4 py-2 text-sm font-semibold">
-                Delete user permanently
+                Move user to trash
               </button>
             </div>
           </form>

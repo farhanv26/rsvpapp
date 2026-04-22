@@ -16,8 +16,16 @@ export default async function AdminActivityPage({ searchParams }: Props) {
   const q = params?.q?.trim() || "";
 
   const [users, events] = await Promise.all([
-    prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.event.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, title: true } }),
+    prisma.user.findMany({
+      where: { deletedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.event.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, title: true },
+    }),
   ]);
 
   const activities = await prisma.auditActivity.findMany({

@@ -13,8 +13,8 @@ export async function submitRsvpAction(formData: FormData) {
     throw new Error("Invalid RSVP link.");
   }
 
-  const guest = await prisma.guest.findUnique({
-    where: { token },
+  const guest = await prisma.guest.findFirst({
+    where: { token, deletedAt: null, event: { deletedAt: null } },
     select: {
       id: true,
       maxGuests: true,

@@ -10,8 +10,8 @@ export async function getCurrentAdminUserFromApi() {
   if (!token) return null;
   try {
     const session = await readAdminSessionToken(token);
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
+    const user = await prisma.user.findFirst({
+      where: { id: session.userId, deletedAt: null },
       select: { id: true, name: true, role: true, active: true },
     });
     if (!user?.active) return null;

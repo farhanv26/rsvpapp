@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   bulkDeleteGuestsAction,
   bulkUpdateGuestPlanningAction,
   deleteGuestAction,
+  restoreGuestAction,
   logBulkWhatsappPreparedAction,
   logGuestWhatsappPreparedAction,
   markGuestsInvitedAction,
@@ -92,6 +93,8 @@ type Props = {
   inviteMessageIntro?: string | null;
   inviteMessageLineOverride?: string | null;
   guests: GuestPanelGuest[];
+  /** Soft-deleted guests for this event (restore only). */
+  deletedGuestsSummary?: Array<{ id: string; guestName: string; deletedAt: string }>;
   siteUrl: string;
   inviteCardEvent: InviteCardEventInput;
   /** Latest communication log per guest (from server) for subtle table hints */
@@ -346,11 +349,13 @@ export function EventGuestsPanel({
   inviteMessageIntro,
   inviteMessageLineOverride,
   guests,
+  deletedGuestsSummary = [],
   siteUrl,
   inviteCardEvent,
   communicationLastByGuest = {},
 }: Props) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<(typeof filterTabs)[number]["id"]>("all");
   const [inviteFilter, setInviteFilter] = useState<InviteFilterId>("all");
@@ -394,6 +399,9 @@ export function EventGuestsPanel({
   const [exportOpen, setExportOpen] = useState(false);
   const [guestEditError, setGuestEditError] = useState<string | null>(null);
   const [guestEditPending, setGuestEditPending] = useState(false);
+  const [guestTableExpanded, setGuestTableExpanded] = useState(false);
+  const [deleteTargetGuest, setDeleteTargetGuest] = useState<GuestPanelGuest | null>(null);
+  const [deleteGuestSubmitting, setDeleteGuestSubmitting] = useState(false);
 
   const editingGuest = useMemo(
     () => (editingGuestId ? guests.find((g) => g.id === editingGuestId) ?? null : null),
@@ -423,6 +431,20 @@ export function EventGuestsPanel({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [editingGuestId]);
+
+  useEffect(() => {
+    if (!guestTableExpanded) return;
+    const prevBody = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setGuestTableExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevBody;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [guestTableExpanded]);
 
   const inviteCardPreviewByGuest = useMemo(() => {
     const map = new Map<string, { safeSrc: string | null; usingLine: string }>();
@@ -971,8 +993,18 @@ export function EventGuestsPanel({
     }
   }
 
+  const desktopTableMaxClass = guestTableExpanded
+    ? "max-h-[min(78dvh,calc(100dvh-12rem))]"
+    : "max-h-[34rem]";
+
   return (
-    <div id="event-guests" className="app-card scroll-mt-24 p-6">
+    <div
+      className={
+        guestTableExpanded
+          ? "fixed inset-0 z-[130] overflow-y-auto overflow-x-hidden bg-[#faf8f3] p-3 sm:p-5"
+          : "app-card scroll-mt-24 p-6"
+      }
+    >
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-xl font-semibold text-zinc-900">
           Guests{" "}
@@ -980,6 +1012,28 @@ export function EventGuestsPanel({
             ({guests.length} famil{guests.length === 1 ? "y" : "ies"})
           </span>
         </h2>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setGuestTableExpanded((v) => !v)}
+            className="btn-secondary inline-flex items-center gap-2 px-3 py-2 text-xs font-medium"
+            aria-pressed={guestTableExpanded}
+            title={guestTableExpanded ? "Exit expanded guest list" : "Expand guest list for more space"}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              {guestTableExpanded ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+                />
+              )}
+            </svg>
+            {guestTableExpanded ? "Close" : "Expand"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-4">
@@ -1553,7 +1607,7 @@ export function EventGuestsPanel({
             <form
               action={bulkDeleteGuestsAction}
               onSubmit={(e) => {
-                if (!confirm(`Delete ${selectedCount} selected guest(s)? This cannot be undone.`)) {
+                if (!confirm(`Move ${selectedCount} selected guest(s) to trash? You can restore them from this page.`)) {
                   e.preventDefault();
                   return;
                 }
@@ -1574,52 +1628,85 @@ export function EventGuestsPanel({
         </div>
       ) : null}
 
+      {deletedGuestsSummary.length > 0 ? (
+        <div className="mt-4 rounded-2xl border border-amber-200/80 bg-amber-50/45 px-4 py-3 sm:px-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-950/90">Recently deleted guests</p>
+          <p className="mt-1 text-xs text-amber-950/75">
+            Restore a row if it was removed by mistake. Guests stay in trash until you clear them from here.
+          </p>
+          <ul className="mt-3 divide-y divide-amber-200/50">
+            {deletedGuestsSummary.map((g) => (
+              <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-zinc-900">{g.guestName}</p>
+                  <p className="text-xs text-zinc-500">Deleted {formatDate(g.deletedAt)}</p>
+                </div>
+                <form action={restoreGuestAction} className="shrink-0">
+                  <input type="hidden" name="eventId" value={eventId} />
+                  <input type="hidden" name="guestId" value={g.id} />
+                  <button type="submit" className="btn-secondary text-xs">
+                    Restore
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="mt-4">
         {!trueEmpty ? (
-          <div className="mb-3 rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-3 py-3 sm:px-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Current view summary</p>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-zinc-700">
-              <span>
-                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.families}</span>{" "}
-                famil{visibleSubsetStats.families === 1 ? "y" : "ies"}
+          <div className="mb-3 rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-3 py-2.5 sm:px-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Current view summary</p>
+            <div className="mt-2 flex min-w-0 flex-nowrap items-center gap-x-3 gap-y-2 overflow-x-auto pb-0.5 text-xs text-zinc-700 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
+                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.families}</span>
+                <span className="text-zinc-500">
+                  famil{visibleSubsetStats.families === 1 ? "y" : "ies"}
+                </span>
               </span>
-              <span>
-                Max invited:{" "}
+              <span className="h-4 w-px shrink-0 bg-[#e7dccb]" aria-hidden />
+              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
+                <span className="text-zinc-500">Max invited</span>
                 <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.maxInvited}</span>
               </span>
-              <span>
-                Attending:{" "}
-                <span className="font-semibold tabular-nums text-zinc-900">
-                  {visibleSubsetStats.attendingHeadcount}
-                </span>{" "}
-                <span className="text-zinc-500">
+              <span className="h-4 w-px shrink-0 bg-[#e7dccb]" aria-hidden />
+              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
+                <span className="text-zinc-500">Attending</span>
+                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.attendingHeadcount}</span>
+                <span className="text-zinc-400">
                   ({visibleSubsetStats.attendingFamilies} famil
                   {visibleSubsetStats.attendingFamilies === 1 ? "y" : "ies"})
                 </span>
               </span>
-              <span>
-                M/W/K:{" "}
-                <span className="font-semibold tabular-nums text-zinc-900">
-                  {visibleSubsetStats.men}/{visibleSubsetStats.women}/{visibleSubsetStats.kids}
+              <span className="h-4 w-px shrink-0 bg-[#e7dccb]" aria-hidden />
+              <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+                <span className="rounded-lg border border-sky-200/90 bg-sky-50/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-950">
+                  Men <span className="tabular-nums">{visibleSubsetStats.men}</span>
+                </span>
+                <span className="rounded-lg border border-rose-200/90 bg-rose-50/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-950">
+                  Women <span className="tabular-nums">{visibleSubsetStats.women}</span>
+                </span>
+                <span className="rounded-lg border border-amber-200/90 bg-amber-50/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
+                  Kids <span className="tabular-nums">{visibleSubsetStats.kids}</span>
                 </span>
               </span>
-              <span>
-                Invited:{" "}
+              <span className="h-4 w-px shrink-0 bg-[#e7dccb]" aria-hidden />
+              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
+                <span className="text-zinc-500">Invited</span>
                 <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.invitedFamilies}</span>
               </span>
-              <span>
-                Not invited:{" "}
-                <span className="font-semibold tabular-nums text-zinc-900">
-                  {visibleSubsetStats.notInvitedFamilies}
-                </span>
+              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
+                <span className="text-zinc-500">Not invited</span>
+                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.notInvitedFamilies}</span>
               </span>
             </div>
           </div>
         ) : null}
         {!trueEmpty ? (
           <div className="mb-3 rounded-2xl border border-[#e7dccb] bg-[#fffcfa] px-4 py-3 shadow-sm sm:px-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:justify-between lg:gap-4">
+              <div className="min-w-0 flex-1 lg:flex lg:flex-col lg:justify-center">
                 <label htmlFor="guest-list-search" className="sr-only">
                   Search guests
                 </label>
@@ -1629,32 +1716,14 @@ export function EventGuestsPanel({
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Search name, group, notes, status…"
-                  className="input-luxe w-full py-2.5 text-sm"
+                  className="input-luxe h-11 w-full py-0 text-sm leading-none"
                 />
-                <p className="mt-2 text-xs text-zinc-500">
-                  Showing <span className="font-medium text-zinc-800">{filtered.length}</span> of {guests.length}
-                  {inviteFilter !== "all" ? (
-                    <span className="text-zinc-400"> · invite filter active</span>
-                  ) : null}
-                  {readinessFilter !== "all" ? (
-                    <span className="text-zinc-400"> · readiness filter active</span>
-                  ) : null}
-                  {followUpFilter !== "all" ? (
-                    <span className="text-zinc-400"> · follow-up filter active</span>
-                  ) : null}
-                  {duplicateFilter !== "all" ? (
-                    <span className="text-zinc-400"> · duplicate filter active</span>
-                  ) : null}
-                  {planningGroupFilter !== "all" || planningTableFilter !== "all" ? (
-                    <span className="text-zinc-400"> · seating filter active</span>
-                  ) : null}
-                </p>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-stretch lg:items-center">
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value as typeof sort)}
-                  className="min-w-[12rem] rounded-2xl border border-[#dccfbb] bg-white px-3 py-2.5 text-sm font-medium text-zinc-800"
+                  className="h-11 min-w-[12rem] rounded-2xl border border-[#dccfbb] bg-white px-3 text-sm font-medium text-zinc-800 lg:self-stretch"
                   aria-label="Sort guests"
                 >
                   <option value="updatedDesc">Last updated (latest)</option>
@@ -1664,11 +1733,25 @@ export function EventGuestsPanel({
                   <option value="status">RSVP status</option>
                   <option value="maxGuestsDesc">Total guests (high to low)</option>
                 </select>
-                <button type="button" className="btn-secondary" onClick={clearFilters}>
+                <button
+                  type="button"
+                  className="btn-secondary h-11 shrink-0 px-4 text-sm whitespace-nowrap lg:self-stretch"
+                  onClick={clearFilters}
+                >
                   Reset filters
                 </button>
               </div>
             </div>
+            <p className="mt-3 border-t border-[#efe4d4] pt-3 text-xs text-zinc-500">
+              Showing <span className="font-medium text-zinc-800">{filtered.length}</span> of {guests.length}
+              {inviteFilter !== "all" ? <span className="text-zinc-400"> · invite filter active</span> : null}
+              {readinessFilter !== "all" ? <span className="text-zinc-400"> · readiness filter active</span> : null}
+              {followUpFilter !== "all" ? <span className="text-zinc-400"> · follow-up filter active</span> : null}
+              {duplicateFilter !== "all" ? <span className="text-zinc-400"> · duplicate filter active</span> : null}
+              {planningGroupFilter !== "all" || planningTableFilter !== "all" ? (
+                <span className="text-zinc-400"> · seating filter active</span>
+              ) : null}
+            </p>
           </div>
         ) : null}
         {trueEmpty ? (
@@ -2012,31 +2095,28 @@ export function EventGuestsPanel({
                                 />
                               </svg>
                             </button>
-                            <form action={deleteGuestAction} className="inline">
-                              <input type="hidden" name="eventId" value={eventId} />
-                              <input type="hidden" name="guestId" value={guest.id} />
-                              <button
-                                type="submit"
-                                className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 transition hover:bg-red-50"
-                                title="Delete guest"
-                                aria-label="Delete guest"
+                            <button
+                              type="button"
+                              className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 transition hover:bg-red-50"
+                              title="Delete guest"
+                              aria-label="Delete guest"
+                              onClick={() => setDeleteTargetGuest(guest)}
+                            >
+                              <svg
+                                className="h-4 w-4"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                aria-hidden="true"
                               >
-                                <svg
-                                  className="h-4 w-4"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  aria-hidden="true"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                  />
-                                </svg>
-                              </button>
-                            </form>
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            </button>
                             <button
                               type="button"
                               className="rounded-xl border border-[#ddcfba] bg-white px-2.5 py-2 text-xs font-medium text-zinc-700"
@@ -2052,8 +2132,9 @@ export function EventGuestsPanel({
                 },
               )}
             </div>
-            <div className="hidden max-h-[34rem] overflow-hidden rounded-2xl border border-[#e7dccb] md:block">
-              <div className="max-h-[34rem] overflow-auto">
+            <div
+              className={`hidden overflow-auto rounded-2xl border border-[#e7dccb] md:block ${desktopTableMaxClass}`}
+            >
               <table className="w-full table-fixed border-collapse text-left">
                 <thead className="sticky top-0 z-10 bg-[#f7efe2] shadow-[0_1px_0_rgba(48,34,22,0.06)]">
                   <tr className="border-b border-[#e1d5c3] text-xs uppercase tracking-[0.12em] text-zinc-600">
@@ -2445,31 +2526,28 @@ export function EventGuestsPanel({
                                   />
                                 </svg>
                               </button>
-                              <form action={deleteGuestAction} className="inline">
-                                <input type="hidden" name="eventId" value={eventId} />
-                                <input type="hidden" name="guestId" value={guest.id} />
-                                <button
-                                  type="submit"
-                                  className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 transition hover:bg-red-50 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
-                                  title="Delete guest"
-                                  aria-label="Delete guest"
+                              <button
+                                type="button"
+                                className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 transition hover:bg-red-50 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
+                                title="Delete guest"
+                                aria-label="Delete guest"
+                                onClick={() => setDeleteTargetGuest(guest)}
+                              >
+                                <svg
+                                  className="h-4 w-4"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  aria-hidden="true"
                                 >
-                                  <svg
-                                    className="h-4 w-4"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    aria-hidden="true"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                    />
-                                  </svg>
-                                </button>
-                              </form>
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                  />
+                                </svg>
+                              </button>
                             </div>
                           </div>
                         </td>
@@ -2479,10 +2557,62 @@ export function EventGuestsPanel({
                 </tbody>
               </table>
             </div>
-            </div>
           </>
         )}
       </div>
+
+      {deleteTargetGuest ? (
+        <div className="modal-backdrop z-[135]" role="dialog" aria-modal="true" aria-labelledby="guest-delete-title">
+          <div className="modal-panel max-w-md">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Confirm deletion</p>
+            <h3 id="guest-delete-title" className="mt-3 text-lg font-semibold text-zinc-900">
+              Move guest to trash?
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+              <span className="font-semibold text-zinc-900">{deleteTargetGuest.guestName}</span>  will be hidden from
+              the list and RSVP until you restore them from &quot;Recently deleted guests&quot;. Invite and RSVP data
+              stay on file.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                disabled={deleteGuestSubmitting}
+                onClick={() => {
+                  if (!deleteGuestSubmitting) setDeleteTargetGuest(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-danger flex-1"
+                disabled={deleteGuestSubmitting}
+                onClick={() => {
+                  const g = deleteTargetGuest;
+                  setDeleteGuestSubmitting(true);
+                  startTransition(async () => {
+                    try {
+                      const fd = new FormData();
+                      fd.set("eventId", eventId);
+                      fd.set("guestId", g.id);
+                      await deleteGuestAction(fd);
+                      setDeleteTargetGuest(null);
+                      router.refresh();
+                    } catch {
+                      /* surfaced via server */
+                    } finally {
+                      setDeleteGuestSubmitting(false);
+                    }
+                  });
+                }}
+              >
+                {deleteGuestSubmitting ? "Working…" : "Move to trash"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editingGuest ? (
         <div

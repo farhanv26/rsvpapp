@@ -2,6 +2,7 @@
 
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSuperAdmin } from "@/lib/admin-auth";
 import { logAuditActivity } from "@/lib/audit-log";
@@ -52,6 +53,7 @@ async function countOtherActiveSuperAdmins(excludeUserId: string) {
     where: {
       role: "super_admin",
       active: true,
+      deletedAt: null,
       id: { not: excludeUserId },
     },
   });
@@ -75,6 +77,13 @@ export async function createUserAction(
   const { name, role } = parsed.data;
   const derivedPassword = firstNamePassword(name);
   const passwordHash = await hash(derivedPassword, 12);
+  const nameTaken = await prisma.user.findFirst({
+    where: { name, deletedAt: null },
+    select: { id: true },
+  });
+  if (nameTaken) {
+    return { ok: false, error: "That name is already taken.", fieldErrors: { name: ["Name must be unique."] } };
+  }
   try {
     const created = await prisma.user.create({
       data: { name, passwordHash, role, active: true },
@@ -129,7 +138,7 @@ export async function updateUserAction(
     return { ok: false, error: "Fix the highlighted fields.", fieldErrors };
   }
   const { id, name, role, resetPassword } = parsed.data;
-  const target = await prisma.user.findUnique({ where: { id } });
+  const target = await prisma.user.findFirst({ where: { id, deletedAt: null } });
   if (!target) {
     return { ok: false, error: "User not found." };
   }
@@ -231,14 +240,14 @@ export async function transferEventsAction(
     return { ok: false, error: "Source and destination must be different." };
   }
   const [from, to] = await Promise.all([
-    prisma.user.findUnique({ where: { id: fromUserId } }),
-    prisma.user.findUnique({ where: { id: toUserId } }),
+    prisma.user.findFirst({ where: { id: fromUserId, deletedAt: null } }),
+    prisma.user.findFirst({ where: { id: toUserId, deletedAt: null } }),
   ]);
   if (!from?.active || !to?.active) {
     return { ok: false, error: "Both users must be active." };
   }
   await prisma.event.updateMany({
-    where: { ownerUserId: fromUserId },
+    where: { ownerUserId: fromUserId, deletedAt: null },
     data: { ownerUserId: toUserId },
   });
   await logAuditActivity({
@@ -281,9 +290,9 @@ export async function deactivateUserAction(
     return { ok: false, error: "You cannot deactivate your own account." };
   }
 
-  const target = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { _count: { select: { events: true } } },
+  const target = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
+    include: { _count: { select: { events: { where: { deletedAt: null } } } } },
   });
   if (!target || !target.active) {
     return { ok: false, error: "User not found or already inactive." };
@@ -304,13 +313,15 @@ export async function deactivateUserAction(
     if (transferToUserId === userId) {
       return { ok: false, error: "Invalid recipient." };
     }
-    const recipient = await prisma.user.findUnique({ where: { id: transferToUserId } });
+    const recipient = await prisma.user.findFirst({
+      where: { id: transferToUserId, deletedAt: null },
+    });
     if (!recipient?.active) {
       return { ok: false, error: "Recipient must be an active user." };
     }
     await prisma.$transaction([
       prisma.event.updateMany({
-        where: { ownerUserId: userId },
+        where: { ownerUserId: userId, deletedAt: null },
         data: { ownerUserId: transferToUserId },
       }),
       prisma.user.update({ where: { id: userId }, data: { active: false } }),
@@ -365,9 +376,9 @@ export async function deleteUserAction(
     return { ok: false, error: "You cannot delete your own account." };
   }
 
-  const target = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { _count: { select: { events: true } } },
+  const target = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
+    include: { _count: { select: { events: { where: { deletedAt: null } } } } },
   });
   if (!target) {
     return { ok: false, error: "User not found." };
@@ -387,9 +398,17 @@ export async function deleteUserAction(
     eventsOwned: target._count.events,
   };
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.delete({ where: { id: userId } });
-  });
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.event.updateMany({
+      where: { ownerUserId: userId, deletedAt: null },
+      data: { deletedAt: now },
+    }),
+    prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: now, active: false },
+    }),
+  ]);
   await logAuditActivity({
     userId: admin.id,
     userName: admin.name,
@@ -397,7 +416,7 @@ export async function deleteUserAction(
     entityType: "User",
     entityId: deletedSummary.id,
     entityName: deletedSummary.name,
-    message: `${admin.name} deleted user "${deletedSummary.name}".`,
+    message: `${admin.name} moved user "${deletedSummary.name}" to trash (soft delete).`,
     metadata: {
       role: deletedSummary.role,
       eventsOwned: deletedSummary.eventsOwned,
@@ -406,11 +425,11 @@ export async function deleteUserAction(
   await notifyUser({
     userId: admin.id,
     type: "USER_DELETED",
-    title: `Removed user: ${deletedSummary.name}`,
+    title: `User in trash: ${deletedSummary.name}`,
     description:
       deletedSummary.eventsOwned > 0
-        ? `${deletedSummary.eventsOwned} event(s) they owned were deleted with all guest and RSVP data.`
-        : `Account permanently removed by ${admin.name}.`,
+        ? `${deletedSummary.eventsOwned} active event(s) they owned were moved to trash. Restore from Deleted users or Deleted events.`
+        : `Account moved to trash by ${admin.name}.`,
     entityType: "User",
     entityId: deletedSummary.id,
   });
@@ -418,4 +437,69 @@ export async function deleteUserAction(
   revalidatePath("/admin/events");
   revalidatePath("/admin/login");
   return { ok: true };
+}
+
+const restoreUserSchema = z.object({
+  userId: z.string().min(1),
+});
+
+export async function restoreUserAction(
+  _prev: UserManageResult | undefined,
+  formData: FormData,
+): Promise<UserManageResult> {
+  const admin = await requireSuperAdmin();
+  const parsed = restoreUserSchema.safeParse({ userId: formData.get("userId") });
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid request." };
+  }
+  const { userId } = parsed.data;
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: { not: null } },
+    select: { id: true, name: true },
+  });
+  if (!user) {
+    return { ok: false, error: "No archived user found to restore." };
+  }
+  const nameTaken = await prisma.user.findFirst({
+    where: { name: user.name, deletedAt: null, id: { not: userId } },
+    select: { id: true },
+  });
+  if (nameTaken) {
+    return {
+      ok: false,
+      error: `Cannot restore: another active user already uses the name "${user.name}". Rename the archived account in the database or remove the conflict first.`,
+    };
+  }
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: null, active: true },
+    }),
+    prisma.event.updateMany({
+      where: { ownerUserId: userId },
+      data: { deletedAt: null },
+    }),
+  ]);
+  await logAuditActivity({
+    userId: admin.id,
+    userName: admin.name,
+    actionType: "user_restored",
+    entityType: "User",
+    entityId: user.id,
+    entityName: user.name,
+    message: `${admin.name} restored user "${user.name}" from trash.`,
+  });
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/events");
+  revalidatePath("/admin/login");
+  return { ok: true };
+}
+
+/** Single-argument server action for `<form action={…}>` restore flows. */
+export async function restoreUserFromTrashFormAction(formData: FormData) {
+  const result = await restoreUserAction(undefined, formData);
+  if (!result.ok) {
+    redirect("/admin/users?restore=error");
+  }
+  redirect("/admin/users?restored=user");
 }

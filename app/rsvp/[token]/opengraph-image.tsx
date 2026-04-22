@@ -9,8 +9,8 @@ export const revalidate = 3600;
 
 export default async function Image({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const guest = await prisma.guest.findUnique({
-    where: { token },
+  const guest = await prisma.guest.findFirst({
+    where: { token, deletedAt: null, event: { deletedAt: null } },
     select: {
       maxGuests: true,
       isFamilyInvite: true,

@@ -10,6 +10,8 @@ import { GuestCsvImport } from "@/components/admin/guest-csv-import";
 import { normalizeGuestNameKey } from "@/lib/csv-guests";
 import { EventSectionNav } from "@/components/admin/event-section-nav";
 import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import { EventDashboardScrollReset } from "@/components/admin/event-dashboard-scroll-reset";
+import { ScrollToGuestsControl } from "@/components/admin/scroll-to-guests-control";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { countInvitedAwaitingRsvp } from "@/lib/guest-followup";
@@ -32,10 +34,11 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const activityQ = activityParams?.activityQ?.trim() || "";
   const activityAction = activityParams?.activityAction?.trim() || "all";
 
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
     include: {
       guests: {
+        where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
       },
       rsvpActivities: {
@@ -157,6 +160,13 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     weekLogs: commWeekLogs,
   };
 
+  const deletedGuestsSummary = await prisma.guest.findMany({
+    where: { eventId: event.id, deletedAt: { not: null } },
+    orderBy: { deletedAt: "desc" },
+    take: 40,
+    select: { id: true, guestName: true, deletedAt: true },
+  });
+
   const guestsSerialized = event.guests.map((g) => ({
     id: g.id,
     guestName: g.guestName,
@@ -245,121 +255,132 @@ export default async function EventDashboardPage({ params, searchParams }: Props
 
   return (
     <main className="min-h-screen">
+      <EventDashboardScrollReset eventId={event.id} />
       <div className="app-shell max-w-6xl space-y-8">
-        <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="app-card p-6 sm:p-7 lg:flex-1">
-            <Link href="/admin/events" className="text-sm font-medium text-zinc-600 hover:text-zinc-900">
-              ← Events
-            </Link>
-            <h1 className="headline-display mt-3 text-3xl">
-              {event.coupleNames?.trim() || event.title}
-            </h1>
-            {event.coupleNames?.trim() ? (
-              <p className="mt-1 text-lg text-zinc-600">{event.title}</p>
-            ) : null}
-            <p className="mt-2 font-mono text-xs text-zinc-500">{event.slug}</p>
-            {(event.eventDate || event.eventTime || event.venue) ? (
-              <p className="mt-4 text-sm text-zinc-600">
-                {event.eventDate
-                  ? new Intl.DateTimeFormat("en-US", { dateStyle: "full" }).format(event.eventDate)
-                  : null}
-                {event.eventDate && event.eventTime ? " · " : null}
-                {event.eventTime ?? null}
-                {(event.eventDate || event.eventTime) && event.venue ? " · " : null}
-                {event.venue ?? null}
-              </p>
-            ) : (
-              <p className="mt-4 text-sm text-zinc-500">No ceremony details added yet.</p>
-            )}
-            {event.rsvpDeadline ? (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                <p className="uppercase tracking-[0.18em] text-zinc-500">
-                  RSVP deadline{" "}
-                  {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(event.rsvpDeadline)}
+        <div className="space-y-5 lg:space-y-4">
+          <header className="flex flex-col gap-6 lg:flex-row lg:items-stretch lg:justify-between lg:gap-8">
+            <div className="app-card p-6 sm:p-7 lg:min-w-0 lg:flex-1 lg:p-8 lg:shadow-[0_28px_72px_-40px_rgba(71,52,29,0.52)] lg:ring-1 lg:ring-[#3f2f1f]/[0.06]">
+              <Link
+                href="/admin/events"
+                className="text-sm font-medium text-zinc-600 hover:text-zinc-900 lg:text-[0.8125rem]"
+              >
+                ← Events
+              </Link>
+              <h1 className="headline-display mt-3 text-3xl lg:mt-4 lg:text-[2.375rem] lg:leading-[1.12] lg:tracking-tight">
+                {event.coupleNames?.trim() || event.title}
+              </h1>
+              {event.coupleNames?.trim() ? (
+                <p className="mt-2 text-lg font-normal leading-snug text-zinc-600 lg:mt-2.5 lg:text-xl lg:text-zinc-500">
+                  {event.title}
                 </p>
-                <span
-                  className={`${
-                    deadlineMeta?.status === "closed"
-                      ? "badge-neutral"
-                      : deadlineMeta?.status === "closes_today"
-                        ? "badge-danger"
-                        : deadlineMeta?.status === "closing_soon"
-                          ? "badge-warning"
-                          : "badge-success"
-                  }`}
+              ) : null}
+              <p className="mt-2.5 font-mono text-[11px] text-zinc-500 lg:mt-3 lg:text-xs">{event.slug}</p>
+              {(event.eventDate || event.eventTime || event.venue) ? (
+                <p className="mt-5 text-sm leading-relaxed text-zinc-700 lg:mt-6 lg:text-[15px]">
+                  {event.eventDate
+                    ? new Intl.DateTimeFormat("en-US", { dateStyle: "full" }).format(event.eventDate)
+                    : null}
+                  {event.eventDate && event.eventTime ? " · " : null}
+                  {event.eventTime ?? null}
+                  {(event.eventDate || event.eventTime) && event.venue ? " · " : null}
+                  {event.venue ?? null}
+                </p>
+              ) : (
+                <p className="mt-5 text-sm text-zinc-500 lg:mt-6">No ceremony details added yet.</p>
+              )}
+              {event.rsvpDeadline ? (
+                <div className="mt-5 border-t border-[#efe6d8] pt-5 lg:mt-6 lg:pt-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <div className="min-w-0 sm:flex-1">
+                      <p className="section-title">RSVP deadline</p>
+                      <p className="mt-1.5 text-sm font-semibold tracking-tight text-zinc-900 lg:text-base">
+                        {new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(event.rsvpDeadline)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
+                      <span
+                        className={`shrink-0 ${
+                          deadlineMeta?.status === "closed"
+                            ? "badge-neutral"
+                            : deadlineMeta?.status === "closes_today"
+                              ? "badge-danger"
+                              : deadlineMeta?.status === "closing_soon"
+                                ? "badge-warning"
+                                : "badge-success"
+                        }`}
+                      >
+                        {deadlineMeta?.status === "closed"
+                          ? "Closed"
+                          : deadlineMeta?.status === "closes_today"
+                            ? "Closes Today"
+                            : deadlineMeta?.status === "closing_soon"
+                              ? "Closing Soon"
+                              : "Open"}
+                      </span>
+                      {typeof deadlineMeta?.daysRemaining === "number" && deadlineMeta.daysRemaining > 0 ? (
+                        <span className="text-xs text-zinc-500 lg:text-[13px]">
+                          {deadlineMeta.daysRemaining} day{deadlineMeta.daysRemaining === 1 ? "" : "s"} remaining
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="flex w-full shrink-0 flex-col lg:max-w-[22rem] lg:justify-start xl:max-w-[24rem]">
+              <div className="flex flex-wrap gap-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:rounded-2xl lg:border lg:border-[#e7dccb] lg:bg-[#fffdfa]/95 lg:p-4 lg:shadow-[0_18px_48px_-36px_rgba(71,52,29,0.35)]">
+                <ScrollToGuestsControl className="lg:col-span-2 lg:w-full lg:justify-center lg:px-5 lg:py-3" />
+                <Link
+                  href={`/admin/events/${event.id}/report`}
+                  className="btn-secondary inline-flex shrink-0 lg:w-full lg:justify-center lg:px-5 lg:py-3"
                 >
-                  {deadlineMeta?.status === "closed"
-                    ? "Closed"
-                    : deadlineMeta?.status === "closes_today"
-                      ? "Closes Today"
-                      : deadlineMeta?.status === "closing_soon"
-                        ? "Closing Soon"
-                        : "Open"}
-                </span>
-                {typeof deadlineMeta?.daysRemaining === "number" && deadlineMeta.daysRemaining > 0 ? (
-                  <span className="text-zinc-500">
-                    {deadlineMeta.daysRemaining} day{deadlineMeta.daysRemaining === 1 ? "" : "s"} remaining
-                  </span>
-                ) : null}
+                  Host summary
+                </Link>
+                <Link
+                  href={`/admin/events/${event.id}/edit`}
+                  className="btn-secondary inline-flex shrink-0 lg:w-full lg:justify-center lg:px-5 lg:py-3"
+                >
+                  Edit event
+                </Link>
+                <EventRsvpShare
+                  eventTitle={event.title}
+                  eventCoupleNames={event.coupleNames}
+                  inviteMessageIntro={event.inviteMessageIntro}
+                  inviteMessageLineOverride={event.inviteMessageLineOverride}
+                  guests={guestsSerialized.map((g) => ({
+                    id: g.id,
+                    guestName: g.guestName,
+                    token: g.token,
+                    greeting: g.greeting,
+                    phone: g.phone,
+                    phoneCountryCode: g.phoneCountryCode,
+                  }))}
+                  triggerClassName="inline-flex shrink-0 lg:w-full lg:justify-center lg:px-5 lg:py-3"
+                />
+                <DeleteEventButton
+                  eventId={event.id}
+                  redirectToListOnSuccess
+                  className="btn-secondary inline-flex shrink-0 border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 lg:w-full lg:justify-center lg:px-5 lg:py-3"
+                />
               </div>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Link
-              href="#event-guests"
-              className="btn-secondary inline-flex shrink-0"
-              title="Jump to guest list — use Preview guest RSVP on any row"
-            >
-              Guest RSVP preview
-            </Link>
-            <Link
-              href={`/admin/events/${event.id}/report`}
-              className="btn-secondary inline-flex shrink-0"
-            >
-              Host summary
-            </Link>
-            <Link
-              href={`/admin/events/${event.id}/edit`}
-              className="btn-secondary inline-flex shrink-0"
-            >
-              Edit event
-            </Link>
-            <EventRsvpShare
-              eventTitle={event.title}
-              eventCoupleNames={event.coupleNames}
-              inviteMessageIntro={event.inviteMessageIntro}
-              inviteMessageLineOverride={event.inviteMessageLineOverride}
-              guests={guestsSerialized.map((g) => ({
-                id: g.id,
-                guestName: g.guestName,
-                token: g.token,
-                greeting: g.greeting,
-                phone: g.phone,
-                phoneCountryCode: g.phoneCountryCode,
-              }))}
-            />
-            <DeleteEventButton
-              eventId={event.id}
-              redirectToListOnSuccess
-              className="btn-secondary border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
-            />
-          </div>
-        </header>
+            </div>
+          </header>
 
-        <EventSectionNav
-          items={[
-            { id: "dashboard-overview", label: "Overview" },
-            { id: "dashboard-stats", label: "Stats" },
-            { id: "dashboard-tools", label: "Invite tools" },
-            { id: "event-guests", label: "Guests" },
-            { id: "dashboard-activity", label: "Event activity" },
-            { id: "dashboard-followup", label: "Follow-up" },
-            { id: "dashboard-readiness", label: "Readiness" },
-            { id: "dashboard-seating", label: "Seating & grouping" },
-            { id: "dashboard-hygiene", label: "List hygiene" },
-            { id: "dashboard-communications", label: "Communications" },
-          ]}
-        />
+          <EventSectionNav
+            items={[
+              { id: "dashboard-overview", label: "Overview" },
+              { id: "dashboard-stats", label: "Stats" },
+              { id: "dashboard-tools", label: "Invite tools" },
+              { id: "event-guests", label: "Guests" },
+              { id: "dashboard-activity", label: "Event activity" },
+              { id: "dashboard-followup", label: "Follow-up" },
+              { id: "dashboard-readiness", label: "Readiness" },
+              { id: "dashboard-seating", label: "Seating & grouping" },
+              { id: "dashboard-hygiene", label: "List hygiene" },
+              { id: "dashboard-communications", label: "Communications" },
+            ]}
+          />
+        </div>
 
         <CollapsibleSection
           id="dashboard-overview"
@@ -576,6 +597,11 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             inviteMessageIntro={event.inviteMessageIntro}
             inviteMessageLineOverride={event.inviteMessageLineOverride}
             guests={guestsSerialized}
+            deletedGuestsSummary={deletedGuestsSummary.map((g) => ({
+              id: g.id,
+              guestName: g.guestName,
+              deletedAt: g.deletedAt!.toISOString(),
+            }))}
             siteUrl={getPublicSiteUrl()}
             inviteCardEvent={inviteCardEvent}
             communicationLastByGuest={communicationLastByGuest}

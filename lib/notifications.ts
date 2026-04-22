@@ -76,8 +76,8 @@ export async function notifyUsers(input: Omit<NotificationWriteInput, "userId"> 
 
 export async function notifyEventOwner(input: EventOwnerNotificationInput) {
   try {
-    const event = await prisma.event.findUnique({
-      where: { id: input.eventId },
+    const event = await prisma.event.findFirst({
+      where: { id: input.eventId, deletedAt: null },
       select: { ownerUserId: true },
     });
     if (!event?.ownerUserId) return;

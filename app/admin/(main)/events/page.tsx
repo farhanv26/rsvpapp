@@ -31,11 +31,11 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   if (isSuper) {
     const [nameRows, creatorCount] = await Promise.all([
       prisma.user.findMany({
-        where: { active: true },
+        where: { active: true, deletedAt: null },
         orderBy: { name: "asc" },
         select: { name: true },
       }),
-      prisma.user.count({ where: { active: true, role: "event_creator" } }),
+      prisma.user.count({ where: { active: true, deletedAt: null, role: "event_creator" } }),
     ]);
     creatorFilterNames = nameRows.map((row) => row.name);
     totalCreatorsStat = creatorCount;
@@ -84,12 +84,16 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   try {
     console.info("[admin/events] loading events");
     const results = await prisma.event.findMany({
-      where: isSuper ? undefined : { ownerUserId: admin.id },
+      where: {
+        deletedAt: null,
+        ...(isSuper ? {} : { ownerUserId: admin.id }),
+      },
       orderBy: { createdAt: "desc" },
       include: {
         owner: { select: { name: true } },
-        _count: { select: { guests: true } },
+        _count: { select: { guests: { where: { deletedAt: null } } } },
         guests: {
+          where: { deletedAt: null },
           select: {
             attending: true,
             attendingCount: true,
@@ -292,6 +296,9 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                   Full-control mode
                 </div>
               ) : null}
+              <Link href="/admin/events/deleted" className="btn-secondary">
+                Deleted events
+              </Link>
               <Link href="/admin/events/new" className="btn-primary">
                 Create new event
               </Link>

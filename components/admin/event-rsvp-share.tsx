@@ -81,12 +81,14 @@ export function EventRsvpShare({
   inviteMessageIntro,
   inviteMessageLineOverride,
   guests,
+  triggerClassName,
 }: {
   eventTitle: string;
   eventCoupleNames?: string | null;
   inviteMessageIntro?: string | null;
   inviteMessageLineOverride?: string | null;
   guests: GuestForShare[];
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedGuestId, setSelectedGuestId] = useState<string>(guests[0]?.id ?? "");
@@ -146,7 +148,7 @@ export function EventRsvpShare({
     <>
       <button
         type="button"
-        className="btn-secondary"
+        className={["btn-secondary", triggerClassName].filter(Boolean).join(" ")}
         onClick={() => {
           setQrDataUrl(null);
           setQrError(null);
