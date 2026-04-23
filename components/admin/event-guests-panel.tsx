@@ -199,6 +199,14 @@ const countingFilterTabs: { id: CountingFilterId; label: string }[] = [
   { id: "counted_elsewhere", label: "Counted elsewhere" },
 ];
 
+type ExclusionFilterId = "all" | "excluded" | "not_excluded";
+
+const exclusionFilterTabs: { id: ExclusionFilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "excluded", label: "Duplicated" },
+  { id: "not_excluded", label: "Non-duplicated" },
+];
+
 function guestIsSharedAcrossEvents(guest: GuestPanelGuest): boolean {
   return guest.isSharedGuest;
 }
@@ -390,6 +398,7 @@ export function EventGuestsPanel({
   const [followUpFilter, setFollowUpFilter] = useState<FollowUpFilterId>("all");
   const [duplicateFilter, setDuplicateFilter] = useState<DuplicateFilterId>("all");
   const [countingFilter, setCountingFilter] = useState<CountingFilterId>("all");
+  const [exclusionFilter, setExclusionFilter] = useState<ExclusionFilterId>("all");
   const [planningGroupFilter, setPlanningGroupFilter] = useState<string>("all");
   const [planningTableFilter, setPlanningTableFilter] = useState<string>("all");
   const [reviewDuplicatesOpen, setReviewDuplicatesOpen] = useState(false);
@@ -513,8 +522,14 @@ export function EventGuestsPanel({
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [guests]);
 
+  const afterExclusionFilter = useMemo(() => {
+    if (exclusionFilter === "excluded") return guests.filter((g) => g.excludeFromTotals);
+    if (exclusionFilter === "not_excluded") return guests.filter((g) => !g.excludeFromTotals);
+    return guests;
+  }, [guests, exclusionFilter]);
+
   const withoutInviteFilter = useMemo(() => {
-    let list = [...guests];
+    let list = [...afterExclusionFilter];
     const query = q.trim().toLowerCase();
     if (query) {
       list = list.filter((g) => {
@@ -562,7 +577,7 @@ export function EventGuestsPanel({
     }
 
     return list;
-  }, [guests, q, filter, duplicateStrengthMap, eventId]);
+  }, [afterExclusionFilter, q, filter, duplicateStrengthMap, eventId]);
 
   const afterInviteFilter = useMemo(() => {
     let list = [...withoutInviteFilter];
@@ -669,6 +684,7 @@ export function EventGuestsPanel({
   }, [afterCountingFilter, sort]);
 
   const visibleSubsetStats = useMemo(() => {
+    const showExcluded = exclusionFilter === "excluded";
     let maxInvited = 0;
     let men = 0;
     let women = 0;
@@ -678,7 +694,7 @@ export function EventGuestsPanel({
     let invitedFamilies = 0;
     let notInvitedFamilies = 0;
     for (const g of filtered) {
-      if (!g.excludeFromTotals) {
+      if (!g.excludeFromTotals || showExcluded) {
         maxInvited += totalGuestCount(g);
         men += g.menCount ?? 0;
         women += g.womenCount ?? 0;
@@ -702,7 +718,7 @@ export function EventGuestsPanel({
       invitedFamilies,
       notInvitedFamilies,
     };
-  }, [filtered]);
+  }, [filtered, exclusionFilter]);
 
   const guestRowBundles = useMemo(
     () =>
@@ -722,6 +738,7 @@ export function EventGuestsPanel({
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
+    if (exclusionFilter !== "all") n += 1;
     if (filter !== "all") n += 1;
     if (inviteFilter !== "all") n += 1;
     if (readinessFilter !== "all") n += 1;
@@ -732,6 +749,7 @@ export function EventGuestsPanel({
     if (planningTableFilter !== "all") n += 1;
     return n;
   }, [
+    exclusionFilter,
     filter,
     inviteFilter,
     readinessFilter,
@@ -754,6 +772,10 @@ export function EventGuestsPanel({
   const hasGuests = guests.length > 0;
   const trueEmpty = !hasGuests;
   const filteredEmpty = hasGuests && filtered.length === 0;
+  const exclusionFilterOnlyEmpty =
+    hasGuests &&
+    afterExclusionFilter.length === 0 &&
+    exclusionFilter !== "all";
   const searchOrRsvpEmpty = hasGuests && withoutInviteFilter.length === 0;
   const inviteFilterOnlyEmpty =
     hasGuests &&
@@ -831,6 +853,7 @@ export function EventGuestsPanel({
     const eligibleInView = filtered.filter((g) => isInvitedAwaitingRsvp(g)).length;
     const viewIsNarrowed =
       q.trim() !== "" ||
+      exclusionFilter !== "all" ||
       filter !== "all" ||
       inviteFilter !== "all" ||
       readinessFilter !== "all" ||
@@ -843,6 +866,7 @@ export function EventGuestsPanel({
   }, [
     filtered,
     q,
+    exclusionFilter,
     filter,
     inviteFilter,
     readinessFilter,
@@ -881,6 +905,7 @@ export function EventGuestsPanel({
     setFollowUpFilter("all");
     setDuplicateFilter("all");
     setCountingFilter("all");
+    setExclusionFilter("all");
     setPlanningGroupFilter("all");
     setPlanningTableFilter("all");
     setSort("updatedDesc");
@@ -1193,6 +1218,26 @@ export function EventGuestsPanel({
                   Review duplicates ({duplicateClusterCount})
                 </button>
               ) : null}
+            </div>
+
+            <div className="mt-4 border-t border-[#efe4d4] pt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Duplicate status</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {exclusionFilterTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setExclusionFilter(t.id)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                      exclusionFilter === t.id
+                        ? "bg-[#6b2d3c] text-white"
+                        : "bg-[#f5e8eb] text-zinc-600 hover:bg-[#ebd0d6]"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="mt-4 grid gap-4 border-t border-[#efe4d4] pt-4 md:grid-cols-2">
@@ -1835,6 +1880,7 @@ export function EventGuestsPanel({
             </div>
             <p className="mt-3 border-t border-[#efe4d4] pt-3 text-xs text-zinc-500">
               Showing <span className="font-medium text-zinc-800">{filtered.length}</span> of {guests.length}
+              {exclusionFilter !== "all" ? <span className="text-zinc-400"> · duplicate status filter active</span> : null}
               {inviteFilter !== "all" ? <span className="text-zinc-400"> · invite filter active</span> : null}
               {readinessFilter !== "all" ? <span className="text-zinc-400"> · readiness filter active</span> : null}
               {followUpFilter !== "all" ? <span className="text-zinc-400"> · follow-up filter active</span> : null}
@@ -1853,7 +1899,9 @@ export function EventGuestsPanel({
         ) : filteredEmpty ? (
           <div className="app-card-muted border border-dashed px-4 py-8 text-center text-sm text-zinc-600">
             <p>
-              {searchOrRsvpEmpty
+              {exclusionFilterOnlyEmpty
+                ? "No guests matched your duplicate status filter."
+                : searchOrRsvpEmpty
                 ? "No guests matched your search criteria."
                 : inviteFilterOnlyEmpty
                   ? "No guests matched your current invite filter."

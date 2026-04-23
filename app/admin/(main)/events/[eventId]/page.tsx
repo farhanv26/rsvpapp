@@ -94,6 +94,10 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const responseRate = countedGuests.length > 0 ? totalResponded / countedGuests.length : 0;
   const attendanceRate = totalMaximumInvited > 0 ? totalConfirmedAttendees / totalMaximumInvited : 0;
 
+  const duplicatedGuests = event.guests.filter((guest) => guest.excludeFromTotals);
+  const duplicateFamiliesCount = duplicatedGuests.length;
+  const duplicatePeopleCount = duplicatedGuests.reduce((sum, guest) => sum + guestInvitedCapacity(guest), 0);
+
   const readinessOverview = summarizeReadinessGuestCounts(
     countedGuests.map((g) => ({
       respondedAt: g.respondedAt?.toISOString() ?? null,
@@ -506,6 +510,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           />
           <StatCard label="Response rate" value={`${Math.round(responseRate * 100)}%`} />
           <StatCard label="Attendance rate" value={`${Math.round(attendanceRate * 100)}%`} />
+          <StatCard label="Duplicate families" value={duplicateFamiliesCount} sub="excluded from totals" />
+          <StatCard label="Duplicate people" value={duplicatePeopleCount} sub="in duplicate families" />
           </section>
         </CollapsibleSection>
 
