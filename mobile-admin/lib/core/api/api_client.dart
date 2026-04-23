@@ -4,7 +4,7 @@ import '../storage/secure_storage.dart';
 
 // Update this to your server URL. In development, use your local IP so the
 // device/simulator can reach the Next.js dev server (not 'localhost').
-const String kBaseUrl = 'http://192.168.68.123:3000/admin/api/mobile';
+const String kBaseUrl = 'http://localhost:3000/admin/api/mobile';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final storage = ref.watch(secureStorageProvider);

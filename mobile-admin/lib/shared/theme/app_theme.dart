@@ -30,7 +30,7 @@ class AppTheme {
       useMaterial3: true,
       fontFamily: 'SF Pro Text',
       scaffoldBackgroundColor: AppColors.surface,
-      colorScheme: ColorScheme.light(
+      colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         secondary: AppColors.accent,
         surface: AppColors.surfaceCard,

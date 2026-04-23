@@ -9,6 +9,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Mobile API routes use Bearer token auth handled in each route handler.
+  if (pathname.startsWith("/admin/api/mobile/")) {
+    return NextResponse.next();
+  }
+
   const secret = process.env.ADMIN_AUTH_SECRET;
   if (!secret || secret.length < 16) {
     return new NextResponse("Admin auth is not configured (set ADMIN_AUTH_SECRET, 16+ characters).", {
