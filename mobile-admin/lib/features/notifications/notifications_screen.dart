@@ -14,15 +14,18 @@ class NotificationsScreen extends ConsumerWidget {
     final notifAsync = ref.watch(notificationsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.surface,
         title: const Text('Notifications'),
         actions: [
           notifAsync.maybeWhen(
             data: (result) => result.unreadCount > 0
                 ? TextButton(
                     onPressed: () async {
-                      await ref.read(notificationsServiceProvider).markRead(all: true);
+                      await ref
+                          .read(notificationsServiceProvider)
+                          .markRead(all: true);
                       ref.invalidate(notificationsProvider);
                     },
                     child: const Text('Mark all read'),
@@ -33,9 +36,14 @@ class NotificationsScreen extends ConsumerWidget {
         ],
       ),
       body: notifAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+            child: CircularProgressIndicator(color: AppColors.brandAccent)),
         error: (e, _) => ErrorView(
-          message: e.toString().replaceFirst('ApiException', '').replaceAll(':', '').trim(),
+          message: e
+              .toString()
+              .replaceFirst('ApiException', '')
+              .replaceAll(':', '')
+              .trim(),
           onRetry: () => ref.invalidate(notificationsProvider),
         ),
         data: (result) {
@@ -47,10 +55,10 @@ class NotificationsScreen extends ConsumerWidget {
             );
           }
           return RefreshIndicator(
-            color: AppColors.primary,
+            color: AppColors.brandAccent,
             onRefresh: () async => ref.invalidate(notificationsProvider),
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
               itemCount: result.notifications.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, i) {
@@ -58,7 +66,9 @@ class NotificationsScreen extends ConsumerWidget {
                 return _NotificationTile(
                   notification: notif,
                   onMarkRead: () async {
-                    await ref.read(notificationsServiceProvider).markRead(id: notif.id);
+                    await ref
+                        .read(notificationsServiceProvider)
+                        .markRead(id: notif.id);
                     ref.invalidate(notificationsProvider);
                   },
                 );
@@ -72,7 +82,8 @@ class NotificationsScreen extends ConsumerWidget {
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.notification, required this.onMarkRead});
+  const _NotificationTile(
+      {required this.notification, required this.onMarkRead});
 
   final AppNotification notification;
   final VoidCallback onMarkRead;
@@ -80,17 +91,21 @@ class _NotificationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeAgo = _formatTimeAgo(notification.createdAt);
+    final isUnread = !notification.read;
 
     return GestureDetector(
-      onTap: notification.read ? null : onMarkRead,
+      onTap: isUnread ? onMarkRead : null,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: notification.read ? AppColors.surfaceCard : AppColors.primaryLight,
-          borderRadius: BorderRadius.circular(12),
+          color: isUnread ? AppColors.brandAccentLight : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-            color: notification.read ? AppColors.border : AppColors.primary.withAlpha(80),
+            color: isUnread
+                ? AppColors.brandAccent.withValues(alpha: 0.3)
+                : AppColors.border,
           ),
+          boxShadow: AppShadows.card,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,30 +120,39 @@ class _NotificationTile extends StatelessWidget {
                     notification.title,
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: notification.read ? FontWeight.normal : FontWeight.w600,
+                      fontWeight:
+                          isUnread ? FontWeight.w600 : FontWeight.normal,
                       color: AppColors.textPrimary,
                       height: 1.3,
                     ),
                   ),
-                  if (notification.description != null && notification.description!.isNotEmpty) ...[
+                  if (notification.description != null &&
+                      notification.description!.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       notification.description!,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.4),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                   const SizedBox(height: 6),
-                  Text(timeAgo, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                  Text(timeAgo,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textMuted)),
                 ],
               ),
             ),
-            if (!notification.read) ...[
+            if (isUnread) ...[
               const SizedBox(width: 8),
               Container(
-                width: 8, height: 8,
-                decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                    color: AppColors.brandAccent, shape: BoxShape.circle),
               ),
             ],
           ],
@@ -139,15 +163,25 @@ class _NotificationTile extends StatelessWidget {
 
   Widget _typeIcon(String type) {
     final (icon, color) = switch (type) {
-      String t when t.contains('rsvp') => (Icons.how_to_reg_rounded, AppColors.attending),
-      String t when t.contains('guest') => (Icons.person_rounded, AppColors.primary),
-      String t when t.contains('event') => (Icons.event_rounded, AppColors.accent),
+      String t when t.contains('rsvp') => (
+          Icons.how_to_reg_rounded,
+          AppColors.attending,
+        ),
+      String t when t.contains('guest') => (
+          Icons.person_rounded,
+          AppColors.brandMid,
+        ),
+      String t when t.contains('event') => (
+          Icons.event_rounded,
+          AppColors.brandAccent,
+        ),
       _ => (Icons.notifications_rounded, AppColors.textSecondary),
     };
     return Container(
-      width: 36, height: 36,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
-        color: color.withAlpha(20),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Icon(icon, color: color, size: 18),

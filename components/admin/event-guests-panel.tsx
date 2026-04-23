@@ -82,6 +82,10 @@ export type GuestPanelGuest = {
   isFamilyInvite: boolean;
   excludeFromTotals: boolean;
   excludeReason: string | null;
+  excludedGuestCount: number;
+  excludedMenCount: number;
+  excludedWomenCount: number;
+  excludedKidsCount: number;
   sharedGuestKey: string | null;
   countOwnerEventId: string | null;
   isSharedGuest: boolean;
@@ -90,6 +94,22 @@ export type GuestPanelGuest = {
 function totalGuestCount(guest: Pick<GuestPanelGuest, "menCount" | "womenCount" | "kidsCount" | "maxGuests">) {
   const computed = (guest.menCount ?? 0) + (guest.womenCount ?? 0) + (guest.kidsCount ?? 0);
   return computed > 0 ? computed : guest.maxGuests;
+}
+
+function guestEffectiveExcludedTotal(guest: Pick<GuestPanelGuest, "excludedMenCount" | "excludedWomenCount" | "excludedKidsCount" | "excludedGuestCount">) {
+  const catSum = (guest.excludedMenCount ?? 0) + (guest.excludedWomenCount ?? 0) + (guest.excludedKidsCount ?? 0);
+  return catSum > 0 ? catSum : (guest.excludedGuestCount ?? 0);
+}
+
+function countedGuestContribution(guest: Pick<GuestPanelGuest, "menCount" | "womenCount" | "kidsCount" | "maxGuests" | "excludedGuestCount" | "excludedMenCount" | "excludedWomenCount" | "excludedKidsCount">) {
+  const excMen = guest.excludedMenCount ?? 0;
+  const excWomen = guest.excludedWomenCount ?? 0;
+  const excKids = guest.excludedKidsCount ?? 0;
+  const catSum = excMen + excWomen + excKids;
+  if (catSum > 0) {
+    return Math.max((guest.menCount ?? 0) - excMen, 0) + Math.max((guest.womenCount ?? 0) - excWomen, 0) + Math.max((guest.kidsCount ?? 0) - excKids, 0);
+  }
+  return Math.max(totalGuestCount(guest) - (guest.excludedGuestCount ?? 0), 0);
 }
 
 type Props = {
@@ -212,7 +232,7 @@ function guestIsSharedAcrossEvents(guest: GuestPanelGuest): boolean {
 }
 
 function guestIsCountedHere(guest: GuestPanelGuest, eventId: string): boolean {
-  if (guest.excludeFromTotals) return false;
+  if (guestEffectiveExcludedTotal(guest) >= totalGuestCount(guest) && totalGuestCount(guest) > 0) return false;
   if (!guest.countOwnerEventId) return true;
   return guest.countOwnerEventId === eventId;
 }
@@ -523,8 +543,8 @@ export function EventGuestsPanel({
   }, [guests]);
 
   const afterExclusionFilter = useMemo(() => {
-    if (exclusionFilter === "excluded") return guests.filter((g) => g.excludeFromTotals);
-    if (exclusionFilter === "not_excluded") return guests.filter((g) => !g.excludeFromTotals);
+    if (exclusionFilter === "excluded") return guests.filter((g) => guestEffectiveExcludedTotal(g) > 0);
+    if (exclusionFilter === "not_excluded") return guests.filter((g) => guestEffectiveExcludedTotal(g) === 0);
     return guests;
   }, [guests, exclusionFilter]);
 
@@ -552,7 +572,7 @@ export function EventGuestsPanel({
           duplicateBadgeLabel(duplicateStrengthMap.get(g.id) ?? "none"),
           "duplicate",
           "possible duplicate",
-          g.excludeFromTotals ? "excluded" : "counted here",
+          guestEffectiveExcludedTotal(g) > 0 ? "excluded" : "counted here",
           g.excludeReason,
           g.isSharedGuest ? "shared guest" : "",
           g.countOwnerEventId && g.countOwnerEventId !== eventId ? "counted elsewhere" : "",
@@ -630,8 +650,8 @@ export function EventGuestsPanel({
     }
     return afterPlanningFilter.filter((g) => {
       const countedHere = guestIsCountedHere(g, eventId);
-      if (countingFilter === "counted") return !g.excludeFromTotals;
-      if (countingFilter === "excluded") return g.excludeFromTotals;
+      if (countingFilter === "counted") return guestEffectiveExcludedTotal(g) === 0;
+      if (countingFilter === "excluded") return guestEffectiveExcludedTotal(g) > 0;
       if (countingFilter === "shared") return guestIsSharedAcrossEvents(g);
       if (countingFilter === "counted_here") return countedHere;
       if (countingFilter === "counted_elsewhere") {
@@ -684,7 +704,6 @@ export function EventGuestsPanel({
   }, [afterCountingFilter, sort]);
 
   const visibleSubsetStats = useMemo(() => {
-    const showExcluded = exclusionFilter === "excluded";
     let maxInvited = 0;
     let men = 0;
     let women = 0;
@@ -694,11 +713,23 @@ export function EventGuestsPanel({
     let invitedFamilies = 0;
     let notInvitedFamilies = 0;
     for (const g of filtered) {
-      if (!g.excludeFromTotals || showExcluded) {
-        maxInvited += totalGuestCount(g);
+      const contribution = countedGuestContribution(g);
+      maxInvited += contribution;
+      // Per-category M/W/K: accurate when per-category exclusions exist; legacy falls back to drop-if-any
+      const excMen = g.excludedMenCount ?? 0;
+      const excWomen = g.excludedWomenCount ?? 0;
+      const excKids = g.excludedKidsCount ?? 0;
+      const catSum = excMen + excWomen + excKids;
+      if (catSum > 0) {
+        men += Math.max((g.menCount ?? 0) - excMen, 0);
+        women += Math.max((g.womenCount ?? 0) - excWomen, 0);
+        kids += Math.max((g.kidsCount ?? 0) - excKids, 0);
+      } else if ((g.excludedGuestCount ?? 0) === 0) {
         men += g.menCount ?? 0;
         women += g.womenCount ?? 0;
         kids += g.kidsCount ?? 0;
+      }
+      if (contribution > 0) {
         if (g.invitedAt) invitedFamilies += 1;
         else notInvitedFamilies += 1;
         if (guestPrimaryStatus(g) === "attending") {
@@ -718,7 +749,7 @@ export function EventGuestsPanel({
       invitedFamilies,
       notInvitedFamilies,
     };
-  }, [filtered, exclusionFilter]);
+  }, [filtered]);
 
   const guestRowBundles = useMemo(
     () =>
@@ -964,7 +995,10 @@ export function EventGuestsPanel({
         "Invited At",
         "Invite channel",
         "Family invite",
-        "Exclude from totals",
+        "Excl. men",
+        "Excl. women",
+        "Excl. kids",
+        "Excluded total",
         "Exclude reason",
         "Shared guest",
         "Count owner",
@@ -993,7 +1027,10 @@ export function EventGuestsPanel({
           guest.invitedAt ? formatDate(guest.invitedAt) : "",
           guest.inviteChannelLastUsed ?? "",
           guest.isFamilyInvite ? "Yes" : "No",
-          guest.excludeFromTotals ? "Yes" : "No",
+          String(guest.excludedMenCount ?? 0),
+          String(guest.excludedWomenCount ?? 0),
+          String(guest.excludedKidsCount ?? 0),
+          String(guestEffectiveExcludedTotal(guest)),
           guest.excludeReason ?? "",
           guest.isSharedGuest ? "Yes" : "No",
           guest.countOwnerEventId === eventId ? "This event" : guest.countOwnerEventId ? "Another event" : "",
@@ -1452,7 +1489,10 @@ export function EventGuestsPanel({
                       "Invited At (ISO)",
                       "Invite channel",
                       "Family invite (true/false)",
-                      "Exclude from totals (true/false)",
+                      "Excl. men",
+                      "Excl. women",
+                      "Excl. kids",
+                      "Excluded total",
                       "Exclude reason",
                       "Shared guest",
                       "Count owner",
@@ -1484,7 +1524,10 @@ export function EventGuestsPanel({
                         guest.invitedAt ?? "",
                         guest.inviteChannelLastUsed ?? "",
                         String(guest.isFamilyInvite),
-                        String(guest.excludeFromTotals),
+                        String(guest.excludedMenCount ?? 0),
+                        String(guest.excludedWomenCount ?? 0),
+                        String(guest.excludedKidsCount ?? 0),
+                        String(guestEffectiveExcludedTotal(guest)),
                         guest.excludeReason ?? "",
                         String(guest.isSharedGuest),
                         guest.countOwnerEventId === eventId ? "this_event" : guest.countOwnerEventId ? "other_event" : "",
@@ -1792,50 +1835,50 @@ export function EventGuestsPanel({
 
       <div className="mt-4">
         {!trueEmpty ? (
-          <div className="mb-3 rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-3 py-2.5 sm:px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Current view summary</p>
-            <div className="mt-2 flex min-w-0 flex-nowrap items-center gap-x-3 gap-y-2 overflow-x-auto pb-0.5 text-xs text-zinc-700 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
-                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.families}</span>
-                <span className="text-zinc-500">
-                  famil{visibleSubsetStats.families === 1 ? "y" : "ies"}
-                </span>
-              </span>
-              <span className="h-4 w-px shrink-0 bg-[#e7dccb]" aria-hidden />
-              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
-                <span className="text-zinc-500">Max invited</span>
-                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.maxInvited}</span>
-              </span>
-              <span className="h-4 w-px shrink-0 bg-[#e7dccb]" aria-hidden />
-              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
-                <span className="text-zinc-500">Attending</span>
-                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.attendingHeadcount}</span>
-                <span className="text-zinc-400">
-                  ({visibleSubsetStats.attendingFamilies} famil
-                  {visibleSubsetStats.attendingFamilies === 1 ? "y" : "ies"})
-                </span>
-              </span>
-              <span className="h-4 w-px shrink-0 bg-[#e7dccb]" aria-hidden />
-              <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-                <span className="rounded-lg border border-sky-200/90 bg-sky-50/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-950">
-                  Men <span className="tabular-nums">{visibleSubsetStats.men}</span>
-                </span>
-                <span className="rounded-lg border border-rose-200/90 bg-rose-50/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-950">
-                  Women <span className="tabular-nums">{visibleSubsetStats.women}</span>
-                </span>
-                <span className="rounded-lg border border-amber-200/90 bg-amber-50/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
-                  Kids <span className="tabular-nums">{visibleSubsetStats.kids}</span>
-                </span>
-              </span>
-              <span className="h-4 w-px shrink-0 bg-[#e7dccb]" aria-hidden />
-              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
-                <span className="text-zinc-500">Invited</span>
-                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.invitedFamilies}</span>
-              </span>
-              <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap">
-                <span className="text-zinc-500">Not invited</span>
-                <span className="font-semibold tabular-nums text-zinc-900">{visibleSubsetStats.notInvitedFamilies}</span>
-              </span>
+          <div className="mb-3 overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffdfa] shadow-sm">
+            <div className="border-b border-[#efe6d8] px-4 py-2 sm:px-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Current view summary</p>
+            </div>
+            <div className="flex min-w-0 flex-nowrap items-stretch overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
+                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.families}</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Famil{visibleSubsetStats.families === 1 ? "y" : "ies"}</span>
+              </div>
+              <div className="w-px shrink-0 self-stretch bg-[#efe6d8]" aria-hidden />
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
+                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.maxInvited}</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Max Invited</span>
+              </div>
+              <div className="w-px shrink-0 self-stretch bg-[#efe6d8]" aria-hidden />
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
+                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.attendingHeadcount}</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Attending</span>
+                <span className="text-[10px] text-zinc-400">{visibleSubsetStats.attendingFamilies} famil{visibleSubsetStats.attendingFamilies === 1 ? "y" : "ies"}</span>
+              </div>
+              <div className="w-px shrink-0 self-stretch bg-[#efe6d8]" aria-hidden />
+              <div className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
+                <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
+                  <span className="text-lg font-bold tabular-nums leading-none text-sky-950">{visibleSubsetStats.men}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-700">Men</span>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+                  <span className="text-lg font-bold tabular-nums leading-none text-rose-950">{visibleSubsetStats.women}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-rose-700">Women</span>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <span className="text-lg font-bold tabular-nums leading-none text-amber-950">{visibleSubsetStats.kids}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Kids</span>
+                </div>
+              </div>
+              <div className="w-px shrink-0 self-stretch bg-[#efe6d8]" aria-hidden />
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
+                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.invitedFamilies}</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Invited</span>
+              </div>
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
+                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.notInvitedFamilies}</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Not Invited</span>
+              </div>
             </div>
           </div>
         ) : null}
@@ -1956,8 +1999,23 @@ export function EventGuestsPanel({
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             <span className={compactStatusBadgeClass("status")}>{statusText}</span>
-                            {guest.excludeFromTotals ? (
-                              <span className={compactStatusBadgeClass("meta")}>Excluded</span>
+                            {guestEffectiveExcludedTotal(guest) > 0 ? (
+                              <span className={compactStatusBadgeClass("meta")}>
+                                {guestEffectiveExcludedTotal(guest) >= totalGuestCount(guest)
+                                  ? "Excluded"
+                                  : (() => {
+                                      const catSum = (guest.excludedMenCount ?? 0) + (guest.excludedWomenCount ?? 0) + (guest.excludedKidsCount ?? 0);
+                                      if (catSum > 0) {
+                                        const parts: string[] = [];
+                                        if (guest.excludedMenCount) parts.push(`${guest.excludedMenCount}M`);
+                                        if (guest.excludedWomenCount) parts.push(`${guest.excludedWomenCount}W`);
+                                        if (guest.excludedKidsCount) parts.push(`${guest.excludedKidsCount}K`);
+                                        return `Excl. ${parts.join(" ")}`;
+                                      }
+                                      return `−${guest.excludedGuestCount} excl.`;
+                                    })()
+                                }
+                              </span>
                             ) : guest.isSharedGuest ? (
                               <span className={compactStatusBadgeClass("meta")}>Counted here</span>
                             ) : null}
@@ -1983,7 +2041,7 @@ export function EventGuestsPanel({
                               Reminder {formatDate(guest.lastReminderAt)}
                             </p>
                           ) : null}
-                          {guest.excludeFromTotals && guest.excludeReason ? (
+                          {guestEffectiveExcludedTotal(guest) > 0 && guest.excludeReason ? (
                             <p className="text-[10px] text-zinc-500">Reason: {guest.excludeReason}</p>
                           ) : null}
                           {guest.invitedAt ? (
@@ -1999,7 +2057,7 @@ export function EventGuestsPanel({
                             </p>
                           ) : null}
                           <div className="flex flex-wrap gap-2">
-                            {(guest.isSharedGuest || guest.excludeFromTotals) ? (
+                            {(guest.isSharedGuest || guestEffectiveExcludedTotal(guest) > 0) ? (
                               <>
                                 <button
                                   type="button"
@@ -2014,7 +2072,7 @@ export function EventGuestsPanel({
                                 >
                                   {ownershipPendingGuestId === guest.id ? "Saving…" : "Count in this event"}
                                 </button>
-                                {!guest.excludeFromTotals ? (
+                                {guestEffectiveExcludedTotal(guest) === 0 ? (
                                   <button
                                     type="button"
                                     disabled={ownershipPendingGuestId === guest.id}
@@ -2377,8 +2435,23 @@ export function EventGuestsPanel({
                         <td className="px-3 py-3.5 align-top">
                           <div className="flex flex-wrap gap-1.5">
                             <span className={compactStatusBadgeClass("status")}>{statusText}</span>
-                            {guest.excludeFromTotals ? (
-                              <span className={compactStatusBadgeClass("meta")}>Excluded</span>
+                            {guestEffectiveExcludedTotal(guest) > 0 ? (
+                              <span className={compactStatusBadgeClass("meta")}>
+                                {guestEffectiveExcludedTotal(guest) >= totalGuestCount(guest)
+                                  ? "Excluded"
+                                  : (() => {
+                                      const catSum = (guest.excludedMenCount ?? 0) + (guest.excludedWomenCount ?? 0) + (guest.excludedKidsCount ?? 0);
+                                      if (catSum > 0) {
+                                        const parts: string[] = [];
+                                        if (guest.excludedMenCount) parts.push(`${guest.excludedMenCount}M`);
+                                        if (guest.excludedWomenCount) parts.push(`${guest.excludedWomenCount}W`);
+                                        if (guest.excludedKidsCount) parts.push(`${guest.excludedKidsCount}K`);
+                                        return `Excl. ${parts.join(" ")}`;
+                                      }
+                                      return `−${guest.excludedGuestCount} excl.`;
+                                    })()
+                                }
+                              </span>
                             ) : guest.isSharedGuest ? (
                               <span className={compactStatusBadgeClass("meta")}>Counted here</span>
                             ) : null}
@@ -2403,7 +2476,7 @@ export function EventGuestsPanel({
                               Reminder {formatDate(guest.lastReminderAt)}
                             </span>
                           ) : null}
-                          {guest.excludeFromTotals && guest.excludeReason ? (
+                          {guestEffectiveExcludedTotal(guest) > 0 && guest.excludeReason ? (
                             <span className="mt-1 block text-[10px] text-zinc-500">Reason: {guest.excludeReason}</span>
                           ) : null}
                         </td>
@@ -2466,7 +2539,7 @@ export function EventGuestsPanel({
                         <td className="px-3 py-3.5 align-top">
                           <div className="flex max-w-[22rem] flex-col items-end gap-2 sm:max-w-none">
                             <div className="flex flex-wrap items-center justify-end gap-2">
-                              {(guest.isSharedGuest || guest.excludeFromTotals) ? (
+                              {(guest.isSharedGuest || guestEffectiveExcludedTotal(guest) > 0) ? (
                                 <>
                                   <button
                                     type="button"
@@ -2481,7 +2554,7 @@ export function EventGuestsPanel({
                                   >
                                     {ownershipPendingGuestId === guest.id ? "Saving…" : "Count here"}
                                   </button>
-                                  {!guest.excludeFromTotals ? (
+                                  {guestEffectiveExcludedTotal(guest) === 0 ? (
                                     <button
                                       type="button"
                                       disabled={ownershipPendingGuestId === guest.id}
@@ -3010,21 +3083,65 @@ export function EventGuestsPanel({
                   className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                   placeholder="Notes"
                 />
-                <select
-                  name="excludeFromTotals"
-                  defaultValue={editingGuest.excludeFromTotals ? "true" : "false"}
-                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
-                >
-                  <option value="false">Count in totals</option>
-                  <option value="true">Exclude from totals</option>
-                </select>
-                <input
-                  type="text"
-                  name="excludeReason"
-                  defaultValue={editingGuest.excludeReason ?? ""}
-                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
-                  placeholder="Exclusion reason (optional)"
-                />
+                <div className="sm:col-span-2 rounded-xl border border-[#e7dccb] bg-[#fbf8f2] p-3 space-y-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Counted in another event</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      Enter how many people in each category are already counted in another related event. These will be subtracted from this event&apos;s totals only.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="block text-xs font-medium text-zinc-700">
+                      Excl. men
+                      <select
+                        name="excludedMenCount"
+                        defaultValue={String(editingGuest.excludedMenCount ?? 0)}
+                        className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                      >
+                        {Array.from({ length: (editingGuest.menCount ?? 0) + 1 }, (_, i) => (
+                          <option key={i} value={String(i)}>{i}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-medium text-zinc-700">
+                      Excl. women
+                      <select
+                        name="excludedWomenCount"
+                        defaultValue={String(editingGuest.excludedWomenCount ?? 0)}
+                        className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                      >
+                        {Array.from({ length: (editingGuest.womenCount ?? 0) + 1 }, (_, i) => (
+                          <option key={i} value={String(i)}>{i}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-medium text-zinc-700">
+                      Excl. kids
+                      <select
+                        name="excludedKidsCount"
+                        defaultValue={String(editingGuest.excludedKidsCount ?? 0)}
+                        className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                      >
+                        {Array.from({ length: (editingGuest.kidsCount ?? 0) + 1 }, (_, i) => (
+                          <option key={i} value={String(i)}>{i}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label className="block text-xs font-medium text-zinc-700">
+                    Reason (optional)
+                    <input
+                      type="text"
+                      name="excludeReason"
+                      defaultValue={editingGuest.excludeReason ?? ""}
+                      className="mt-1 w-full rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                      placeholder="e.g. Counted in another event"
+                    />
+                  </label>
+                  <p className="text-[11px] text-zinc-500">
+                    Set all to 0 to count this family fully in this event.
+                  </p>
+                </div>
                 {editingGuest.isSharedGuest ? (
                   <p className="sm:col-span-2 text-xs text-zinc-600">
                     Shared guest detected across events. Current owner:{" "}

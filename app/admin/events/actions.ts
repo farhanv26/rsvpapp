@@ -38,12 +38,30 @@ function parseStoredImagePath(formData: FormData, key: string): string | null {
   return getSafeImageSrc(String(formData.get(key) ?? "")) ?? null;
 }
 
-function parseExcludeFromTotalsFromForm(formData: FormData) {
-  const excludeFromTotals = String(formData.get("excludeFromTotals") ?? "") === "true";
+function parsePerCategoryExclusionFromForm(
+  formData: FormData,
+  menCount: number,
+  womenCount: number,
+  kidsCount: number,
+) {
+  const clamp = (key: string, max: number) => {
+    const raw = parseInt(String(formData.get(key) ?? "0"), 10);
+    return Number.isFinite(raw) ? Math.min(Math.max(raw, 0), max) : 0;
+  };
+  const excludedMenCount = clamp("excludedMenCount", menCount);
+  const excludedWomenCount = clamp("excludedWomenCount", womenCount);
+  const excludedKidsCount = clamp("excludedKidsCount", kidsCount);
+  const excludedGuestCount = excludedMenCount + excludedWomenCount + excludedKidsCount;
+  const totalGuestCount = menCount + womenCount + kidsCount;
+  const excludeFromTotals = excludedGuestCount >= totalGuestCount && totalGuestCount > 0;
   const excludeReasonRaw = String(formData.get("excludeReason") ?? "").trim();
   return {
+    excludedMenCount,
+    excludedWomenCount,
+    excludedKidsCount,
+    excludedGuestCount,
     excludeFromTotals,
-    excludeReason: excludeFromTotals ? (excludeReasonRaw || "Manual exclusion") : null,
+    excludeReason: excludedGuestCount > 0 ? (excludeReasonRaw || "Manual exclusion") : null,
   };
 }
 
@@ -401,6 +419,12 @@ export async function createGuestAction(formData: FormData) {
     email: parsed.data.email?.trim() || null,
   });
 
+  const guestTotal = parsed.data.menCount + parsed.data.womenCount + parsed.data.kidsCount;
+  const autoExcludedCount = sharedState.shouldExcludeFromTotals ? guestTotal : 0;
+  const autoExcludedMenCount = sharedState.shouldExcludeFromTotals ? parsed.data.menCount : 0;
+  const autoExcludedWomenCount = sharedState.shouldExcludeFromTotals ? parsed.data.womenCount : 0;
+  const autoExcludedKidsCount = sharedState.shouldExcludeFromTotals ? parsed.data.kidsCount : 0;
+
   const createdGuest = await prisma.guest.create({
     // Keep maxGuests in sync for backward-compatible RSVP logic.
     data: {
@@ -410,7 +434,7 @@ export async function createGuestAction(formData: FormData) {
       menCount: parsed.data.menCount,
       womenCount: parsed.data.womenCount,
       kidsCount: parsed.data.kidsCount,
-      maxGuests: parsed.data.menCount + parsed.data.womenCount + parsed.data.kidsCount,
+      maxGuests: guestTotal,
       group: parsed.data.group ?? null,
       tableName: parsed.data.tableName?.trim() ? parsed.data.tableName.trim() : null,
       notes: parsed.data.notes ?? null,
@@ -420,6 +444,10 @@ export async function createGuestAction(formData: FormData) {
       isFamilyInvite: parsed.data.isFamilyInvite ?? false,
       sharedGuestKey: sharedState.sharedGuestKey,
       excludeFromTotals: sharedState.shouldExcludeFromTotals,
+      excludedGuestCount: autoExcludedCount,
+      excludedMenCount: autoExcludedMenCount,
+      excludedWomenCount: autoExcludedWomenCount,
+      excludedKidsCount: autoExcludedKidsCount,
       excludeReason: sharedState.defaultExcludeReason,
       countOwnerEventId: sharedState.countOwnerEventId,
       token: generateSecureToken(),
@@ -531,9 +559,24 @@ export async function updateGuestAction(formData: FormData) {
     phoneCountryCode: parsed.data.phoneCountryCode ?? null,
     email: parsed.data.email?.trim() || null,
   });
-  const exclusion = parseExcludeFromTotalsFromForm(formData);
+  const guestTotal = parsed.data.menCount + parsed.data.womenCount + parsed.data.kidsCount;
+  const formExclusion = parsePerCategoryExclusionFromForm(
+    formData,
+    parsed.data.menCount,
+    parsed.data.womenCount,
+    parsed.data.kidsCount,
+  );
+  // If auto-excluded (shared guest), override with full per-category exclusion
+  const finalExcludedMenCount = sharedState.shouldExcludeFromTotals ? parsed.data.menCount : formExclusion.excludedMenCount;
+  const finalExcludedWomenCount = sharedState.shouldExcludeFromTotals ? parsed.data.womenCount : formExclusion.excludedWomenCount;
+  const finalExcludedKidsCount = sharedState.shouldExcludeFromTotals ? parsed.data.kidsCount : formExclusion.excludedKidsCount;
+  const finalExcludedGuestCount = finalExcludedMenCount + finalExcludedWomenCount + finalExcludedKidsCount;
+  const finalExcludeFromTotals = finalExcludedGuestCount >= guestTotal && guestTotal > 0;
+  const finalExcludeReason = finalExcludedGuestCount > 0
+    ? (sharedState.shouldExcludeFromTotals ? sharedState.defaultExcludeReason : formExclusion.excludeReason)
+    : null;
   const nextCountOwnerEventIdRaw = String(formData.get("countOwnerEventId") ?? "").trim();
-  const nextCountOwnerEventId = exclusion.excludeFromTotals
+  const nextCountOwnerEventId = finalExcludeFromTotals
     ? nextCountOwnerEventIdRaw || sharedState.countOwnerEventId || null
     : eventId;
 
@@ -545,7 +588,7 @@ export async function updateGuestAction(formData: FormData) {
       menCount: parsed.data.menCount,
       womenCount: parsed.data.womenCount,
       kidsCount: parsed.data.kidsCount,
-      maxGuests: parsed.data.menCount + parsed.data.womenCount + parsed.data.kidsCount,
+      maxGuests: guestTotal,
       group: parsed.data.group ?? null,
       tableName: parsed.data.tableName?.trim() ? parsed.data.tableName.trim() : null,
       notes: parsed.data.notes ?? null,
@@ -554,8 +597,12 @@ export async function updateGuestAction(formData: FormData) {
       email: parsed.data.email?.trim() || null,
       isFamilyInvite: parsed.data.isFamilyInvite ?? false,
       sharedGuestKey: sharedState.sharedGuestKey,
-      excludeFromTotals: exclusion.excludeFromTotals,
-      excludeReason: exclusion.excludeReason,
+      excludeFromTotals: finalExcludeFromTotals,
+      excludedGuestCount: finalExcludedGuestCount,
+      excludedMenCount: finalExcludedMenCount,
+      excludedWomenCount: finalExcludedWomenCount,
+      excludedKidsCount: finalExcludedKidsCount,
+      excludeReason: finalExcludeReason,
       countOwnerEventId: nextCountOwnerEventId,
     },
   });
@@ -1473,25 +1520,44 @@ export async function setGuestCountOwnershipAction(input: {
       where: { id: guest.id },
       data: {
         excludeFromTotals: false,
+        excludedGuestCount: 0,
+        excludedMenCount: 0,
+        excludedWomenCount: 0,
+        excludedKidsCount: 0,
         excludeReason: null,
         countOwnerEventId: input.eventId,
       },
     });
 
     if (guest.sharedGuestKey) {
-      await prisma.guest.updateMany({
+      // Fetch siblings to set excluded counts = their individual category totals
+      const siblings = await prisma.guest.findMany({
         where: {
           sharedGuestKey: guest.sharedGuestKey,
           deletedAt: null,
           id: { not: guest.id },
           ...(isSuperAdmin(admin) ? {} : { event: { ownerUserId: admin.id } }),
         },
-        data: {
-          countOwnerEventId: input.eventId,
-          excludeFromTotals: true,
-          excludeReason: "Counted elsewhere",
-        },
+        select: { id: true, menCount: true, womenCount: true, kidsCount: true, maxGuests: true },
       });
+      for (const sibling of siblings) {
+        const sibMen = sibling.menCount ?? 0;
+        const sibWomen = sibling.womenCount ?? 0;
+        const sibKids = sibling.kidsCount ?? 0;
+        const sibTotal = Math.max(sibMen + sibWomen + sibKids, sibling.maxGuests);
+        await prisma.guest.update({
+          where: { id: sibling.id },
+          data: {
+            countOwnerEventId: input.eventId,
+            excludeFromTotals: true,
+            excludedGuestCount: sibTotal,
+            excludedMenCount: sibMen,
+            excludedWomenCount: sibWomen,
+            excludedKidsCount: sibKids,
+            excludeReason: "Counted elsewhere",
+          },
+        });
+      }
     }
 
     await logAuditActivity({
@@ -1510,10 +1576,23 @@ export async function setGuestCountOwnershipAction(input: {
       },
     });
   } else {
+    // Fetch the guest's per-category totals to fully exclude them
+    const guestFull = await prisma.guest.findFirst({
+      where: { id: guest.id },
+      select: { menCount: true, womenCount: true, kidsCount: true, maxGuests: true },
+    });
+    const fullMen = guestFull?.menCount ?? 0;
+    const fullWomen = guestFull?.womenCount ?? 0;
+    const fullKids = guestFull?.kidsCount ?? 0;
+    const fullTotal = Math.max(fullMen + fullWomen + fullKids, guestFull?.maxGuests ?? 0);
     await prisma.guest.update({
       where: { id: guest.id },
       data: {
         excludeFromTotals: true,
+        excludedGuestCount: fullTotal,
+        excludedMenCount: fullMen,
+        excludedWomenCount: fullWomen,
+        excludedKidsCount: fullKids,
         excludeReason: input.reason?.trim() || "Manual exclusion",
       },
     });

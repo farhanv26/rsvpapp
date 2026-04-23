@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 
 /** GET /admin/api/mobile/events/[eventId] — event detail with computed stats. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+  try {
   const user = await getMobileAdminUser(req);
   if (!user) return unauthorizedResponse();
 
@@ -53,6 +54,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
           group: true,
           tableName: true,
           excludeFromTotals: true,
+          excludedGuestCount: true,
+          excludedMenCount: true,
+          excludedWomenCount: true,
+          excludedKidsCount: true,
           lastReminderAt: true,
         },
       },
@@ -62,16 +67,36 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
   if (!event) return notFoundResponse("Event not found");
   if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
 
-  const counted = event.guests.filter((g) => !g.excludeFromTotals);
+  const guestCountedBreakdown = (g: typeof event.guests[number]) => {
+    const excMen = g.excludedMenCount ?? 0;
+    const excWomen = g.excludedWomenCount ?? 0;
+    const excKids = g.excludedKidsCount ?? 0;
+    const catSum = excMen + excWomen + excKids;
+    const rawMen = g.menCount ?? 0;
+    const rawWomen = g.womenCount ?? 0;
+    const rawKids = g.kidsCount ?? 0;
+    const rawTotal = rawMen + rawWomen + rawKids > 0 ? rawMen + rawWomen + rawKids : g.maxGuests;
+    if (catSum > 0) {
+      const cMen = Math.max(rawMen - excMen, 0);
+      const cWomen = Math.max(rawWomen - excWomen, 0);
+      const cKids = Math.max(rawKids - excKids, 0);
+      return { men: cMen, women: cWomen, kids: cKids, total: cMen + cWomen + cKids };
+    }
+    const legacyExcluded = g.excludedGuestCount ?? 0;
+    return {
+      men: legacyExcluded === 0 ? rawMen : 0,
+      women: legacyExcluded === 0 ? rawWomen : 0,
+      kids: legacyExcluded === 0 ? rawKids : 0,
+      total: Math.max(rawTotal - legacyExcluded, 0),
+    };
+  };
+  const counted = event.guests.filter((g) => guestCountedBreakdown(g).total > 0);
   const totalFamilies = event.guests.length;
   const countedFamilies = counted.length;
-  const totalMaxInvited = counted.reduce((s, g) => {
-    const sum = (g.menCount ?? 0) + (g.womenCount ?? 0) + (g.kidsCount ?? 0);
-    return s + (sum > 0 ? sum : g.maxGuests);
-  }, 0);
-  const totalMen = counted.reduce((s, g) => s + (g.menCount ?? 0), 0);
-  const totalWomen = counted.reduce((s, g) => s + (g.womenCount ?? 0), 0);
-  const totalKids = counted.reduce((s, g) => s + (g.kidsCount ?? 0), 0);
+  const totalMaxInvited = event.guests.reduce((s, g) => s + guestCountedBreakdown(g).total, 0);
+  const totalMen = event.guests.reduce((s, g) => s + guestCountedBreakdown(g).men, 0);
+  const totalWomen = event.guests.reduce((s, g) => s + guestCountedBreakdown(g).women, 0);
+  const totalKids = event.guests.reduce((s, g) => s + guestCountedBreakdown(g).kids, 0);
   const invitedFamilies = counted.filter((g) => g.invitedAt).length;
   const totalResponded = counted.filter((g) => g.respondedAt).length;
   const totalPending = countedFamilies - totalResponded;
@@ -116,4 +141,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
       responseRate,
     },
   });
+  } catch (err) {
+    console.error("[event-detail] Error:", err);
+    return Response.json({ error: "Failed to load event" }, { status: 500 });
+  }
 }

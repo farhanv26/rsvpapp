@@ -149,10 +149,16 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
         phoneCountryCode: row.phoneCountryCode?.trim() || null,
         email: row.email?.trim() || null,
       });
-      const excludeFromTotals = Boolean(row.excludeFromTotals || sharedState.shouldExcludeFromTotals);
+      const guestTotal = row.menCount + row.womenCount + row.kidsCount;
+      const forceExclude = sharedState.shouldExcludeFromTotals;
+      const excludedMenCount = forceExclude ? row.menCount : 0;
+      const excludedWomenCount = forceExclude ? row.womenCount : 0;
+      const excludedKidsCount = forceExclude ? row.kidsCount : 0;
+      const excludedGuestCount = excludedMenCount + excludedWomenCount + excludedKidsCount;
+      const excludeFromTotals = excludedGuestCount >= guestTotal && guestTotal > 0;
       const excludeReason =
-        excludeFromTotals
-          ? row.excludeReason?.trim() || sharedState.defaultExcludeReason || "Manual exclusion"
+        excludedGuestCount > 0
+          ? (sharedState.defaultExcludeReason || row.excludeReason?.trim() || "Manual exclusion")
           : null;
       return {
         eventId,
@@ -161,7 +167,7 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
         menCount: row.menCount,
         womenCount: row.womenCount,
         kidsCount: row.kidsCount,
-        maxGuests: row.menCount + row.womenCount + row.kidsCount,
+        maxGuests: guestTotal,
         group: row.group?.trim() || null,
         tableName: row.tableName?.trim() || null,
         notes: row.notes?.trim() || null,
@@ -173,6 +179,10 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
         sharedGuestKey: sharedState.sharedGuestKey,
         countOwnerEventId: sharedState.countOwnerEventId,
         excludeFromTotals,
+        excludedGuestCount,
+        excludedMenCount,
+        excludedWomenCount,
+        excludedKidsCount,
         excludeReason,
       };
     }),
@@ -268,10 +278,16 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
         phoneCountryCode: row.phoneCountryCode?.trim() || null,
         email: row.email?.trim() || null,
       });
-      const excludeFromTotals = Boolean(row.excludeFromTotals || sharedState.shouldExcludeFromTotals);
+      const guestTotal = row.menCount + row.womenCount + row.kidsCount;
+      const forceExclude = sharedState.shouldExcludeFromTotals;
+      const excludedMenCount = forceExclude ? row.menCount : 0;
+      const excludedWomenCount = forceExclude ? row.womenCount : 0;
+      const excludedKidsCount = forceExclude ? row.kidsCount : 0;
+      const excludedGuestCount = excludedMenCount + excludedWomenCount + excludedKidsCount;
+      const excludeFromTotals = excludedGuestCount >= guestTotal && guestTotal > 0;
       const excludeReason =
-        excludeFromTotals
-          ? row.excludeReason?.trim() || sharedState.defaultExcludeReason || "Manual exclusion"
+        excludedGuestCount > 0
+          ? (sharedState.defaultExcludeReason || row.excludeReason?.trim() || "Manual exclusion")
           : null;
       return {
         eventId,
@@ -280,7 +296,7 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
         menCount: row.menCount,
         womenCount: row.womenCount,
         kidsCount: row.kidsCount,
-        maxGuests: row.menCount + row.womenCount + row.kidsCount,
+        maxGuests: guestTotal,
         group: row.group?.trim() || null,
         tableName: row.tableName?.trim() || null,
         notes: row.notes?.trim() || null,
@@ -292,6 +308,10 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
         sharedGuestKey: sharedState.sharedGuestKey,
         countOwnerEventId: sharedState.countOwnerEventId,
         excludeFromTotals,
+        excludedGuestCount,
+        excludedMenCount,
+        excludedWomenCount,
+        excludedKidsCount,
         excludeReason,
       };
     }),

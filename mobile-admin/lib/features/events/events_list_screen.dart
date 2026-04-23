@@ -17,9 +17,26 @@ class EventsListScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(user != null ? 'Hi, ${user.name.split(' ').first}' : 'Events'),
+        backgroundColor: AppColors.surface,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              user != null ? 'Hi, ${user.name.split(' ').first}' : 'Events',
+              style: AppTextStyles.titleMedium,
+            ),
+            if (user != null)
+              const Text(
+                'Event management',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w400),
+              ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none_rounded),
@@ -37,9 +54,14 @@ class EventsListScreen extends ConsumerWidget {
         ],
       ),
       body: eventsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () =>
+            const Center(child: CircularProgressIndicator(color: AppColors.brandAccent)),
         error: (e, _) => ErrorView(
-          message: e.toString().replaceFirst('ApiException', '').replaceAll(':', '').trim(),
+          message: e
+              .toString()
+              .replaceFirst('ApiException', '')
+              .replaceAll(':', '')
+              .trim(),
           onRetry: () => ref.invalidate(eventsListProvider),
         ),
         data: (events) {
@@ -51,10 +73,10 @@ class EventsListScreen extends ConsumerWidget {
             );
           }
           return RefreshIndicator(
-            color: AppColors.primary,
+            color: AppColors.brandAccent,
             onRefresh: () async => ref.invalidate(eventsListProvider),
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
               itemCount: events.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, i) {
@@ -63,7 +85,9 @@ class EventsListScreen extends ConsumerWidget {
                   event: event,
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => EventDetailScreen(eventId: event.id)),
+                    MaterialPageRoute(
+                      builder: (_) => EventDetailScreen(eventId: event.id),
+                    ),
                   ),
                 );
               },
@@ -79,12 +103,14 @@ class EventsListScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Sign out?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: const Text('You will be returned to the login screen.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.declined),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             child: const Text('Sign out'),
           ),
         ],

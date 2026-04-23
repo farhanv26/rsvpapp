@@ -11,60 +11,105 @@ class EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateStr = event.eventDate != null
-        ? DateFormat('d MMM yyyy').format(event.eventDate!)
-        : null;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: AppColors.border),
+          boxShadow: AppShadows.card,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    event.displayName,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary, letterSpacing: -0.3),
-                  ),
+            // Brand accent strip
+            Container(
+              width: 3,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppColors.brandAccent, AppColors.brandMid],
                 ),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
-              ],
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            if (event.title != event.displayName) ...[
-              const SizedBox(height: 2),
-              Text(event.title, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-            ],
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 6,
-              children: [
-                _chip(Icons.people_outline_rounded, '${event.guestCount} guests'),
-                if (dateStr != null) _chip(Icons.calendar_today_outlined, dateStr),
-                if (event.venue != null) _chip(Icons.location_on_outlined, event.venue!),
-              ],
+            const SizedBox(width: 14),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event.displayName,
+                    style: AppTextStyles.titleSmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (event.coupleNames != null &&
+                      event.coupleNames!.isNotEmpty &&
+                      event.title != event.displayName) ...[
+                    const SizedBox(height: 2),
+                    Text(event.title,
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textMuted)),
+                  ],
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 4,
+                    children: [
+                      _MetaChip(
+                        icon: Icons.people_outline_rounded,
+                        label:
+                            '${event.guestCount} guest${event.guestCount == 1 ? '' : 's'}',
+                      ),
+                      if (event.eventDate != null)
+                        _MetaChip(
+                          icon: Icons.calendar_today_outlined,
+                          label: DateFormat('d MMM yyyy')
+                              .format(event.eventDate!),
+                        ),
+                      if (event.venue != null)
+                        _MetaChip(
+                          icon: Icons.location_on_outlined,
+                          label: event.venue!,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
+
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textMuted, size: 20),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _chip(IconData icon, String label) {
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: AppColors.textSecondary),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Icon(icon, size: 11, color: AppColors.textMuted),
+        const SizedBox(width: 3),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w400)),
       ],
     );
   }

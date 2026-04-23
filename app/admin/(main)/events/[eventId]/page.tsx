@@ -69,19 +69,42 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   }
 
   const totalFamilies = event.guests.length;
-  const countedGuests = event.guests.filter((guest) => !guest.excludeFromTotals);
-  const excludedGuests = totalFamilies - countedGuests.length;
-  const guestInvitedCapacity = (g: (typeof event.guests)[number]) => {
-    const m = g.menCount ?? 0;
-    const w = g.womenCount ?? 0;
-    const k = g.kidsCount ?? 0;
-    const sum = m + w + k;
-    return sum > 0 ? sum : g.maxGuests;
+  // Per-category counted breakdown (supports both the new per-category model and legacy single total)
+  const guestCountedBreakdown = (g: (typeof event.guests)[number]) => {
+    const excMen = g.excludedMenCount ?? 0;
+    const excWomen = g.excludedWomenCount ?? 0;
+    const excKids = g.excludedKidsCount ?? 0;
+    const catSum = excMen + excWomen + excKids;
+    const rawMen = g.menCount ?? 0;
+    const rawWomen = g.womenCount ?? 0;
+    const rawKids = g.kidsCount ?? 0;
+    const rawTotal = rawMen + rawWomen + rawKids > 0 ? rawMen + rawWomen + rawKids : g.maxGuests;
+    if (catSum > 0) {
+      const cMen = Math.max(rawMen - excMen, 0);
+      const cWomen = Math.max(rawWomen - excWomen, 0);
+      const cKids = Math.max(rawKids - excKids, 0);
+      return { men: cMen, women: cWomen, kids: cKids, total: cMen + cWomen + cKids };
+    }
+    // Legacy: fall back to excludedGuestCount, M/W/K only accurate when nothing excluded
+    const legacyExcluded = g.excludedGuestCount ?? 0;
+    return {
+      men: legacyExcluded === 0 ? rawMen : 0,
+      women: legacyExcluded === 0 ? rawWomen : 0,
+      kids: legacyExcluded === 0 ? rawKids : 0,
+      total: Math.max(rawTotal - legacyExcluded, 0),
+    };
   };
-  const totalMaximumInvited = countedGuests.reduce((sum, guest) => sum + guestInvitedCapacity(guest), 0);
-  const totalMen = countedGuests.reduce((sum, g) => sum + (g.menCount ?? 0), 0);
-  const totalWomen = countedGuests.reduce((sum, g) => sum + (g.womenCount ?? 0), 0);
-  const totalKids = countedGuests.reduce((sum, g) => sum + (g.kidsCount ?? 0), 0);
+  const guestEffectiveExcludedTotal = (g: (typeof event.guests)[number]) => {
+    const catSum = (g.excludedMenCount ?? 0) + (g.excludedWomenCount ?? 0) + (g.excludedKidsCount ?? 0);
+    return catSum > 0 ? catSum : (g.excludedGuestCount ?? 0);
+  };
+  // Families that contribute any counted guests
+  const countedGuests = event.guests.filter((g) => guestCountedBreakdown(g).total > 0);
+  const excludedGuests = totalFamilies - countedGuests.length;
+  const totalMaximumInvited = event.guests.reduce((sum, g) => sum + guestCountedBreakdown(g).total, 0);
+  const totalMen = event.guests.reduce((sum, g) => sum + guestCountedBreakdown(g).men, 0);
+  const totalWomen = event.guests.reduce((sum, g) => sum + guestCountedBreakdown(g).women, 0);
+  const totalKids = event.guests.reduce((sum, g) => sum + guestCountedBreakdown(g).kids, 0);
   const totalResponded = countedGuests.filter((guest) => guest.respondedAt).length;
   const invitedFamilies = countedGuests.filter((guest) => guest.invitedAt).length;
   const totalPending = countedGuests.filter((guest) => !guest.respondedAt).length;
@@ -94,9 +117,9 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const responseRate = countedGuests.length > 0 ? totalResponded / countedGuests.length : 0;
   const attendanceRate = totalMaximumInvited > 0 ? totalConfirmedAttendees / totalMaximumInvited : 0;
 
-  const duplicatedGuests = event.guests.filter((guest) => guest.excludeFromTotals);
-  const duplicateFamiliesCount = duplicatedGuests.length;
-  const duplicatePeopleCount = duplicatedGuests.reduce((sum, guest) => sum + guestInvitedCapacity(guest), 0);
+  // Duplicate families: any guest with at least one per-category exclusion (or legacy excluded total)
+  const duplicateFamiliesCount = event.guests.filter((g) => guestEffectiveExcludedTotal(g) > 0).length;
+  const duplicatePeopleCount = event.guests.reduce((sum, g) => sum + guestEffectiveExcludedTotal(g), 0);
 
   const readinessOverview = summarizeReadinessGuestCounts(
     countedGuests.map((g) => ({
@@ -219,6 +242,10 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     isFamilyInvite: g.isFamilyInvite,
     excludeFromTotals: g.excludeFromTotals,
     excludeReason: g.excludeReason,
+    excludedGuestCount: g.excludedGuestCount ?? 0,
+    excludedMenCount: g.excludedMenCount ?? 0,
+    excludedWomenCount: g.excludedWomenCount ?? 0,
+    excludedKidsCount: g.excludedKidsCount ?? 0,
     sharedGuestKey: g.sharedGuestKey,
     countOwnerEventId: g.countOwnerEventId,
     isSharedGuest: g.sharedGuestKey ? sharedKeysInOtherEvents.has(g.sharedGuestKey) : false,
@@ -497,9 +524,9 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           <StatCard label="Counted families" value={countedGuests.length} />
           <StatCard label="Invited families" value={invitedFamilies} />
           <StatCard label="Max invited" value={totalMaximumInvited} />
-          <StatCard label="Total men" value={totalMen} />
-          <StatCard label="Total women" value={totalWomen} />
-          <StatCard label="Total kids" value={totalKids} />
+          <StatCard label="Total men" value={totalMen} sub="fully-counted families only" />
+          <StatCard label="Total women" value={totalWomen} sub="fully-counted families only" />
+          <StatCard label="Total kids" value={totalKids} sub="fully-counted families only" />
           <StatCard label="Responded families" value={totalResponded} sub={`${totalPending} pending`} />
           <StatCard label="Confirmed attendees" value={totalConfirmedAttendees} />
           <StatCard label="Declined families" value={totalDeclinedFamilies} />
@@ -510,8 +537,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           />
           <StatCard label="Response rate" value={`${Math.round(responseRate * 100)}%`} />
           <StatCard label="Attendance rate" value={`${Math.round(attendanceRate * 100)}%`} />
-          <StatCard label="Duplicate families" value={duplicateFamiliesCount} sub="excluded from totals" />
-          <StatCard label="Duplicate people" value={duplicatePeopleCount} sub="in duplicate families" />
+          <StatCard label="Duplicate families" value={duplicateFamiliesCount} sub="with excluded guest count > 0" />
+          <StatCard label="Duplicate people" value={duplicatePeopleCount} sub="sum of excluded guest counts" />
           </section>
         </CollapsibleSection>
 

@@ -45,7 +45,7 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
     if (_bootstrapping) {
       return const Scaffold(
         backgroundColor: AppColors.surface,
-        body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        body: Center(child: CircularProgressIndicator(color: AppColors.brandMid)),
       );
     }
 

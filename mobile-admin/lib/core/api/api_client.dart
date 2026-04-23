@@ -42,6 +42,12 @@ class ApiClient {
 
   Future<Response<T>> post<T>(String path, {dynamic data}) =>
       _dio.post<T>(path, data: data);
+
+  Future<Response<T>> put<T>(String path, {dynamic data}) =>
+      _dio.put<T>(path, data: data);
+
+  Future<Response<T>> delete<T>(String path, {dynamic data}) =>
+      _dio.delete<T>(path, data: data);
 }
 
 class ApiException implements Exception {

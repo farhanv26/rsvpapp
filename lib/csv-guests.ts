@@ -35,6 +35,11 @@ export const guestImportRowSchema = z
       if (v === undefined || v === null || v === "") return false;
       return parseExcludeCell(v);
     }, z.boolean()).optional().default(false),
+    excludedGuestCount: z.preprocess((v) => {
+      if (v === undefined || v === null || v === "") return 0;
+      const n = parseInt(String(v), 10);
+      return Number.isFinite(n) ? Math.max(n, 0) : 0;
+    }, z.number().int().min(0)).optional().default(0),
     excludeReason: z.string().trim().optional(),
   })
   .superRefine((data, ctx) => {
@@ -89,6 +94,10 @@ function mapHeaderToField(header: string): string | null {
     "is family invite": "isFamilyInvite",
     excludefromtotals: "excludeFromTotals",
     "exclude from totals": "excludeFromTotals",
+    excludedguestcount: "excludedGuestCount",
+    "excluded guest count": "excludedGuestCount",
+    excludecount: "excludedGuestCount",
+    "exclude count": "excludedGuestCount",
     excludereason: "excludeReason",
     "exclude reason": "excludeReason",
   };

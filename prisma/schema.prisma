@@ -131,6 +131,10 @@ model Guest {
   lastReminderAt         DateTime?
   excludeFromTotals      Boolean  @default(false)
   excludeReason          String?
+  excludedGuestCount     Int      @default(0)
+  excludedMenCount       Int      @default(0)
+  excludedWomenCount     Int      @default(0)
+  excludedKidsCount      Int      @default(0)
   sharedGuestKey         String?
   countOwnerEventId      String?
   createdAt      DateTime @default(now())
