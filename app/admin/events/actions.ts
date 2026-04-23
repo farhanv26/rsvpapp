@@ -20,6 +20,7 @@ import {
   normalizePhoneForWhatsAppGuestRecord,
 } from "@/lib/whatsapp";
 import { DEFAULT_PHONE_COUNTRY } from "@/lib/phone";
+import { resolveSharedGuestState } from "@/lib/shared-guests";
 
 function parseGuestPhoneFromForm(formData: FormData): { phone: string | null; phoneCountryCode: string | null } {
   const national = String(formData.get("phone") ?? "").replace(/\D/g, "");
@@ -35,6 +36,15 @@ function parseGuestPhoneFromForm(formData: FormData): { phone: string | null; ph
 
 function parseStoredImagePath(formData: FormData, key: string): string | null {
   return getSafeImageSrc(String(formData.get(key) ?? "")) ?? null;
+}
+
+function parseExcludeFromTotalsFromForm(formData: FormData) {
+  const excludeFromTotals = String(formData.get("excludeFromTotals") ?? "") === "true";
+  const excludeReasonRaw = String(formData.get("excludeReason") ?? "").trim();
+  return {
+    excludeFromTotals,
+    excludeReason: excludeFromTotals ? (excludeReasonRaw || "Manual exclusion") : null,
+  };
 }
 
 function parseOptionalDate(value?: string) {
@@ -383,6 +393,14 @@ export async function createGuestAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid guest details.");
   }
 
+  const sharedState = await resolveSharedGuestState(prisma, {
+    eventId,
+    guestName: parsed.data.guestName,
+    phone: parsed.data.phone ?? null,
+    phoneCountryCode: parsed.data.phoneCountryCode ?? null,
+    email: parsed.data.email?.trim() || null,
+  });
+
   const createdGuest = await prisma.guest.create({
     // Keep maxGuests in sync for backward-compatible RSVP logic.
     data: {
@@ -400,6 +418,10 @@ export async function createGuestAction(formData: FormData) {
       phone: parsed.data.phone ?? null,
       email: parsed.data.email?.trim() || null,
       isFamilyInvite: parsed.data.isFamilyInvite ?? false,
+      sharedGuestKey: sharedState.sharedGuestKey,
+      excludeFromTotals: sharedState.shouldExcludeFromTotals,
+      excludeReason: sharedState.defaultExcludeReason,
+      countOwnerEventId: sharedState.countOwnerEventId,
       token: generateSecureToken(),
     },
   });
@@ -413,8 +435,33 @@ export async function createGuestAction(formData: FormData) {
     entityId: createdGuest.id,
     entityName: createdGuest.guestName,
     message: `${admin.name} added guest "${createdGuest.guestName}".`,
-    metadata: { maxGuests: createdGuest.maxGuests, menCount: createdGuest.menCount, womenCount: createdGuest.womenCount, kidsCount: createdGuest.kidsCount },
+    metadata: {
+      maxGuests: createdGuest.maxGuests,
+      menCount: createdGuest.menCount,
+      womenCount: createdGuest.womenCount,
+      kidsCount: createdGuest.kidsCount,
+      sharedGuestKey: createdGuest.sharedGuestKey,
+      excludeFromTotals: createdGuest.excludeFromTotals,
+      countOwnerEventId: createdGuest.countOwnerEventId,
+    },
   });
+  if (sharedState.isSharedAcrossEvents) {
+    await logAuditActivity({
+      eventId,
+      userId: admin.id,
+      userName: admin.name,
+      actionType: "guest_shared_detected",
+      entityType: "Guest",
+      entityId: createdGuest.id,
+      entityName: createdGuest.guestName,
+      message: `${admin.name} added "${createdGuest.guestName}" and it matches a guest in another event.`,
+      metadata: {
+        sharedGuestKey: createdGuest.sharedGuestKey,
+        excludeFromTotals: createdGuest.excludeFromTotals,
+        countOwnerEventId: createdGuest.countOwnerEventId,
+      },
+    });
+  }
   const eventLabel = (await prisma.event.findFirst({
     where: { id: eventId, deletedAt: null },
     select: { title: true, coupleNames: true },
@@ -476,6 +523,20 @@ export async function updateGuestAction(formData: FormData) {
     throw new Error("Guest not found for this event.");
   }
 
+  const sharedState = await resolveSharedGuestState(prisma, {
+    eventId,
+    guestId,
+    guestName: parsed.data.guestName,
+    phone: parsed.data.phone ?? null,
+    phoneCountryCode: parsed.data.phoneCountryCode ?? null,
+    email: parsed.data.email?.trim() || null,
+  });
+  const exclusion = parseExcludeFromTotalsFromForm(formData);
+  const nextCountOwnerEventIdRaw = String(formData.get("countOwnerEventId") ?? "").trim();
+  const nextCountOwnerEventId = exclusion.excludeFromTotals
+    ? nextCountOwnerEventIdRaw || sharedState.countOwnerEventId || null
+    : eventId;
+
   const updatedGuest = await prisma.guest.update({
     where: { id: guestId },
     data: {
@@ -492,6 +553,10 @@ export async function updateGuestAction(formData: FormData) {
       phone: parsed.data.phone ?? null,
       email: parsed.data.email?.trim() || null,
       isFamilyInvite: parsed.data.isFamilyInvite ?? false,
+      sharedGuestKey: sharedState.sharedGuestKey,
+      excludeFromTotals: exclusion.excludeFromTotals,
+      excludeReason: exclusion.excludeReason,
+      countOwnerEventId: nextCountOwnerEventId,
     },
   });
 
@@ -511,8 +576,29 @@ export async function updateGuestAction(formData: FormData) {
       menCount: updatedGuest.menCount,
       womenCount: updatedGuest.womenCount,
       kidsCount: updatedGuest.kidsCount,
+      sharedGuestKey: updatedGuest.sharedGuestKey,
+      excludeFromTotals: updatedGuest.excludeFromTotals,
+      excludeReason: updatedGuest.excludeReason,
+      countOwnerEventId: updatedGuest.countOwnerEventId,
     },
   });
+  if (sharedState.isSharedAcrossEvents) {
+    await logAuditActivity({
+      eventId,
+      userId: admin.id,
+      userName: admin.name,
+      actionType: "guest_shared_detected",
+      entityType: "Guest",
+      entityId: guestId,
+      entityName: updatedGuest.guestName,
+      message: `${admin.name} updated "${updatedGuest.guestName}" and it matches a guest in another event.`,
+      metadata: {
+        sharedGuestKey: updatedGuest.sharedGuestKey,
+        excludeFromTotals: updatedGuest.excludeFromTotals,
+        countOwnerEventId: updatedGuest.countOwnerEventId,
+      },
+    });
+  }
   const ev = await prisma.event.findFirst({
     where: { id: eventId, deletedAt: null },
     select: { title: true, coupleNames: true },
@@ -1359,6 +1445,96 @@ export async function markGuestsUninvitedAction(eventId: string, guestIds: strin
 
   revalidatePath(`/admin/events/${eventId}`);
   return { ok: true as const, updated: result.count };
+}
+
+export async function setGuestCountOwnershipAction(input: {
+  eventId: string;
+  guestId: string;
+  mode: "count_here" | "exclude_here";
+  reason?: string;
+}) {
+  const { admin } = await ensureEventAccess(input.eventId, "manage");
+  const guest = await prisma.guest.findFirst({
+    where: { id: input.guestId, eventId: input.eventId, deletedAt: null },
+    select: {
+      id: true,
+      guestName: true,
+      sharedGuestKey: true,
+      eventId: true,
+      countOwnerEventId: true,
+    },
+  });
+  if (!guest) {
+    throw new Error("Guest not found for this event.");
+  }
+
+  if (input.mode === "count_here") {
+    await prisma.guest.update({
+      where: { id: guest.id },
+      data: {
+        excludeFromTotals: false,
+        excludeReason: null,
+        countOwnerEventId: input.eventId,
+      },
+    });
+
+    if (guest.sharedGuestKey) {
+      await prisma.guest.updateMany({
+        where: {
+          sharedGuestKey: guest.sharedGuestKey,
+          deletedAt: null,
+          id: { not: guest.id },
+          ...(isSuperAdmin(admin) ? {} : { event: { ownerUserId: admin.id } }),
+        },
+        data: {
+          countOwnerEventId: input.eventId,
+          excludeFromTotals: true,
+          excludeReason: "Counted elsewhere",
+        },
+      });
+    }
+
+    await logAuditActivity({
+      eventId: input.eventId,
+      userId: admin.id,
+      userName: admin.name,
+      actionType: "guest_count_owner_changed",
+      entityType: "Guest",
+      entityId: guest.id,
+      entityName: guest.guestName,
+      message: `${admin.name} set "${guest.guestName}" to count in this event.`,
+      metadata: {
+        mode: input.mode,
+        sharedGuestKey: guest.sharedGuestKey,
+        countOwnerEventId: input.eventId,
+      },
+    });
+  } else {
+    await prisma.guest.update({
+      where: { id: guest.id },
+      data: {
+        excludeFromTotals: true,
+        excludeReason: input.reason?.trim() || "Manual exclusion",
+      },
+    });
+    await logAuditActivity({
+      eventId: input.eventId,
+      userId: admin.id,
+      userName: admin.name,
+      actionType: "guest_excluded_from_totals",
+      entityType: "Guest",
+      entityId: guest.id,
+      entityName: guest.guestName,
+      message: `${admin.name} excluded "${guest.guestName}" from totals.`,
+      metadata: {
+        mode: input.mode,
+        sharedGuestKey: guest.sharedGuestKey,
+        reason: input.reason?.trim() || "Manual exclusion",
+      },
+    });
+  }
+
+  revalidatePath(`/admin/events/${input.eventId}`);
 }
 
 export async function triggerGuestSendAction(

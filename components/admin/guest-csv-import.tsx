@@ -112,7 +112,8 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys }: Props) {
             <code className="text-xs">greeting</code>, <code className="text-xs">group</code>,{" "}
             <code className="text-xs">tableName</code>, <code className="text-xs">notes</code>,{" "}
             <code className="text-xs">phone</code>, <code className="text-xs">phoneCountryCode</code>,{" "}
-            <code className="text-xs">email</code>.
+            <code className="text-xs">email</code>, <code className="text-xs">excludeFromTotals</code>,{" "}
+            <code className="text-xs">excludeReason</code>.
           </p>
           <p className="mt-1 text-xs text-zinc-500">
             Choose a file or paste CSV, then tab out of the box — rows load automatically. Edit cells before

@@ -14,6 +14,7 @@ import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { logAuditActivity } from "@/lib/audit-log";
 import { prisma } from "@/lib/prisma";
 import { generateSecureToken } from "@/lib/security";
+import { resolveSharedGuestState } from "@/lib/shared-guests";
 
 async function ensureCsvEventAccess(eventId: string) {
   const admin = await requireCurrentAdminUser();
@@ -139,29 +140,46 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
     };
   }
 
-  await prisma.$transaction(
-    toCreate.map((row) =>
-      prisma.guest.create({
-        data: {
-          eventId,
-          guestName: row.guestName,
-          greeting: row.greeting?.trim() || "Assalamu Alaikum",
-          menCount: row.menCount,
-          womenCount: row.womenCount,
-          kidsCount: row.kidsCount,
-          maxGuests: row.menCount + row.womenCount + row.kidsCount,
-          group: row.group?.trim() || null,
-          tableName: row.tableName?.trim() || null,
-          notes: row.notes?.trim() || null,
-          phone: row.phone?.trim() || null,
-          phoneCountryCode: row.phoneCountryCode?.trim() || null,
-          email: row.email?.trim() || null,
-          isFamilyInvite: row.isFamilyInvite,
-          token: generateSecureToken(),
-        },
-      }),
-    ),
+  const createData = await Promise.all(
+    toCreate.map(async (row) => {
+      const sharedState = await resolveSharedGuestState(prisma, {
+        eventId,
+        guestName: row.guestName,
+        phone: row.phone?.trim() || null,
+        phoneCountryCode: row.phoneCountryCode?.trim() || null,
+        email: row.email?.trim() || null,
+      });
+      const excludeFromTotals = Boolean(row.excludeFromTotals || sharedState.shouldExcludeFromTotals);
+      const excludeReason =
+        excludeFromTotals
+          ? row.excludeReason?.trim() || sharedState.defaultExcludeReason || "Manual exclusion"
+          : null;
+      return {
+        eventId,
+        guestName: row.guestName,
+        greeting: row.greeting?.trim() || "Assalamu Alaikum",
+        menCount: row.menCount,
+        womenCount: row.womenCount,
+        kidsCount: row.kidsCount,
+        maxGuests: row.menCount + row.womenCount + row.kidsCount,
+        group: row.group?.trim() || null,
+        tableName: row.tableName?.trim() || null,
+        notes: row.notes?.trim() || null,
+        phone: row.phone?.trim() || null,
+        phoneCountryCode: row.phoneCountryCode?.trim() || null,
+        email: row.email?.trim() || null,
+        isFamilyInvite: row.isFamilyInvite,
+        token: generateSecureToken(),
+        sharedGuestKey: sharedState.sharedGuestKey,
+        countOwnerEventId: sharedState.countOwnerEventId,
+        excludeFromTotals,
+        excludeReason,
+      };
+    }),
   );
+
+  await prisma.$transaction(createData.map((data) => prisma.guest.create({ data })));
+  const sharedDetectedCount = createData.filter((d) => Boolean(d.sharedGuestKey && d.countOwnerEventId)).length;
 
   if (access.admin) {
     await logAuditActivity({
@@ -178,6 +196,7 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
         skippedInvalid,
         skippedDuplicateInDb,
         skippedDuplicateInFile,
+        sharedDetectedCount,
       },
     });
   }
@@ -191,6 +210,7 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
     skippedInvalid,
     skippedDuplicateInDb,
     skippedDuplicateInFile,
+    sharedDetectedCount,
   };
 }
 
@@ -239,29 +259,45 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
     };
   }
 
-  await prisma.$transaction(
-    toCreate.map((row) =>
-      prisma.guest.create({
-        data: {
-          eventId,
-          guestName: row.guestName,
-          greeting: row.greeting?.trim() || "Assalamu Alaikum",
-          menCount: row.menCount,
-          womenCount: row.womenCount,
-          kidsCount: row.kidsCount,
-          maxGuests: row.menCount + row.womenCount + row.kidsCount,
-          group: row.group?.trim() || null,
-          tableName: row.tableName?.trim() || null,
-          notes: row.notes?.trim() || null,
-          phone: row.phone?.trim() || null,
-          phoneCountryCode: row.phoneCountryCode?.trim() || null,
-          email: row.email?.trim() || null,
-          isFamilyInvite: row.isFamilyInvite,
-          token: generateSecureToken(),
-        },
-      }),
-    ),
+  const createData = await Promise.all(
+    toCreate.map(async (row) => {
+      const sharedState = await resolveSharedGuestState(prisma, {
+        eventId,
+        guestName: row.guestName,
+        phone: row.phone?.trim() || null,
+        phoneCountryCode: row.phoneCountryCode?.trim() || null,
+        email: row.email?.trim() || null,
+      });
+      const excludeFromTotals = Boolean(row.excludeFromTotals || sharedState.shouldExcludeFromTotals);
+      const excludeReason =
+        excludeFromTotals
+          ? row.excludeReason?.trim() || sharedState.defaultExcludeReason || "Manual exclusion"
+          : null;
+      return {
+        eventId,
+        guestName: row.guestName,
+        greeting: row.greeting?.trim() || "Assalamu Alaikum",
+        menCount: row.menCount,
+        womenCount: row.womenCount,
+        kidsCount: row.kidsCount,
+        maxGuests: row.menCount + row.womenCount + row.kidsCount,
+        group: row.group?.trim() || null,
+        tableName: row.tableName?.trim() || null,
+        notes: row.notes?.trim() || null,
+        phone: row.phone?.trim() || null,
+        phoneCountryCode: row.phoneCountryCode?.trim() || null,
+        email: row.email?.trim() || null,
+        isFamilyInvite: row.isFamilyInvite,
+        token: generateSecureToken(),
+        sharedGuestKey: sharedState.sharedGuestKey,
+        countOwnerEventId: sharedState.countOwnerEventId,
+        excludeFromTotals,
+        excludeReason,
+      };
+    }),
   );
+  await prisma.$transaction(createData.map((data) => prisma.guest.create({ data })));
+  const sharedDetectedCount = createData.filter((d) => Boolean(d.sharedGuestKey && d.countOwnerEventId)).length;
 
   if (access.admin) {
     await logAuditActivity({
@@ -278,6 +314,7 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
         skippedInvalid,
         skippedDuplicateInDb,
         skippedDuplicateInFile,
+        sharedDetectedCount,
       },
     });
   }
@@ -291,5 +328,6 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
     skippedInvalid,
     skippedDuplicateInDb,
     skippedDuplicateInFile,
+    sharedDetectedCount,
   };
 }

@@ -8,6 +8,12 @@ function parseFamilyInviteCell(value: unknown): boolean {
   return s === "true" || s === "yes" || s === "y" || s === "1";
 }
 
+function parseExcludeCell(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  const s = String(value ?? "").trim().toLowerCase();
+  return s === "true" || s === "yes" || s === "y" || s === "1" || s === "excluded";
+}
+
 export const guestImportRowSchema = z
   .object({
     guestName: z.string().trim().min(1, "guestName is required"),
@@ -25,6 +31,11 @@ export const guestImportRowSchema = z
       if (v === undefined || v === null || v === "") return false;
       return parseFamilyInviteCell(v);
     }, z.boolean()),
+    excludeFromTotals: z.preprocess((v) => {
+      if (v === undefined || v === null || v === "") return false;
+      return parseExcludeCell(v);
+    }, z.boolean()).optional().default(false),
+    excludeReason: z.string().trim().optional(),
   })
   .superRefine((data, ctx) => {
     const total = data.menCount + data.womenCount + data.kidsCount;
@@ -76,6 +87,10 @@ function mapHeaderToField(header: string): string | null {
     "family invite": "isFamilyInvite",
     familyinvite: "isFamilyInvite",
     "is family invite": "isFamilyInvite",
+    excludefromtotals: "excludeFromTotals",
+    "exclude from totals": "excludeFromTotals",
+    excludereason: "excludeReason",
+    "exclude reason": "excludeReason",
   };
   return map[k] ?? null;
 }
@@ -108,12 +123,16 @@ function positionalRowToFields(row: unknown[]): Record<string, string> {
   const col9 = String(r[9] ?? "").trim();
   const col10 = String(r[10] ?? "").trim();
   const col11 = String(r[11] ?? "").trim();
+  const col12 = String(r[12] ?? "").trim();
+  const col13 = String(r[13] ?? "").trim();
   if (col9.includes("@")) {
     return {
       ...base,
       phoneCountryCode: "",
       email: col9,
       isFamilyInvite: col10,
+      excludeFromTotals: col11,
+      excludeReason: col12,
     };
   }
   return {
@@ -121,6 +140,8 @@ function positionalRowToFields(row: unknown[]): Record<string, string> {
     phoneCountryCode: col9,
     email: col10,
     isFamilyInvite: col11,
+    excludeFromTotals: col12,
+    excludeReason: col13,
   };
 }
 
@@ -243,6 +264,8 @@ export function previewGuestCsv(
       phone: obj.phone || undefined,
       email: obj.email || undefined,
       isFamilyInvite: obj.isFamilyInvite === "" ? undefined : obj.isFamilyInvite,
+      excludeFromTotals: obj.excludeFromTotals === "" ? undefined : obj.excludeFromTotals,
+      excludeReason: obj.excludeReason || undefined,
     });
 
     if (!safeParse.success) {

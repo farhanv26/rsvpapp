@@ -57,6 +57,8 @@ type GuestRow = {
   invitedAt: Date | null;
   phone: string | null;
   email: string | null;
+  excludeFromTotals: boolean;
+  excludeReason: string | null;
 };
 
 function GuestTable({ guests }: { guests: GuestRow[] }) {
@@ -159,21 +161,22 @@ export default async function EventReportPage({ params }: Props) {
   }
 
   const guests = event.guests;
+  const countedGuests = guests.filter((g) => !g.excludeFromTotals);
   const generatedAt = new Date();
 
   const totalFamilies = guests.length;
-  const totalMaximumInvited = guests.reduce((s, g) => s + g.maxGuests, 0);
-  const invitedFamilies = guests.filter((g) => g.invitedAt).length;
-  const totalResponded = guests.filter((g) => g.respondedAt).length;
-  const attendingFamilies = guests.filter((g) => g.attending === true);
-  const declinedFamilies = guests.filter((g) => g.attending === false);
-  const totalConfirmedAttendees = guests.reduce((s, g) => s + (g.attendingCount ?? 0), 0);
-  const notInvitedYet = guests.filter((g) => !g.invitedAt);
-  const invitedNoResponse = guests.filter((g) => g.invitedAt && !g.respondedAt);
-  const missingContact = guests.filter((g) => getGuestReadiness(readinessInput(g)).id === "missing_contact");
-  const withoutTable = guests.filter((g) => !g.tableName?.trim());
+  const totalMaximumInvited = countedGuests.reduce((s, g) => s + g.maxGuests, 0);
+  const invitedFamilies = countedGuests.filter((g) => g.invitedAt).length;
+  const totalResponded = countedGuests.filter((g) => g.respondedAt).length;
+  const attendingFamilies = countedGuests.filter((g) => g.attending === true);
+  const declinedFamilies = countedGuests.filter((g) => g.attending === false);
+  const totalConfirmedAttendees = countedGuests.reduce((s, g) => s + (g.attendingCount ?? 0), 0);
+  const notInvitedYet = countedGuests.filter((g) => !g.invitedAt);
+  const invitedNoResponse = countedGuests.filter((g) => g.invitedAt && !g.respondedAt);
+  const missingContact = countedGuests.filter((g) => getGuestReadiness(readinessInput(g)).id === "missing_contact");
+  const withoutTable = countedGuests.filter((g) => !g.tableName?.trim());
 
-  const dupInputs = guests.map((g) => ({
+  const dupInputs = countedGuests.map((g) => ({
     id: g.id,
     guestName: g.guestName,
     phone: g.phone,
@@ -181,14 +184,14 @@ export default async function EventReportPage({ params }: Props) {
   }));
   const dupMap = buildDuplicateStrengthMap(dupInputs);
   const dupLabels = new Map<string, string>();
-  for (const g of guests) {
+  for (const g of countedGuests) {
     const lab = duplicateLabel(dupMap.get(g.id) ?? "none");
     if (lab) dupLabels.set(g.id, lab);
   }
-  const duplicateGuests = guests.filter((g) => dupMap.get(g.id) !== "none");
+  const duplicateGuests = countedGuests.filter((g) => dupMap.get(g.id) !== "none");
 
   const needsFollowUpCount = countInvitedAwaitingRsvp(
-    guests.map((g) => ({
+    countedGuests.map((g) => ({
       invitedAt: g.invitedAt?.toISOString() ?? null,
       respondedAt: g.respondedAt?.toISOString() ?? null,
     })),
@@ -208,6 +211,8 @@ export default async function EventReportPage({ params }: Props) {
       invitedAt: g.invitedAt,
       phone: g.phone,
       email: g.email,
+      excludeFromTotals: g.excludeFromTotals,
+      excludeReason: g.excludeReason,
     };
     if (!byTable.has(key)) byTable.set(key, []);
     byTable.get(key)!.push(row);
@@ -232,6 +237,8 @@ export default async function EventReportPage({ params }: Props) {
       invitedAt: g.invitedAt,
       phone: g.phone,
       email: g.email,
+      excludeFromTotals: g.excludeFromTotals,
+      excludeReason: g.excludeReason,
     };
     if (!byCategory.has(key)) byCategory.set(key, []);
     byCategory.get(key)!.push(row);
@@ -257,6 +264,8 @@ export default async function EventReportPage({ params }: Props) {
       invitedAt: g.invitedAt,
       phone: g.phone,
       email: g.email,
+      excludeFromTotals: g.excludeFromTotals,
+      excludeReason: g.excludeReason,
     }));
 
   return (
@@ -354,6 +363,7 @@ export default async function EventReportPage({ params }: Props) {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Metrics</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Metric label="Guest records (families)" value={String(totalFamilies)} />
+              <Metric label="Counted in totals" value={String(countedGuests.length)} />
               <Metric label="Max invited (capacity)" value={String(totalMaximumInvited)} />
               <Metric label="Families invited (tracked)" value={String(invitedFamilies)} />
               <Metric label="Families responded" value={String(totalResponded)} />

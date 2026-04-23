@@ -16,6 +16,7 @@ import {
   sendGuestInviteEmailAction,
   triggerGuestSendAction,
   updateGuestAction,
+  setGuestCountOwnershipAction,
 } from "@/app/admin/events/actions";
 import { ReviewDuplicatesModal } from "@/components/admin/review-duplicates-modal";
 import { SendInvitesModal } from "@/components/admin/send-invites-modal";
@@ -79,6 +80,11 @@ export type GuestPanelGuest = {
   createdAt: string;
   updatedAt: string;
   isFamilyInvite: boolean;
+  excludeFromTotals: boolean;
+  excludeReason: string | null;
+  sharedGuestKey: string | null;
+  countOwnerEventId: string | null;
+  isSharedGuest: boolean;
 };
 
 function totalGuestCount(guest: Pick<GuestPanelGuest, "menCount" | "womenCount" | "kidsCount" | "maxGuests">) {
@@ -181,6 +187,27 @@ const duplicateFilterTabs: { id: DuplicateFilterId; label: string }[] = [
   { id: "has_duplicates", label: "Duplicates / Possible" },
   { id: "clean", label: "Clean" },
 ];
+
+type CountingFilterId = "all" | "counted" | "excluded" | "shared" | "counted_here" | "counted_elsewhere";
+
+const countingFilterTabs: { id: CountingFilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "counted", label: "Counted in totals" },
+  { id: "excluded", label: "Excluded from totals" },
+  { id: "shared", label: "Shared guests" },
+  { id: "counted_here", label: "Counted here" },
+  { id: "counted_elsewhere", label: "Counted elsewhere" },
+];
+
+function guestIsSharedAcrossEvents(guest: GuestPanelGuest): boolean {
+  return guest.isSharedGuest;
+}
+
+function guestIsCountedHere(guest: GuestPanelGuest, eventId: string): boolean {
+  if (guest.excludeFromTotals) return false;
+  if (!guest.countOwnerEventId) return true;
+  return guest.countOwnerEventId === eventId;
+}
 
 function duplicateBadgeLabel(strength: DuplicateStrength): string | null {
   if (strength === "none") return null;
@@ -362,6 +389,7 @@ export function EventGuestsPanel({
   const [readinessFilter, setReadinessFilter] = useState<ReadinessFilterId>("all");
   const [followUpFilter, setFollowUpFilter] = useState<FollowUpFilterId>("all");
   const [duplicateFilter, setDuplicateFilter] = useState<DuplicateFilterId>("all");
+  const [countingFilter, setCountingFilter] = useState<CountingFilterId>("all");
   const [planningGroupFilter, setPlanningGroupFilter] = useState<string>("all");
   const [planningTableFilter, setPlanningTableFilter] = useState<string>("all");
   const [reviewDuplicatesOpen, setReviewDuplicatesOpen] = useState(false);
@@ -379,6 +407,7 @@ export function EventGuestsPanel({
   const [copiedBulkLinks, setCopiedBulkLinks] = useState(false);
   const [copiedBulkInvites, setCopiedBulkInvites] = useState(false);
   const [emailSendingGuestId, setEmailSendingGuestId] = useState<string | null>(null);
+  const [ownershipPendingGuestId, setOwnershipPendingGuestId] = useState<string | null>(null);
   const [emailSentGuestId, setEmailSentGuestId] = useState<string | null>(null);
   const [bulkEmailStatus, setBulkEmailStatus] = useState<string | null>(null);
   const [sendInvitesOpen, setSendInvitesOpen] = useState(false);
@@ -508,6 +537,10 @@ export function EventGuestsPanel({
           duplicateBadgeLabel(duplicateStrengthMap.get(g.id) ?? "none"),
           "duplicate",
           "possible duplicate",
+          g.excludeFromTotals ? "excluded" : "counted here",
+          g.excludeReason,
+          g.isSharedGuest ? "shared guest" : "",
+          g.countOwnerEventId && g.countOwnerEventId !== eventId ? "counted elsewhere" : "",
           "invited",
           "not invited",
           "not sent",
@@ -529,7 +562,7 @@ export function EventGuestsPanel({
     }
 
     return list;
-  }, [guests, q, filter, duplicateStrengthMap]);
+  }, [guests, q, filter, duplicateStrengthMap, eventId]);
 
   const afterInviteFilter = useMemo(() => {
     let list = [...withoutInviteFilter];
@@ -576,8 +609,25 @@ export function EventGuestsPanel({
     );
   }, [afterDuplicateFilter, planningGroupFilter, planningTableFilter]);
 
+  const afterCountingFilter = useMemo(() => {
+    if (countingFilter === "all") {
+      return afterPlanningFilter;
+    }
+    return afterPlanningFilter.filter((g) => {
+      const countedHere = guestIsCountedHere(g, eventId);
+      if (countingFilter === "counted") return !g.excludeFromTotals;
+      if (countingFilter === "excluded") return g.excludeFromTotals;
+      if (countingFilter === "shared") return guestIsSharedAcrossEvents(g);
+      if (countingFilter === "counted_here") return countedHere;
+      if (countingFilter === "counted_elsewhere") {
+        return Boolean(g.countOwnerEventId && g.countOwnerEventId !== eventId);
+      }
+      return true;
+    });
+  }, [afterPlanningFilter, countingFilter, eventId]);
+
   const filtered = useMemo(() => {
-    const list = [...afterPlanningFilter];
+    const list = [...afterCountingFilter];
     list.sort((a, b) => {
       switch (sort) {
         case "nameAsc":
@@ -616,7 +666,7 @@ export function EventGuestsPanel({
     });
 
     return list;
-  }, [afterPlanningFilter, sort]);
+  }, [afterCountingFilter, sort]);
 
   const visibleSubsetStats = useMemo(() => {
     let maxInvited = 0;
@@ -628,15 +678,17 @@ export function EventGuestsPanel({
     let invitedFamilies = 0;
     let notInvitedFamilies = 0;
     for (const g of filtered) {
-      maxInvited += totalGuestCount(g);
-      men += g.menCount ?? 0;
-      women += g.womenCount ?? 0;
-      kids += g.kidsCount ?? 0;
-      if (g.invitedAt) invitedFamilies += 1;
-      else notInvitedFamilies += 1;
-      if (guestPrimaryStatus(g) === "attending") {
-        attendingFamilies += 1;
-        attendingHeadcount += Math.max(g.attendingCount ?? 0, 1);
+      if (!g.excludeFromTotals) {
+        maxInvited += totalGuestCount(g);
+        men += g.menCount ?? 0;
+        women += g.womenCount ?? 0;
+        kids += g.kidsCount ?? 0;
+        if (g.invitedAt) invitedFamilies += 1;
+        else notInvitedFamilies += 1;
+        if (guestPrimaryStatus(g) === "attending") {
+          attendingFamilies += 1;
+          attendingHeadcount += Math.max(g.attendingCount ?? 0, 1);
+        }
       }
     }
     return {
@@ -675,6 +727,7 @@ export function EventGuestsPanel({
     if (readinessFilter !== "all") n += 1;
     if (followUpFilter !== "all") n += 1;
     if (duplicateFilter !== "all") n += 1;
+    if (countingFilter !== "all") n += 1;
     if (planningGroupFilter !== "all") n += 1;
     if (planningTableFilter !== "all") n += 1;
     return n;
@@ -684,6 +737,7 @@ export function EventGuestsPanel({
     readinessFilter,
     followUpFilter,
     duplicateFilter,
+    countingFilter,
     planningGroupFilter,
     planningTableFilter,
   ]);
@@ -726,15 +780,15 @@ export function EventGuestsPanel({
     afterDuplicateFilter.length > 0 &&
     afterPlanningFilter.length === 0 &&
     (planningGroupFilter !== "all" || planningTableFilter !== "all");
+  const countingFilterOnlyEmpty =
+    hasGuests &&
+    afterPlanningFilter.length > 0 &&
+    afterCountingFilter.length === 0 &&
+    countingFilter !== "all";
   const allVisibleSelected = filtered.length > 0 && filtered.every((guest) => selectedIds.has(guest.id));
 
   const notInvitedCount = useMemo(
     () => guests.filter((g) => !g.invitedAt).length,
-    [guests],
-  );
-
-  const remainingNotInvitedGuests = useMemo(
-    () => guests.filter((g) => !g.invitedAt),
     [guests],
   );
 
@@ -826,6 +880,7 @@ export function EventGuestsPanel({
     setReadinessFilter("all");
     setFollowUpFilter("all");
     setDuplicateFilter("all");
+    setCountingFilter("all");
     setPlanningGroupFilter("all");
     setPlanningTableFilter("all");
     setSort("updatedDesc");
@@ -884,6 +939,10 @@ export function EventGuestsPanel({
         "Invited At",
         "Invite channel",
         "Family invite",
+        "Exclude from totals",
+        "Exclude reason",
+        "Shared guest",
+        "Count owner",
       ],
       ...source.map((guest) => {
         return [
@@ -909,6 +968,10 @@ export function EventGuestsPanel({
           guest.invitedAt ? formatDate(guest.invitedAt) : "",
           guest.inviteChannelLastUsed ?? "",
           guest.isFamilyInvite ? "Yes" : "No",
+          guest.excludeFromTotals ? "Yes" : "No",
+          guest.excludeReason ?? "",
+          guest.isSharedGuest ? "Yes" : "No",
+          guest.countOwnerEventId === eventId ? "This event" : guest.countOwnerEventId ? "Another event" : "",
         ];
       }),
     ];
@@ -1231,6 +1294,26 @@ export function EventGuestsPanel({
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Cross-event</span>
+                <div className="flex flex-wrap gap-2">
+                  {countingFilterTabs.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setCountingFilter(t.id)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        countingFilter === t.id
+                          ? "bg-[#2c5a63] text-white"
+                          : "bg-[#e4f0f2] text-zinc-600 hover:bg-[#d6e7ea]"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Seating</span>
                 <label className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
@@ -1324,6 +1407,10 @@ export function EventGuestsPanel({
                       "Invited At (ISO)",
                       "Invite channel",
                       "Family invite (true/false)",
+                      "Exclude from totals (true/false)",
+                      "Exclude reason",
+                      "Shared guest",
+                      "Count owner",
                     ],
                     ...source.map((guest) => {
                       const st = guestPrimaryStatus(guest);
@@ -1352,6 +1439,10 @@ export function EventGuestsPanel({
                         guest.invitedAt ?? "",
                         guest.inviteChannelLastUsed ?? "",
                         String(guest.isFamilyInvite),
+                        String(guest.excludeFromTotals),
+                        guest.excludeReason ?? "",
+                        String(guest.isSharedGuest),
+                        guest.countOwnerEventId === eventId ? "this_event" : guest.countOwnerEventId ? "other_event" : "",
                       ];
                     }),
                   ];
@@ -1748,6 +1839,7 @@ export function EventGuestsPanel({
               {readinessFilter !== "all" ? <span className="text-zinc-400"> · readiness filter active</span> : null}
               {followUpFilter !== "all" ? <span className="text-zinc-400"> · follow-up filter active</span> : null}
               {duplicateFilter !== "all" ? <span className="text-zinc-400"> · duplicate filter active</span> : null}
+              {countingFilter !== "all" ? <span className="text-zinc-400"> · counting filter active</span> : null}
               {planningGroupFilter !== "all" || planningTableFilter !== "all" ? (
                 <span className="text-zinc-400"> · seating filter active</span>
               ) : null}
@@ -1773,6 +1865,8 @@ export function EventGuestsPanel({
                         : "No guests matched your current follow-up filter."
                       : duplicateFilterOnlyEmpty
                         ? "No guests matched your current duplicate filter."
+                        : countingFilterOnlyEmpty
+                          ? "No guests matched your counting ownership filter."
                         : planningFilterOnlyEmpty
                           ? "No guests matched your current seating or category filters."
                           : "No guests matched your search criteria."}
@@ -1814,6 +1908,17 @@ export function EventGuestsPanel({
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             <span className={compactStatusBadgeClass("status")}>{statusText}</span>
+                            {guest.excludeFromTotals ? (
+                              <span className={compactStatusBadgeClass("meta")}>Excluded</span>
+                            ) : guest.isSharedGuest ? (
+                              <span className={compactStatusBadgeClass("meta")}>Counted here</span>
+                            ) : null}
+                            {guest.isSharedGuest ? (
+                              <span className={compactStatusBadgeClass("duplicate")}>Shared guest</span>
+                            ) : null}
+                            {guest.countOwnerEventId && guest.countOwnerEventId !== eventId ? (
+                              <span className={compactStatusBadgeClass("warning")}>Counted in another event</span>
+                            ) : null}
                             {readiness.id === "missing_contact" ? (
                               <span className={compactStatusBadgeClass("warning")}>Missing contact</span>
                             ) : null}
@@ -1830,6 +1935,9 @@ export function EventGuestsPanel({
                               Reminder {formatDate(guest.lastReminderAt)}
                             </p>
                           ) : null}
+                          {guest.excludeFromTotals && guest.excludeReason ? (
+                            <p className="text-[10px] text-zinc-500">Reason: {guest.excludeReason}</p>
+                          ) : null}
                           {guest.invitedAt ? (
                             <p className="text-[10px] text-zinc-400">
                               {guest.inviteCount > 1 ? `${guest.inviteCount} sends · ` : null}
@@ -1843,6 +1951,38 @@ export function EventGuestsPanel({
                             </p>
                           ) : null}
                           <div className="flex flex-wrap gap-2">
+                            {(guest.isSharedGuest || guest.excludeFromTotals) ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={ownershipPendingGuestId === guest.id}
+                                  className="rounded-lg border border-[#ddcfba] bg-white px-2.5 py-2 text-xs font-medium text-zinc-700 disabled:opacity-50"
+                                  onClick={async () => {
+                                    setOwnershipPendingGuestId(guest.id);
+                                    await setGuestCountOwnershipAction({ eventId, guestId: guest.id, mode: "count_here" });
+                                    setOwnershipPendingGuestId(null);
+                                    router.refresh();
+                                  }}
+                                >
+                                  {ownershipPendingGuestId === guest.id ? "Saving…" : "Count in this event"}
+                                </button>
+                                {!guest.excludeFromTotals ? (
+                                  <button
+                                    type="button"
+                                    disabled={ownershipPendingGuestId === guest.id}
+                                    className="rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-2 text-xs font-medium text-zinc-700 disabled:opacity-50"
+                                    onClick={async () => {
+                                      setOwnershipPendingGuestId(guest.id);
+                                      await setGuestCountOwnershipAction({ eventId, guestId: guest.id, mode: "exclude_here", reason: "Manual exclusion" });
+                                      setOwnershipPendingGuestId(null);
+                                      router.refresh();
+                                    }}
+                                  >
+                                    Exclude from totals
+                                  </button>
+                                ) : null}
+                              </>
+                            ) : null}
                             {!guest.invitedAt ? (
                               <button
                                 type="button"
@@ -2189,6 +2329,17 @@ export function EventGuestsPanel({
                         <td className="px-3 py-3.5 align-top">
                           <div className="flex flex-wrap gap-1.5">
                             <span className={compactStatusBadgeClass("status")}>{statusText}</span>
+                            {guest.excludeFromTotals ? (
+                              <span className={compactStatusBadgeClass("meta")}>Excluded</span>
+                            ) : guest.isSharedGuest ? (
+                              <span className={compactStatusBadgeClass("meta")}>Counted here</span>
+                            ) : null}
+                            {guest.isSharedGuest ? (
+                              <span className={compactStatusBadgeClass("duplicate")}>Shared guest</span>
+                            ) : null}
+                            {guest.countOwnerEventId && guest.countOwnerEventId !== eventId ? (
+                              <span className={compactStatusBadgeClass("warning")}>Counted in another event</span>
+                            ) : null}
                             {readiness.id === "missing_contact" ? (
                               <span className={compactStatusBadgeClass("warning")}>Missing contact</span>
                             ) : null}
@@ -2203,6 +2354,9 @@ export function EventGuestsPanel({
                             <span className="mt-1 block text-[10px] text-zinc-400">
                               Reminder {formatDate(guest.lastReminderAt)}
                             </span>
+                          ) : null}
+                          {guest.excludeFromTotals && guest.excludeReason ? (
+                            <span className="mt-1 block text-[10px] text-zinc-500">Reason: {guest.excludeReason}</span>
                           ) : null}
                         </td>
                         <td className="px-3 py-3.5 align-top">
@@ -2264,6 +2418,38 @@ export function EventGuestsPanel({
                         <td className="px-3 py-3.5 align-top">
                           <div className="flex max-w-[22rem] flex-col items-end gap-2 sm:max-w-none">
                             <div className="flex flex-wrap items-center justify-end gap-2">
+                              {(guest.isSharedGuest || guest.excludeFromTotals) ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={ownershipPendingGuestId === guest.id}
+                                    className="rounded-lg border border-[#ddcfba] bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-700 transition hover:bg-[#faf6ef] disabled:opacity-50"
+                                    onClick={async () => {
+                                      setOwnershipPendingGuestId(guest.id);
+                                      await setGuestCountOwnershipAction({ eventId, guestId: guest.id, mode: "count_here" });
+                                      setOwnershipPendingGuestId(null);
+                                      router.refresh();
+                                    }}
+                                  >
+                                    {ownershipPendingGuestId === guest.id ? "Saving…" : "Count here"}
+                                  </button>
+                                  {!guest.excludeFromTotals ? (
+                                    <button
+                                      type="button"
+                                      disabled={ownershipPendingGuestId === guest.id}
+                                      className="rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 text-[11px] font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-50"
+                                      onClick={async () => {
+                                        setOwnershipPendingGuestId(guest.id);
+                                        await setGuestCountOwnershipAction({ eventId, guestId: guest.id, mode: "exclude_here", reason: "Manual exclusion" });
+                                        setOwnershipPendingGuestId(null);
+                                        router.refresh();
+                                      }}
+                                    >
+                                      Exclude
+                                    </button>
+                                  ) : null}
+                                </>
+                              ) : null}
                               {!guest.invitedAt ? (
                                 <button
                                   type="button"
@@ -2675,6 +2861,7 @@ export function EventGuestsPanel({
               >
                 <input type="hidden" name="eventId" value={eventId} />
                 <input type="hidden" name="guestId" value={editingGuest.id} />
+                <input type="hidden" name="countOwnerEventId" value={editingGuest.countOwnerEventId ?? ""} />
                 <input
                   type="text"
                   name="guestName"
@@ -2775,6 +2962,31 @@ export function EventGuestsPanel({
                   className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
                   placeholder="Notes"
                 />
+                <select
+                  name="excludeFromTotals"
+                  defaultValue={editingGuest.excludeFromTotals ? "true" : "false"}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                >
+                  <option value="false">Count in totals</option>
+                  <option value="true">Exclude from totals</option>
+                </select>
+                <input
+                  type="text"
+                  name="excludeReason"
+                  defaultValue={editingGuest.excludeReason ?? ""}
+                  className="rounded-xl border border-[#dccfbb] bg-white px-3 py-2 text-sm"
+                  placeholder="Exclusion reason (optional)"
+                />
+                {editingGuest.isSharedGuest ? (
+                  <p className="sm:col-span-2 text-xs text-zinc-600">
+                    Shared guest detected across events. Current owner:{" "}
+                    {editingGuest.countOwnerEventId === eventId
+                      ? "this event"
+                      : editingGuest.countOwnerEventId
+                        ? "another event"
+                        : "not assigned"}.
+                  </p>
+                ) : null}
                 <label className="flex items-start gap-2 sm:col-span-2">
                   <input
                     type="checkbox"

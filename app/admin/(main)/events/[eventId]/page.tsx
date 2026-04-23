@@ -69,6 +69,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   }
 
   const totalFamilies = event.guests.length;
+  const countedGuests = event.guests.filter((guest) => !guest.excludeFromTotals);
+  const excludedGuests = totalFamilies - countedGuests.length;
   const guestInvitedCapacity = (g: (typeof event.guests)[number]) => {
     const m = g.menCount ?? 0;
     const w = g.womenCount ?? 0;
@@ -76,24 +78,24 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     const sum = m + w + k;
     return sum > 0 ? sum : g.maxGuests;
   };
-  const totalMaximumInvited = event.guests.reduce((sum, guest) => sum + guestInvitedCapacity(guest), 0);
-  const totalMen = event.guests.reduce((sum, g) => sum + (g.menCount ?? 0), 0);
-  const totalWomen = event.guests.reduce((sum, g) => sum + (g.womenCount ?? 0), 0);
-  const totalKids = event.guests.reduce((sum, g) => sum + (g.kidsCount ?? 0), 0);
-  const totalResponded = event.guests.filter((guest) => guest.respondedAt).length;
-  const invitedFamilies = event.guests.filter((guest) => guest.invitedAt).length;
-  const totalPending = event.guests.filter((guest) => !guest.respondedAt).length;
-  const totalAttendingFamilies = event.guests.filter((guest) => guest.attending === true).length;
-  const totalDeclinedFamilies = event.guests.filter((guest) => guest.attending === false).length;
-  const totalConfirmedAttendees = event.guests.reduce(
+  const totalMaximumInvited = countedGuests.reduce((sum, guest) => sum + guestInvitedCapacity(guest), 0);
+  const totalMen = countedGuests.reduce((sum, g) => sum + (g.menCount ?? 0), 0);
+  const totalWomen = countedGuests.reduce((sum, g) => sum + (g.womenCount ?? 0), 0);
+  const totalKids = countedGuests.reduce((sum, g) => sum + (g.kidsCount ?? 0), 0);
+  const totalResponded = countedGuests.filter((guest) => guest.respondedAt).length;
+  const invitedFamilies = countedGuests.filter((guest) => guest.invitedAt).length;
+  const totalPending = countedGuests.filter((guest) => !guest.respondedAt).length;
+  const totalAttendingFamilies = countedGuests.filter((guest) => guest.attending === true).length;
+  const totalDeclinedFamilies = countedGuests.filter((guest) => guest.attending === false).length;
+  const totalConfirmedAttendees = countedGuests.reduce(
     (sum, guest) => sum + (guest.attendingCount ?? 0),
     0,
   );
-  const responseRate = totalFamilies > 0 ? totalResponded / totalFamilies : 0;
+  const responseRate = countedGuests.length > 0 ? totalResponded / countedGuests.length : 0;
   const attendanceRate = totalMaximumInvited > 0 ? totalConfirmedAttendees / totalMaximumInvited : 0;
 
   const readinessOverview = summarizeReadinessGuestCounts(
-    event.guests.map((g) => ({
+    countedGuests.map((g) => ({
       respondedAt: g.respondedAt?.toISOString() ?? null,
       invitedAt: g.invitedAt?.toISOString() ?? null,
       phone: g.phone,
@@ -102,7 +104,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   );
 
   const needsFollowUpCount = countInvitedAwaitingRsvp(
-    event.guests.map((g) => ({
+    countedGuests.map((g) => ({
       invitedAt: g.invitedAt?.toISOString() ?? null,
       respondedAt: g.respondedAt?.toISOString() ?? null,
     })),
@@ -126,6 +128,24 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   ).size;
   const guestsWithoutTable = event.guests.filter((g) => !g.tableName?.trim()).length;
   const guestsWithoutGroup = event.guests.filter((g) => !g.group?.trim()).length;
+
+  const sharedKeyCandidates = Array.from(
+    new Set(event.guests.map((g) => g.sharedGuestKey).filter((key): key is string => Boolean(key))),
+  );
+  const sharedKeysInOtherEvents = new Set(
+    (
+      await prisma.guest.findMany({
+        where: {
+          deletedAt: null,
+          eventId: { not: event.id },
+          sharedGuestKey: { in: sharedKeyCandidates.length > 0 ? sharedKeyCandidates : ["__none__"] },
+        },
+        select: { sharedGuestKey: true },
+      })
+    )
+      .map((g) => g.sharedGuestKey)
+      .filter((key): key is string => Boolean(key)),
+  );
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
@@ -193,6 +213,11 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     createdAt: g.createdAt.toISOString(),
     updatedAt: g.updatedAt.toISOString(),
     isFamilyInvite: g.isFamilyInvite,
+    excludeFromTotals: g.excludeFromTotals,
+    excludeReason: g.excludeReason,
+    sharedGuestKey: g.sharedGuestKey,
+    countOwnerEventId: g.countOwnerEventId,
+    isSharedGuest: g.sharedGuestKey ? sharedKeysInOtherEvents.has(g.sharedGuestKey) : false,
   }));
 
   const inviteCardEvent: InviteCardEventInput = {
@@ -250,6 +275,9 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     "guest_invite_cleared",
     "communication_email_guest_reminder_sent",
     "guest_reminder_recorded",
+    "guest_shared_detected",
+    "guest_excluded_from_totals",
+    "guest_count_owner_changed",
   ];
   const sectionStoragePrefix = `${admin.id}:${event.id}`;
 
@@ -461,7 +489,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           defaultOpen={false}
         >
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard label="Total families" value={totalFamilies} />
+          <StatCard label="Total families" value={totalFamilies} sub={`${excludedGuests} excluded`} />
+          <StatCard label="Counted families" value={countedGuests.length} />
           <StatCard label="Invited families" value={invitedFamilies} />
           <StatCard label="Max invited" value={totalMaximumInvited} />
           <StatCard label="Total men" value={totalMen} />

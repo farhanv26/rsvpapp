@@ -129,6 +129,10 @@ model Guest {
   inviteChannelLastUsed  String?
   inviteCount            Int      @default(0)
   lastReminderAt         DateTime?
+  excludeFromTotals      Boolean  @default(false)
+  excludeReason          String?
+  sharedGuestKey         String?
+  countOwnerEventId      String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   deletedAt      DateTime?
@@ -139,6 +143,9 @@ model Guest {
 
   @@index([eventId])
   @@index([eventId, deletedAt])
+  @@index([eventId, excludeFromTotals])
+  @@index([sharedGuestKey, deletedAt])
+  @@index([countOwnerEventId])
   @@index([token])
 }
 
