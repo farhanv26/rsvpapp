@@ -112,7 +112,7 @@ export default async function AdminActivityPage({ searchParams }: Props) {
               <option value="all">All actions</option>
               {actionOptions.map((action) => (
                 <option key={action} value={action}>
-                  {action}
+                  {formatActionLabel(action)}
                 </option>
               ))}
             </select>

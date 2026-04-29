@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateEventAction } from "@/app/admin/events/actions";
 import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
-import { EventInviteVariantsFields } from "@/components/admin/event-invite-variants-fields";
 import { EventFontStyleField } from "@/components/admin/event-font-style-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
+import { EventItineraryFields } from "@/components/admin/event-itinerary-fields";
 import { SafeEventImage } from "@/components/safe-event-image";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { getSafeImageSrc } from "@/lib/utils";
+import type { ItineraryItem } from "@/components/itinerary-timeline";
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -43,6 +44,7 @@ export default async function EditEventPage({ params }: Props) {
       cardImage3: true,
       cardImage4: true,
       familyCardImage: true,
+      itinerary: true,
     },
   });
   if (!event) {
@@ -58,27 +60,41 @@ export default async function EditEventPage({ params }: Props) {
     safeImageSrc,
   });
 
+  const itineraryItems: ItineraryItem[] = Array.isArray(event.itinerary)
+    ? (event.itinerary as ItineraryItem[]).filter(
+        (x) => x && typeof x.time === "string" && typeof x.title === "string",
+      )
+    : [];
+
   return (
     <main className="app-shell max-w-4xl">
-      <div className="mb-5">
-        <Link href={`/admin/events/${event.id}`} className="text-sm font-medium text-zinc-600">
-          ← Back to dashboard
+
+      {/* ── Back + heading ── */}
+      <div className="mb-8">
+        <Link
+          href={`/admin/events/${event.id}`}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400 transition hover:text-zinc-700"
+        >
+          <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3" aria-hidden>
+            <path d="M8 10L4 6l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Event dashboard
         </Link>
-        <h1 className="headline-display mt-3 text-3xl">Edit wedding event</h1>
+        <h1 className="headline-display mt-3">Edit event</h1>
+        <p className="mt-1.5 text-sm text-zinc-500">
+          Changes save immediately and update the guest invite page.
+        </p>
       </div>
 
-      <form action={updateEventAction} className="app-card space-y-6 p-6 sm:p-8">
+      <form action={updateEventAction} className="space-y-5">
         <input type="hidden" name="eventId" value={event.id} />
-        <section className="app-card-muted space-y-4 p-4 sm:p-5">
-          <div>
-            <p className="section-title">Event basics</p>
-            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Core identity</h2>
-            <p className="mt-1 text-sm text-zinc-600">Update the invite headline and names shown to guests.</p>
-          </div>
+
+        {/* ── 1. Identity ── */}
+        <FormSection number="01" title="Identity" description="Names and headline shown on the guest invite page.">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label htmlFor="title" className="mb-2 block text-sm font-medium">
-                Event title
+              <label htmlFor="title" className="form-label">
+                Event title <Required />
               </label>
               <input
                 id="title"
@@ -90,8 +106,8 @@ export default async function EditEventPage({ params }: Props) {
               />
             </div>
             <div className="sm:col-span-2">
-              <label htmlFor="coupleNames" className="mb-2 block text-sm font-medium">
-                Couple names (optional)
+              <label htmlFor="coupleNames" className="form-label">
+                Couple names <Optional />
               </label>
               <input
                 id="coupleNames"
@@ -100,10 +116,11 @@ export default async function EditEventPage({ params }: Props) {
                 defaultValue={event.coupleNames ?? ""}
                 className="input-luxe mt-0"
               />
+              <p className="mt-1.5 text-xs text-zinc-400">Shown as the large heading on the invitation page.</p>
             </div>
             <div className="sm:col-span-2">
-              <label htmlFor="eventSubtitle" className="mb-2 block text-sm font-medium">
-                Event subtitle (optional)
+              <label htmlFor="eventSubtitle" className="form-label">
+                Subtitle <Optional />
               </label>
               <input
                 id="eventSubtitle"
@@ -114,130 +131,165 @@ export default async function EditEventPage({ params }: Props) {
               />
             </div>
           </div>
-        </section>
+        </FormSection>
 
-        <section className="app-card-muted space-y-4 p-4 sm:p-5">
-          <EventSchedulingFields
-            eventDateDefault={event.eventDate ? event.eventDate.toISOString().slice(0, 10) : ""}
-            rsvpDeadlineDefault={event.rsvpDeadline ? event.rsvpDeadline.toISOString().slice(0, 10) : ""}
-            eventTimeDefault={event.eventTime ?? ""}
-          />
-        </section>
+        {/* ── 2. Schedule ── */}
+        <FormSection number="02" title="Schedule" description="Ceremony date, time, and RSVP cutoff.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <EventSchedulingFields
+              eventDateDefault={event.eventDate ? event.eventDate.toISOString().slice(0, 10) : ""}
+              rsvpDeadlineDefault={event.rsvpDeadline ? event.rsvpDeadline.toISOString().slice(0, 10) : ""}
+              eventTimeDefault={event.eventTime ?? ""}
+            />
+          </div>
+        </FormSection>
 
+        {/* ── 3. Typography ── */}
         <EventFontStyleField defaultValue={event.inviteFontStyle} />
 
-        <section className="app-card-muted space-y-4 p-4 sm:p-5">
-          <div>
-            <p className="section-title">Ceremony details</p>
-            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Location and messaging</h2>
-          </div>
-          <div>
-            <label htmlFor="venue" className="mb-2 block text-sm font-medium">
-              Venue (optional)
-            </label>
-            <input
-              id="venue"
-              name="venue"
-              type="text"
-              defaultValue={event.venue ?? ""}
-              className="input-luxe mt-0"
-            />
-          </div>
-          <div>
-            <label htmlFor="welcomeMessage" className="mb-2 block text-sm font-medium">
-              Welcome message (optional)
-            </label>
-            <textarea
-              id="welcomeMessage"
-              name="welcomeMessage"
-              defaultValue={event.welcomeMessage ?? ""}
-              className="input-luxe mt-0 h-24"
-            />
-          </div>
-          <div>
-            <label htmlFor="inviteMessageIntro" className="mb-2 block text-sm font-medium">
-              Invite intro override (optional)
-            </label>
-            <input
-              id="inviteMessageIntro"
-              name="inviteMessageIntro"
-              type="text"
-              defaultValue={event.inviteMessageIntro ?? ""}
-              className="input-luxe mt-0"
-              placeholder="You are cordially invited to Farhan & Rafiya’s Nikkah Ceremony"
-            />
-          </div>
-          <div>
-            <label htmlFor="inviteMessageLineOverride" className="mb-2 block text-sm font-medium">
-              Invite line override (optional)
-            </label>
-            <input
-              id="inviteMessageLineOverride"
-              name="inviteMessageLineOverride"
-              type="text"
-              defaultValue={event.inviteMessageLineOverride ?? ""}
-              className="input-luxe mt-0"
-              placeholder="Your presence would truly make this event special."
-            />
-          </div>
-          <div>
-            <label htmlFor="description" className="mb-2 block text-sm font-medium">
-              Description (optional)
-            </label>
-            <textarea
-              id="description"
-              name="description"
-              defaultValue={event.description ?? ""}
-              className="input-luxe mt-0 h-28"
-            />
-          </div>
-        </section>
-
-        {safeImageSrc ? (
-          <div>
-            <p className="mb-2 text-sm font-medium">Current image</p>
-            <div className="rounded-2xl border border-[#e3d8c7] bg-[#f7f2e9] p-3">
-              <div className="relative h-52 w-full overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fffdfa]">
-                <SafeEventImage
-                  src={safeImageSrc}
-                  alt={event.title}
-                  fill
-                  className="object-contain object-center"
-                  fallbackLabel="Invitation image unavailable"
-                />
+        {/* ── 4. Venue & messaging ── */}
+        <FormSection number="04" title="Venue & messaging" description="Location and what guests see on their invite.">
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="venue" className="form-label">
+                Venue <Optional />
+              </label>
+              <input
+                id="venue"
+                name="venue"
+                type="text"
+                defaultValue={event.venue ?? ""}
+                className="input-luxe mt-0"
+              />
+            </div>
+            <div>
+              <label htmlFor="welcomeMessage" className="form-label">
+                Welcome message <Optional />
+              </label>
+              <textarea
+                id="welcomeMessage"
+                name="welcomeMessage"
+                defaultValue={event.welcomeMessage ?? ""}
+                className="input-luxe mt-0 h-24 resize-none"
+              />
+            </div>
+            <div>
+              <label htmlFor="description" className="form-label">
+                Description <Optional />
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                defaultValue={event.description ?? ""}
+                className="input-luxe mt-0 h-24 resize-none"
+              />
+            </div>
+            <div className="border-t border-[#ece4d4] pt-4">
+              <p className="form-label mb-3">WhatsApp / iMessage invite overrides <Optional /></p>
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="inviteMessageIntro" className="mb-1.5 block text-xs text-zinc-500">
+                    Intro line
+                  </label>
+                  <input
+                    id="inviteMessageIntro"
+                    name="inviteMessageIntro"
+                    type="text"
+                    defaultValue={event.inviteMessageIntro ?? ""}
+                    className="input-luxe mt-0"
+                    placeholder="You are cordially invited to Farhan &amp; Rafiya's Nikkah Ceremony"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="inviteMessageLineOverride" className="mb-1.5 block text-xs text-zinc-500">
+                    Second line
+                  </label>
+                  <input
+                    id="inviteMessageLineOverride"
+                    name="inviteMessageLineOverride"
+                    type="text"
+                    defaultValue={event.inviteMessageLineOverride ?? ""}
+                    className="input-luxe mt-0"
+                    placeholder="Your presence would truly make this event special."
+                  />
+                </div>
               </div>
             </div>
           </div>
-        ) : null}
+        </FormSection>
 
-        <section className="app-card-muted space-y-3 p-4 sm:p-5">
-          <div>
-            <p className="section-title">Invitation card</p>
-            <h2 className="mt-2 text-lg font-semibold text-zinc-900">Replace invite image</h2>
+        {/* ── 5. Invitation card ── */}
+        <FormSection number="05" title="Invitation card" description="Upload or replace the main invite image guests see.">
+          <div className="space-y-4">
+            {safeImageSrc ? (
+              <div className="overflow-hidden rounded-2xl border border-[#e3d8c7] bg-[#f7f2e9]">
+                <div className="relative h-52 w-full overflow-hidden">
+                  <SafeEventImage
+                    src={safeImageSrc}
+                    alt={event.title}
+                    fill
+                    className="object-contain object-center"
+                    fallbackLabel="Invitation image unavailable"
+                  />
+                </div>
+                <p className="border-t border-[#ece4d4] px-4 py-2 text-xs text-zinc-500">
+                  Current invitation image — upload a new file below to replace it.
+                </p>
+              </div>
+            ) : null}
+            <EventImageUploadField initialImagePath={event.imagePath} />
           </div>
-          <EventImageUploadField initialImagePath={event.imagePath} />
-        </section>
+        </FormSection>
 
-        <EventInviteVariantsFields
-          initials={{
-            genericCardImage: event.genericCardImage,
-            cardImage1: event.cardImage1,
-            cardImage2: event.cardImage2,
-            cardImage3: event.cardImage3,
-            cardImage4: event.cardImage4,
-            familyCardImage: event.familyCardImage,
-          }}
-        />
+        {/* ── 6. Itinerary ── */}
+        <FormSection number="06" title="Itinerary" description="Optional day-of schedule shown to guests on their invite.">
+          <EventItineraryFields initialItems={itineraryItems} />
+        </FormSection>
 
-        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+        {/* ── Submit footer ── */}
+        <div className="flex flex-col-reverse gap-2 rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <Link href={`/admin/events/${event.id}`} className="btn-secondary w-full sm:w-auto">
             Cancel
           </Link>
           <button type="submit" className="btn-primary w-full sm:w-auto sm:min-w-44">
-            Save Event Changes
+            Save changes
           </button>
         </div>
+
       </form>
     </main>
   );
+}
+
+function FormSection({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-3xl border border-[#e7dccb] bg-[#fffdfa] shadow-[0_4px_24px_-12px_rgba(71,52,29,0.18)]">
+      <div className="border-b border-[#ece4d4] px-6 py-4 sm:px-7">
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono text-[10px] font-semibold tracking-[0.22em] text-zinc-400">{number}</span>
+          <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
+        </div>
+        <p className="mt-0.5 pl-8 text-sm text-zinc-500">{description}</p>
+      </div>
+      <div className="p-6 sm:p-7">{children}</div>
+    </section>
+  );
+}
+
+function Required() {
+  return <span className="ml-1 text-zinc-400">*</span>;
+}
+
+function Optional() {
+  return <span className="ml-1 font-normal text-zinc-400">(optional)</span>;
 }

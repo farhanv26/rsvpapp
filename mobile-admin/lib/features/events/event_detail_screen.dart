@@ -113,37 +113,55 @@ class EventDetailScreen extends ConsumerWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
-                  childAspectRatio: 1.55,
+                  childAspectRatio: 1.3,
                   children: [
                     StatCard(
                       label: 'Responded',
                       value: '${s.totalResponded}',
                       sub: '${s.responseRate}% response rate',
+                      progress: s.responseRate / 100,
                     ),
                     StatCard(
                       label: 'Attending',
                       value: '${s.attendingFamilies}',
                       color: AppColors.attending,
+                      progress: s.totalFamilies > 0
+                          ? s.attendingFamilies / s.totalFamilies
+                          : 0.0,
                     ),
                     StatCard(
                       label: 'Declined',
                       value: '${s.declinedFamilies}',
                       color: AppColors.declined,
+                      progress: s.totalFamilies > 0
+                          ? s.declinedFamilies / s.totalFamilies
+                          : 0.0,
                     ),
                     StatCard(
                       label: 'Confirmed',
                       value: '${s.confirmedAttendees}',
                       sub: 'total attendees',
                       color: AppColors.brandAccent,
+                      progress: s.totalMaxInvited > 0
+                          ? (s.confirmedAttendees / s.totalMaxInvited)
+                              .clamp(0.0, 1.0)
+                          : 0.0,
                     ),
                     StatCard(
                       label: 'Invited',
                       value: '${s.invitedFamilies}',
+                      progress: s.totalFamilies > 0
+                          ? s.invitedFamilies / s.totalFamilies
+                          : 0.0,
                     ),
                     StatCard(
                       label: 'Awaiting RSVP',
                       value: '${s.awaitingRsvpCount}',
                       color: AppColors.pending,
+                      progress: s.invitedFamilies > 0
+                          ? (s.awaitingRsvpCount / s.invitedFamilies)
+                              .clamp(0.0, 1.0)
+                          : 0.0,
                     ),
                   ],
                 ),

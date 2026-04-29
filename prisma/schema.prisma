@@ -29,6 +29,7 @@ model Event {
   eventTime     String?
   venue         String?
   welcomeMessage String?
+  itinerary      Json?
   inviteFontStyle String   @default("elegant_serif")
   inviteMessageIntro String?
   inviteMessageLineOverride String?

@@ -9,6 +9,7 @@ class StatCard extends StatelessWidget {
     this.sub,
     this.color,
     this.icon,
+    this.progress,
   });
 
   final String label;
@@ -16,12 +17,13 @@ class StatCard extends StatelessWidget {
   final String? sub;
   final Color? color;
   final IconData? icon;
+  /// 0.0–1.0 fill for the progress bar. null = no bar.
+  final double? progress;
 
   @override
   Widget build(BuildContext context) {
     final valueColor = color ?? AppColors.textPrimary;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -30,26 +32,52 @@ class StatCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 16, color: valueColor.withValues(alpha: 0.6)),
-            const SizedBox(height: 6),
-          ],
-          Text(
-            value,
-            style: AppTextStyles.statValue.copyWith(color: valueColor),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 16, color: valueColor.withValues(alpha: 0.6)),
+                    const SizedBox(height: 6),
+                  ],
+                  Text(
+                    value,
+                    style: AppTextStyles.statValue.copyWith(color: valueColor),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(label.toUpperCase(), style: AppTextStyles.statLabel),
+                  if (sub != null) ...[
+                    const SizedBox(height: 2),
+                    Text(sub!,
+                        style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textMuted,
+                            height: 1.3)),
+                  ],
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 3),
-          Text(label.toUpperCase(), style: AppTextStyles.statLabel),
-          if (sub != null) ...[
-            const SizedBox(height: 2),
-            Text(sub!,
-                style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textMuted,
-                    height: 1.3)),
-          ],
+          if (progress != null)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(AppRadius.md)),
+              child: SizedBox(
+                height: 4,
+                child: LinearProgressIndicator(
+                  value: progress!.clamp(0.0, 1.0),
+                  backgroundColor: valueColor.withValues(alpha: 0.1),
+                  valueColor: AlwaysStoppedAnimation(
+                      valueColor.withValues(alpha: 0.7)),
+                ),
+              ),
+            )
+          else
+            const SizedBox(height: 14),
         ],
       ),
     );

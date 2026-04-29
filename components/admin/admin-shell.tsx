@@ -28,6 +28,7 @@ export function AdminShell({
   const eventsActive = path.startsWith("/admin/events");
   const usersActive = path.startsWith("/admin/users");
   const activityActive = path.startsWith("/admin/activity");
+
   useEffect(() => {
     const storageKey = "rsvp_admin_user_mru_v1";
     try {
@@ -39,78 +40,94 @@ export function AdminShell({
       // no-op
     }
   }, [user.name]);
-  const pageContext = (() => {
-    if (path.startsWith("/admin/users")) return "Users";
-    if (path.startsWith("/admin/activity")) return "Activity";
-    if (path.startsWith("/admin/events/new")) return "New Event";
-    if (path.includes("/report")) return "Report";
-    if (path.includes("/edit")) return "Edit Event";
-    if (path.startsWith("/admin/events/")) return "Event Dashboard";
-    if (path.startsWith("/admin/events")) return "Events";
-    return "Workspace";
-  })();
 
   return (
     <>
-      <div className="sticky top-0 z-50 overflow-visible border-b border-[#e7dccb] bg-[#f9f4eb]/92 px-3 py-3 backdrop-blur-md sm:px-4">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2.5 overflow-visible md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0 min-h-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <div className="min-w-0">
-                <p className="section-title">RSVP Admin</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <p className="truncate text-sm text-zinc-600">Private event management workspace</p>
-                  <span className="hidden h-1 w-1 rounded-full bg-zinc-300 sm:inline-block" />
-                  <span className="inline-flex rounded-full border border-[#e2d4bf] bg-white/80 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-zinc-600">
-                    {pageContext}
-                  </span>
-                </div>
-              </div>
-              <nav className="flex flex-wrap items-center gap-1.5" aria-label="Admin">
-                <Link
-                  href="/admin/events"
-                  className={
-                    eventsActive
-                      ? "rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-zinc-900 shadow-sm ring-1 ring-[#e2d4bf]"
-                      : "rounded-full px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-white/60 hover:text-zinc-900"
-                  }
-                >
-                  Events
-                </Link>
-                {showUsersNav ? (
-                  <Link
-                    href="/admin/users"
-                    className={
-                      usersActive
-                        ? "rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-zinc-900 shadow-sm ring-1 ring-[#e2d4bf]"
-                        : "rounded-full px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-white/60 hover:text-zinc-900"
-                    }
-                  >
-                    Users
-                  </Link>
-                ) : null}
-                {showActivityNav ? (
-                  <Link
-                    href="/admin/activity"
-                    className={
-                      activityActive
-                        ? "rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-zinc-900 shadow-sm ring-1 ring-[#e2d4bf]"
-                        : "rounded-full px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-white/60 hover:text-zinc-900"
-                    }
-                  >
-                    Activity
-                  </Link>
-                ) : null}
-              </nav>
-            </div>
+      {/* ─── Top navigation bar ──────────────────────────────── */}
+      <div className="sticky top-0 z-50 border-b border-[#e7dccb]/80 bg-[#faf6ee]/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-5">
+
+          {/* Brand + page context */}
+          <div className="min-w-0 flex-1">
+            <Link
+              href="/admin/events"
+              className="group inline-flex flex-col outline-none"
+            >
+              <span className="text-[0.58rem] font-semibold uppercase tracking-[0.3em] text-zinc-400 transition group-hover:text-zinc-500">
+                RSVP Admin
+              </span>
+              <span className="text-sm font-semibold text-zinc-800 transition group-hover:text-zinc-900">
+                Event Management
+              </span>
+            </Link>
           </div>
-          <div className="flex items-center justify-end gap-2">
+
+          {/* Primary nav links */}
+          <nav className="hidden items-center gap-1 sm:flex" aria-label="Admin navigation">
+            <NavLink href="/admin/events" active={eventsActive}>
+              Events
+            </NavLink>
+            {showUsersNav && (
+              <NavLink href="/admin/users" active={usersActive}>
+                Users
+              </NavLink>
+            )}
+            {showActivityNav && (
+              <NavLink href="/admin/activity" active={activityActive}>
+                Activity
+              </NavLink>
+            )}
+          </nav>
+
+          {/* Right side: bell + account */}
+          <div className="flex items-center gap-1.5">
             <AdminNotificationBell />
             <AdminAccountMenu user={user} />
           </div>
         </div>
+
+        {/* Mobile nav — shown below primary row on small screens */}
+        <div className="flex gap-1 overflow-x-auto px-4 pb-2 sm:hidden">
+          <NavLink href="/admin/events" active={eventsActive}>
+            Events
+          </NavLink>
+          {showUsersNav && (
+            <NavLink href="/admin/users" active={usersActive}>
+              Users
+            </NavLink>
+          )}
+          {showActivityNav && (
+            <NavLink href="/admin/activity" active={activityActive}>
+              Activity
+            </NavLink>
+          )}
+        </div>
       </div>
+
       {children}
     </>
+  );
+}
+
+function NavLink({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`inline-flex shrink-0 items-center rounded-xl px-3.5 py-1.5 text-sm font-medium transition ${
+        active
+          ? "bg-[#3f2f1f] text-white shadow-sm"
+          : "text-zinc-600 hover:bg-[#f2ebe0] hover:text-zinc-900"
+      }`}
+    >
+      {children}
+    </Link>
   );
 }

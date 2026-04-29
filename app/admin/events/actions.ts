@@ -65,6 +65,25 @@ function parsePerCategoryExclusionFromForm(
   };
 }
 
+function parseItineraryField(formData: FormData): { time: string; title: string; description?: string | null }[] | null {
+  const raw = formData.get("itinerary");
+  if (!raw || typeof raw !== "string") return null;
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return null;
+    return arr
+      .filter((x) => x && typeof x.time === "string" && typeof x.title === "string")
+      .map((x) => ({
+        time: String(x.time).trim(),
+        title: String(x.title).trim(),
+        description: x.description ? String(x.description).trim() : null,
+      }))
+      .filter((x) => x.time && x.title);
+  } catch {
+    return null;
+  }
+}
+
 function parseOptionalDate(value?: string) {
   if (!value) {
     return null;
@@ -169,6 +188,7 @@ export async function createEventAction(formData: FormData) {
   const cardImage3 = parseStoredImagePath(formData, "cardImage3");
   const cardImage4 = parseStoredImagePath(formData, "cardImage4");
   const familyCardImage = parseStoredImagePath(formData, "familyCardImage");
+  const itinerary = parseItineraryField(formData);
   console.info("[event-image] value to write on create", { imagePath });
   const slug = await createUniqueSlug(parsed.data.title);
 
@@ -186,6 +206,7 @@ export async function createEventAction(formData: FormData) {
       cardImage3,
       cardImage4,
       familyCardImage,
+      itinerary: itinerary ?? undefined,
       coupleNames: parsed.data.coupleNames || null,
       eventSubtitle: parsed.data.eventSubtitle || null,
       eventDate: parseOptionalDate(parsed.data.eventDate),
@@ -256,6 +277,7 @@ export async function updateEventAction(formData: FormData) {
     console.info("[event-image] value to write on update", { eventId, imagePath });
   }
   const slug = await createUniqueSlug(parsed.data.title, eventId);
+  const itinerary = parseItineraryField(formData);
 
   const variantImages = {
     genericCardImage: parseStoredImagePath(formData, "genericCardImage"),
@@ -283,6 +305,7 @@ export async function updateEventAction(formData: FormData) {
       inviteFontStyle: parsed.data.inviteFontStyle || "elegant_serif",
       inviteMessageIntro: parsed.data.inviteMessageIntro || null,
       inviteMessageLineOverride: parsed.data.inviteMessageLineOverride || null,
+      itinerary: itinerary ?? [],
       ...(imagePath ? { imagePath } : {}),
       ...variantImages,
     },

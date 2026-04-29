@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx dotenv *)",
+      "Bash(DATABASE_URL='postgresql://postgres.ntcybuqsecdiqioflvit:farhanrafiya@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&sslmode=require' DIRECT_URL='postgresql://postgres:farhanrafiya@db.ntcybuqsecdiqioflvit.supabase.co:5432/postgres?sslmode=require' npx prisma db push)",
+      "Bash(DATABASE_URL='postgresql://postgres.ntcybuqsecdiqioflvit:farhanrafiya@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&sslmode=require' DIRECT_URL='postgresql://postgres:farhanrafiya@db.ntcybuqsecdiqioflvit.supabase.co:5432/postgres?sslmode=require' npx prisma generate)",
+      "Bash(node -e \"const { PrismaClient } = require\\('./node_modules/@prisma/client'\\); const p = new PrismaClient\\(\\); console.log\\('itinerary' in \\(p.event.fields || {}\\)\\);\")",
+      "Bash(node -e \"const { Prisma } = require\\('./node_modules/@prisma/client'\\); console.log\\(Object.keys\\(Prisma.EventScalarFieldEnum\\).includes\\('itinerary'\\)\\);\")",
+      "Bash(python3 /Users/farhanv/.claude/skills/ui-ux-pro-max/scripts/search.py \"wedding event RSVP luxury elegant invitation premium\" --design-system -p \"RSVP App\" -f markdown)",
+      "Bash(python3 ~/.claude/skills/ui-ux-pro-max/scripts/search.py \"wedding event RSVP luxury elegant invitation premium\" --design-system -p \"RSVP App\" -f markdown)",
+      "Read(//Users/farhanv/.claude/skills/**)",
+      "Bash(flutter analyze *)",
+      "Bash(python3 scripts/search.py \"wedding RSVP event management premium luxury admin dashboard\" --design-system -p \"Wedding RSVP Platform\" -f markdown)",
+      "Bash(python3 scripts/search.py \"luxury wedding event management RSVP operations premium minimal\" --design-system -p \"RSVP Platform\" -f markdown)",
+      "Bash(npx next *)"
+    ]
+  }
+}

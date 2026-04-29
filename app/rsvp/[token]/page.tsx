@@ -1,6 +1,13 @@
 import { RsvpForm } from "@/components/rsvp-form";
 import { EventImageLightbox } from "@/components/event-image-lightbox";
 import { RsvpResponsePanel } from "@/components/rsvp-response-panel";
+import { EnvelopeReveal } from "@/components/envelope-reveal";
+import { CountdownTimer } from "@/components/countdown-timer";
+import { VenueMapButton } from "@/components/venue-map-button";
+import { ScrollReveal } from "@/components/scroll-reveal";
+import { CalendarModal } from "@/components/calendar-modal";
+import { ItineraryTimeline } from "@/components/itinerary-timeline";
+import type { ItineraryItem } from "@/components/itinerary-timeline";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
@@ -47,6 +54,7 @@ type GuestWithEventForRsvpPage = {
     eventTime: string | null;
     venue: string | null;
     welcomeMessage: string | null;
+    itinerary: unknown;
     inviteFontStyle: string | null;
     rsvpDeadline: Date | null;
   };
@@ -158,107 +166,27 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   };
 }
 
-function CeremonyDetails({
-  eventTitle,
-  eventSubtitle,
-  description,
-  eventDate,
-  eventTime,
-  venue,
-  showCalendarActions,
-}: {
-  eventTitle: string;
-  eventSubtitle: string | null;
-  description: string | null;
-  eventDate: Date | null;
-  eventTime: string | null;
-  venue: string | null;
-  showCalendarActions: boolean;
-}) {
-  const dateLine = eventDate ? new Intl.DateTimeFormat("en-US", { dateStyle: "full" }).format(eventDate) : null;
-  const displayTime = formatEventTime(eventTime);
-  const calendarPayload = buildCalendarPayload({ eventTitle, eventSubtitle, description, eventDate, eventTime, venue });
-
+function DateCard({ eventDate }: { eventDate: Date }) {
+  const dayName = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(eventDate);
+  const fullDate = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(eventDate);
   return (
-    <div className="mx-auto max-w-md rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-5 py-5">
-      <div className="space-y-3 text-left">
-        {dateLine ? (
-          <DetailLine label="Date" value={dateLine} icon="calendar" />
-        ) : null}
-        {displayTime ? (
-          <DetailLine label="Time" value={displayTime} icon="clock" />
-        ) : null}
-        {venue ? (
-          <DetailLine label="Venue" value={venue} icon="pin" />
-        ) : null}
-        {showCalendarActions && calendarPayload ? (
-          <div className="pt-2 text-center">
-            <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">Add to calendar</p>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <a
-                href={calendarPayload.googleUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#dadde3] bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-[#c7ccd6] hover:bg-[#f8fafc]"
-              >
-                <GoogleCalendarLogo />
-                <span>Google</span>
-              </a>
-              <a
-                href={calendarPayload.icsDataUrl}
-                download="event-invitation-apple.ics"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#dadde3] bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-[#c7ccd6] hover:bg-[#f8fafc]"
-              >
-                <AppleCalendarLogo />
-                <span>Apple</span>
-              </a>
-              <a
-                href={calendarPayload.icsDataUrl}
-                download="event-invitation-outlook.ics"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#dadde3] bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:border-[#c7ccd6] hover:bg-[#f8fafc]"
-              >
-                <OutlookLogo />
-                <span>Outlook (.ics)</span>
-              </a>
-            </div>
-          </div>
-        ) : null}
-      </div>
+    <div className={`overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
+      <div className="mb-3 h-0.5 bg-gradient-to-r from-transparent via-[#b28944]/40 to-transparent" aria-hidden />
+      <p className="text-[0.55rem] font-semibold uppercase tracking-[0.3em] text-zinc-400">Date</p>
+      <p className="mt-2 text-xl leading-tight text-zinc-900">{dayName}</p>
+      <p className="mt-1 text-sm leading-snug text-zinc-500">{fullDate}</p>
     </div>
   );
 }
 
-function GoogleCalendarLogo() {
+function TimeCard({ eventTime }: { eventTime: string }) {
+  const display = formatEventTime(eventTime);
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="17" rx="3" fill="#fff" stroke="#dadce0" />
-      <rect x="3" y="4" width="18" height="5" rx="3" fill="#34A853" />
-      <rect x="8.8" y="11" width="6.4" height="6.2" rx="1.1" fill="#4285F4" />
-      <path d="M12 12.5v3M10.6 14h2.8" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function AppleCalendarLogo() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="17" rx="3" fill="#fff" stroke="#d1d5db" />
-      <rect x="3" y="4" width="18" height="5" rx="3" fill="#ef4444" />
-      <text x="12" y="17" textAnchor="middle" fontSize="7" fontWeight="700" fill="#111827">
-        12
-      </text>
-    </svg>
-  );
-}
-
-function OutlookLogo() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="14" rx="2.5" fill="#2563eb" />
-      <rect x="4.8" y="7" width="7.2" height="10" rx="1.2" fill="#1d4ed8" />
-      <circle cx="8.4" cy="12" r="2.1" fill="#fff" />
-      <path d="M12.8 9.2h6.2M12.8 12h6.2M12.8 14.8h6.2" stroke="#dbeafe" strokeWidth="1.1" strokeLinecap="round" />
-    </svg>
+    <div className={`overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
+      <div className="mb-3 h-0.5 bg-gradient-to-r from-transparent via-[#b28944]/40 to-transparent" aria-hidden />
+      <p className="text-[0.55rem] font-semibold uppercase tracking-[0.3em] text-zinc-400">Time</p>
+      <p className="mt-2 text-xl leading-tight text-zinc-900">{display ?? eventTime}</p>
+    </div>
   );
 }
 
@@ -321,43 +249,6 @@ function buildCalendarPayload(input: {
   return { googleUrl, icsDataUrl };
 }
 
-function DetailLine({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon: "calendar" | "clock" | "pin";
-}) {
-  const iconNode =
-    icon === "calendar" ? (
-      <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-[#8b6a34]">
-        <rect x="3" y="4.5" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.4" />
-        <path d="M3 8.5h14M6.5 3v3M13.5 3v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-    ) : icon === "clock" ? (
-      <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-[#8b6a34]">
-        <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.4" />
-        <path d="M10 6.8v3.6l2.4 1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-    ) : (
-      <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-[#8b6a34]">
-        <path d="M10 17s5-4.8 5-8.4A5 5 0 0 0 5 8.6C5 12.2 10 17 10 17Z" stroke="currentColor" strokeWidth="1.4" />
-        <circle cx="10" cy="8.4" r="1.8" fill="currentColor" />
-      </svg>
-    );
-
-  return (
-    <div className="flex items-start gap-3 rounded-xl bg-white/65 px-3 py-2.5">
-      <span className="mt-0.5">{iconNode}</span>
-      <div>
-        <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">{label}</p>
-        <p className="mt-1 text-sm leading-snug text-zinc-800">{value}</p>
-      </div>
-    </div>
-  );
-}
 
 export default async function RsvpTokenPage({ params, searchParams }: Props) {
   const { token } = await params;
@@ -390,6 +281,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
           eventTime: true,
           venue: true,
           welcomeMessage: true,
+          itinerary: true,
           inviteFontStyle: true,
           rsvpDeadline: true,
         },
@@ -441,7 +333,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   });
   const deadlineMeta = getRsvpDeadlineMeta(ev.rsvpDeadline);
   const isRsvpClosed = deadlineMeta?.status === "closed";
-  const hasCeremonyDetails = Boolean(ev.eventDate || ev.eventTime || ev.venue);
+
   const displayNames = ev.coupleNames?.trim() || ev.title;
   const hasCoupleNames = Boolean(ev.coupleNames?.trim());
   const inviteCapacity = (guest.menCount ?? 0) + (guest.womenCount ?? 0) + (guest.kidsCount ?? 0) || guest.maxGuests;
@@ -468,7 +360,35 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   const panelClass = "border-[#e7dccb] bg-[#fffdfa] shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]";
   const detailClass = "border-[#e7dccb] bg-[#fbf8f2]";
 
-  return (
+  const calendarPayload = buildCalendarPayload({
+    eventTitle: ev.title,
+    eventSubtitle: ev.eventSubtitle,
+    description: ev.description,
+    eventDate: ev.eventDate,
+    eventTime: ev.eventTime,
+    venue: ev.venue,
+  });
+
+  // "YYYY-MM-DDTHH:MM:SS" with NO timezone suffix so the client parses it as
+  // local time — guests in the event's timezone see the correct countdown target.
+  const eventStartISO: string | null = ev.eventDate
+    ? (() => {
+        const d = ev.eventDate;
+        const yyyy = d.getUTCFullYear();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        const time = ev.eventTime?.trim() ?? "00:00";
+        return `${yyyy}-${mm}-${dd}T${time}:00`;
+      })()
+    : null;
+
+  const itinerary: ItineraryItem[] = Array.isArray(ev.itinerary)
+    ? (ev.itinerary as ItineraryItem[]).filter(
+        (x) => x && typeof x.time === "string" && typeof x.title === "string",
+      )
+    : [];
+
+  const invitationContent = (
     <main className="flex min-h-dvh flex-col justify-center px-4 py-8 sm:px-6">
       {previewMode ? (
         <div className="fixed inset-x-0 top-0 z-50 border-b border-amber-200/90 bg-amber-50/95 px-4 py-3 text-center shadow-sm backdrop-blur-sm">
@@ -488,122 +408,177 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
           </p>
         </div>
       ) : null}
-      <div
-        className={`mx-auto w-full max-w-xl space-y-8 ${previewMode ? "pt-[4.5rem]" : ""}`}
-      >
-        <section className={`rsvp-fade-up rounded-3xl border p-5 sm:p-7 ${panelClass}`}>
-          <div className="space-y-6 text-center">
-            {safeImageSrc ? (
-              <div className="mx-auto w-full max-w-[31rem]">
-                <EventImageLightbox
-                  src={safeImageSrc}
-                  alt={ev.title}
-                  hintText="Tap to enlarge invitation"
-                />
-              </div>
-            ) : null}
 
-            <div className="space-y-3">
-              <h1 className={`mt-1 leading-[1.15] text-zinc-900 ${headingClass}`}>
-                {displayNames}
-              </h1>
-              {hasCoupleNames ? <p className={`mt-2 text-lg text-zinc-600 ${serif}`}>{ev.title}</p> : null}
-              {ev.eventSubtitle ? <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-600">{ev.eventSubtitle}</p> : null}
-            </div>
+      <div className={`mx-auto w-full max-w-xl space-y-5 ${previewMode ? "pt-[4.5rem]" : ""}`}>
 
-            {hasCeremonyDetails ? (
-              <CeremonyDetails
-                eventTitle={ev.title}
-                eventSubtitle={ev.eventSubtitle}
-                description={ev.description}
-                eventDate={ev.eventDate}
-                eventTime={ev.eventTime}
-                venue={ev.venue}
-                showCalendarActions={hasResponded && guest.attending === true}
-              />
-            ) : null}
-            {ev.rsvpDeadline ? (
+        {/* ── 1. Hero: image + names + dear guest ── */}
+        <ScrollReveal>
+          <section className={`rounded-3xl border p-5 sm:p-8 ${panelClass}`}>
+            <div className="space-y-7 text-center">
+
+              {safeImageSrc ? (
+                <div className="mx-auto w-full max-w-[30rem]">
+                  <EventImageLightbox src={safeImageSrc} alt={ev.title} hintText="Tap to enlarge invitation" />
+                </div>
+              ) : null}
+
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-                  RSVP by{" "}
-                  {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(ev.rsvpDeadline)}
-                </p>
-                {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" ? (
-                  <p
-                    className={`mx-auto w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-                      deadlineMeta.status === "closes_today"
-                        ? "bg-rose-100 text-rose-800"
-                        : deadlineMeta.daysRemaining <= 3
-                          ? "bg-amber-100 text-amber-900"
-                          : "bg-zinc-100 text-zinc-700"
-                    }`}
-                  >
-                    {deadlineMeta.status === "closes_today"
-                      ? "RSVP closes today"
-                      : deadlineMeta.daysRemaining <= 3
-                        ? `RSVP closes soon · ${deadlineMeta.daysRemaining} day${
-                            deadlineMeta.daysRemaining === 1 ? "" : "s"
-                          } left`
-                        : `Please respond by ${new Intl.DateTimeFormat("en-US", {
-                            dateStyle: "medium",
-                          }).format(ev.rsvpDeadline)}`}
-                  </p>
+                <h1 className={`leading-[1.15] text-zinc-900 ${headingClass}`}>{displayNames}</h1>
+                {hasCoupleNames ? (
+                  <p className={`text-base text-zinc-500 ${serif}`}>{ev.title}</p>
+                ) : null}
+                {ev.eventSubtitle ? (
+                  <p className="mx-auto max-w-sm text-sm leading-relaxed text-zinc-500">{ev.eventSubtitle}</p>
                 ) : null}
               </div>
+
+              <div className="mx-auto h-px w-24 bg-gradient-to-r from-transparent via-[#c9a227]/50 to-transparent" aria-hidden />
+
+              <div className={`mx-auto max-w-md rounded-2xl border px-5 py-5 text-center ${detailClass}`}>
+                <p className={`text-zinc-900 ${salutationClass}`}>Dear {guest.guestName},</p>
+                <p className="mt-3 text-base leading-relaxed text-zinc-700">
+                  {hasResponded && guest.attending === false ? (
+                    "We are sorry you will not be able to attend, but we completely understand."
+                  ) : (
+                    <>
+                      <span className="block">We would be honored to celebrate with you.</span>
+                      <span className="mt-2 block">
+                        Your invitation includes up to{" "}
+                        <span className="font-semibold text-zinc-900">{inviteCapacity}</span>{" "}
+                        {inviteCapacity === 1 ? "guest" : "guests"}.
+                      </span>
+                    </>
+                  )}
+                </p>
+                {ev.welcomeMessage ? (
+                  <p className="mt-3 text-sm leading-relaxed text-zinc-700">{ev.welcomeMessage}</p>
+                ) : null}
+                {ev.description ? (
+                  <p className="mt-3 text-sm leading-relaxed text-zinc-600">{ev.description}</p>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        </ScrollReveal>
+
+        {/* ── 2. Date + Time ── */}
+        {(ev.eventDate || ev.eventTime) ? (
+          <div className={ev.eventDate && ev.eventTime ? "grid grid-cols-2 gap-3" : ""}>
+            {ev.eventDate ? (
+              <ScrollReveal delay={60}>
+                <DateCard eventDate={ev.eventDate} />
+              </ScrollReveal>
             ) : null}
-
-            <div className={`mx-auto max-w-md rounded-2xl border px-5 py-5 text-center ${detailClass}`}>
-              <p className={`text-zinc-900 ${salutationClass}`}>Dear {guest.guestName},</p>
-              <p className="mt-3 text-base leading-relaxed text-zinc-700">
-                {hasResponded && guest.attending === false ? (
-                  "We are sorry you will not be able to attend, but we completely understand."
-                ) : (
-                  <>
-                    <span className="block">We would be honored to celebrate with you.</span>
-                    <span className="mt-2 block">
-                      Your invitation includes up to{" "}
-                      <span className="font-semibold text-zinc-900">{inviteCapacity}</span>{" "}
-                      {inviteCapacity === 1 ? "guest" : "guests"}.
-                    </span>
-                  </>
-                )}
-              </p>
-              {ev.welcomeMessage ? <p className="mt-3 text-sm leading-relaxed text-zinc-700">{ev.welcomeMessage}</p> : null}
-              {ev.description ? <p className="mt-3 text-sm leading-relaxed text-zinc-600">{ev.description}</p> : null}
-            </div>
+            {ev.eventTime ? (
+              <ScrollReveal delay={100}>
+                <TimeCard eventTime={ev.eventTime} />
+              </ScrollReveal>
+            ) : null}
           </div>
-        </section>
+        ) : null}
 
-        <section className="rsvp-fade-up [animation-delay:90ms]">
-          {isRsvpClosed && !hasResponded ? (
-            <div className="w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-6 py-9 text-center shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]">
-              <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">RSVP closed</p>
-              <h2 className="mt-3 text-3xl font-semibold text-zinc-900">RSVP is now closed.</h2>
-              <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-600">
-                We can no longer accept responses for this invitation.
+        {/* ── 3. Countdown (shows while event is in the future) ── */}
+        {eventStartISO ? (
+          <ScrollReveal delay={40}>
+            <CountdownTimer eventStartISO={eventStartISO} />
+          </ScrollReveal>
+        ) : null}
+
+        {/* ── 4. RSVP deadline notice ── */}
+        {ev.rsvpDeadline ? (
+          <ScrollReveal delay={40}>
+            <div className="space-y-2 text-center">
+              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                RSVP by{" "}
+                {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(ev.rsvpDeadline)}
               </p>
+              {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" ? (
+                <p
+                  className={`mx-auto w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                    deadlineMeta.status === "closes_today"
+                      ? "bg-rose-100 text-rose-800"
+                      : deadlineMeta.daysRemaining <= 3
+                        ? "bg-amber-100 text-amber-900"
+                        : "bg-zinc-100 text-zinc-700"
+                  }`}
+                >
+                  {deadlineMeta.status === "closes_today"
+                    ? "RSVP closes today"
+                    : `RSVP closes soon · ${deadlineMeta.daysRemaining} day${
+                        deadlineMeta.daysRemaining === 1 ? "" : "s"
+                      } left`}
+                </p>
+              ) : null}
             </div>
-          ) : hasResponded ? (
-            <RsvpResponsePanel
-              token={token}
-              maxGuests={guest.maxGuests}
-              respondedAtLabel={formatDateTime(guest.respondedAt)}
-              attending={guest.attending}
-              attendingCount={guest.attendingCount}
-              hostMessage={(guest as unknown as { hostMessage?: string | null }).hostMessage ?? null}
-              canEdit={!isRsvpClosed}
-              previewMode={previewMode}
-            />
-          ) : (
-            <RsvpForm
-              token={token}
-              maxGuests={guest.maxGuests}
-              isLocked={hasResponded}
-              previewMode={previewMode}
-            />
-          )}
-        </section>
+          </ScrollReveal>
+        ) : null}
+
+        {/* ── 5. RSVP ── */}
+        <ScrollReveal delay={60}>
+          <section>
+            {isRsvpClosed && !hasResponded ? (
+              <div className="w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-6 py-9 text-center shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]">
+                <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">RSVP closed</p>
+                <h2 className="mt-3 text-2xl font-semibold text-zinc-900">RSVP is now closed.</h2>
+                <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-600">
+                  We can no longer accept responses for this invitation.
+                </p>
+              </div>
+            ) : hasResponded ? (
+              <RsvpResponsePanel
+                token={token}
+                maxGuests={guest.maxGuests}
+                respondedAtLabel={formatDateTime(guest.respondedAt)}
+                attending={guest.attending}
+                attendingCount={guest.attendingCount}
+                hostMessage={(guest as unknown as { hostMessage?: string | null }).hostMessage ?? null}
+                canEdit={!isRsvpClosed}
+                previewMode={previewMode}
+              />
+            ) : (
+              <RsvpForm
+                token={token}
+                maxGuests={guest.maxGuests}
+                isLocked={hasResponded}
+                previewMode={previewMode}
+              />
+            )}
+          </section>
+        </ScrollReveal>
+
+        {/* ── 6. Itinerary ── */}
+        {itinerary.length > 0 ? (
+          <ScrollReveal delay={40}>
+            <ItineraryTimeline items={itinerary} />
+          </ScrollReveal>
+        ) : null}
+
+        {/* ── 7. Map (attending guests only) ── */}
+        {ev.venue && hasResponded && guest.attending === true ? (
+          <ScrollReveal delay={40}>
+            <VenueMapButton venue={ev.venue} />
+          </ScrollReveal>
+        ) : null}
+
+        {/* ── 8. Calendar (attending guests only) ── */}
+        {calendarPayload && hasResponded && guest.attending === true ? (
+          <ScrollReveal delay={60}>
+            <div className="pb-2 text-center">
+              <CalendarModal icsDataUrl={calendarPayload.icsDataUrl} />
+            </div>
+          </ScrollReveal>
+        ) : null}
+
       </div>
     </main>
+  );
+
+  return (
+    <EnvelopeReveal
+      skip={previewMode}
+      guestName={guest.guestName}
+    >
+      {invitationContent}
+    </EnvelopeReveal>
   );
 }

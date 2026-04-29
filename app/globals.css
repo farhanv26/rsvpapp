@@ -52,11 +52,11 @@ body {
 
   .btn-primary {
     background: linear-gradient(180deg, #4c3a26 0%, #302216 100%);
-    @apply inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-[#fff8ee] shadow-[0_14px_38px_-18px_rgba(48,34,22,0.75)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex touch-manipulation items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-[#fff8ee] shadow-[0_14px_38px_-18px_rgba(48,34,22,0.75)] transition hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-2xl border border-[#ddcfba] bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-[#faf6ef] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex touch-manipulation items-center justify-center rounded-2xl border border-[#ddcfba] bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-[#faf6ef] hover:border-[#c8b89a] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .input-luxe {
@@ -87,6 +87,10 @@ body {
     @apply inline-flex items-center justify-center rounded-2xl border border-rose-700 bg-rose-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
+  .form-label {
+    @apply block text-sm font-medium text-zinc-700;
+  }
+
   .modal-backdrop {
     @apply fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/45 p-4 sm:items-center;
   }
@@ -96,26 +100,68 @@ body {
   }
 }
 
-/* Guest RSVP — subtle entrance (reduced motion respected below) */
+/* ─── RSVP entrance animations ─────────────────────────────── */
 @keyframes rsvp-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rsvp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes rsvp-scale-up {
+  from { opacity: 0; transform: scale(0.97) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Countdown tick — subtle scale pulse on seconds */
+@keyframes countdown-tick {
+  0%   { transform: scale(1); }
+  15%  { transform: scale(1.06); }
+  30%  { transform: scale(1); }
 }
 
 .rsvp-fade-up {
-  animation: rsvp-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rsvp-fade-up 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.rsvp-fade-in {
+  animation: rsvp-fade-in 0.6s ease both;
+}
+
+.rsvp-scale-up {
+  animation: rsvp-scale-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered children */
+.rsvp-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.rsvp-stagger > *:nth-child(2) { animation-delay: 80ms; }
+.rsvp-stagger > *:nth-child(3) { animation-delay: 160ms; }
+.rsvp-stagger > *:nth-child(4) { animation-delay: 240ms; }
+.rsvp-stagger > *:nth-child(5) { animation-delay: 320ms; }
+
 @media (prefers-reduced-motion: reduce) {
-  .rsvp-fade-up {
-    animation: none;
-  }
+  .rsvp-fade-up,
+  .rsvp-fade-in,
+  .rsvp-scale-up { animation: none; }
+}
+
+/* ─── Modal backdrop blur ───────────────────────────────────── */
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* ─── Smooth selection ring on radio cards ─────────────────── */
+.rsvp-choice-card {
+  transition: border-color 0.22s ease, background-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+/* ─── Tap ripple helper ─────────────────────────────────────── */
+.tap-highlight-none {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .rdp-root {

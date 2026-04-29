@@ -106,11 +106,11 @@ class Guest {
       if (attending == true) return GuestStatus.attending;
       if (attending == false) return GuestStatus.declined;
     }
-    if (invitedAt != null) return GuestStatus.invited;
+    if (invitedAt != null) return GuestStatus.pending;
     return GuestStatus.notInvited;
   }
 
   bool get hasContact => phone != null || email != null;
 }
 
-enum GuestStatus { attending, declined, invited, notInvited }
+enum GuestStatus { attending, declined, pending, notInvited }

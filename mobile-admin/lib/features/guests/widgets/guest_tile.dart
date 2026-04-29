@@ -506,7 +506,7 @@ class _StatusBadge extends StatelessWidget {
           AppColors.attending,
         ),
       GuestStatus.declined => ('Declined', AppColors.declinedBg, AppColors.declined),
-      GuestStatus.invited => ('Invited', AppColors.invitedBg, AppColors.invitedText),
+      GuestStatus.pending => ('Pending', AppColors.pendingBg, AppColors.pendingText),
       GuestStatus.notInvited => ('Not invited', AppColors.notInvitedBg, AppColors.notInvited),
     };
     return Container(
@@ -541,24 +541,30 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 5),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: color)),
-          ],
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        height: 44,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 13, color: color),
+                const SizedBox(width: 5),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: color)),
+              ],
+            ),
+          ),
         ),
       ),
     );
