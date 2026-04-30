@@ -12,11 +12,12 @@ export function ItineraryTimeline({ items }: { items: ItineraryItem[] }) {
   return (
     <div className="mx-auto max-w-md overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2]">
       {/* Header */}
-      <div className="border-b border-[#ece4d4] px-5 py-4 text-center">
+      <div className="border-b border-[#ece4d4] px-5 py-5 text-center">
         <div className="mx-auto mb-3 h-px w-16 bg-gradient-to-r from-transparent via-[#c9a227]/40 to-transparent" aria-hidden />
         <p className="text-[0.56rem] font-semibold uppercase tracking-[0.28em] text-zinc-400">
           Schedule
         </p>
+        <p className={`mt-1 text-base leading-snug text-zinc-800 ${serif}`}>Event Timeline</p>
       </div>
 
       {/* Timeline */}

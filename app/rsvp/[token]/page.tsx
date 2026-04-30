@@ -170,7 +170,7 @@ function DateCard({ eventDate }: { eventDate: Date }) {
   const dayName = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(eventDate);
   const fullDate = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(eventDate);
   return (
-    <div className={`overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
+    <div className={`flex h-full flex-col justify-center overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
       <div className="mb-3 h-0.5 bg-gradient-to-r from-transparent via-[#b28944]/40 to-transparent" aria-hidden />
       <p className="text-[0.55rem] font-semibold uppercase tracking-[0.3em] text-zinc-400">Date</p>
       <p className="mt-2 text-xl leading-tight text-zinc-900">{dayName}</p>
@@ -182,7 +182,7 @@ function DateCard({ eventDate }: { eventDate: Date }) {
 function TimeCard({ eventTime }: { eventTime: string }) {
   const display = formatEventTime(eventTime);
   return (
-    <div className={`overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
+    <div className={`flex h-full flex-col justify-center overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
       <div className="mb-3 h-0.5 bg-gradient-to-r from-transparent via-[#b28944]/40 to-transparent" aria-hidden />
       <p className="text-[0.55rem] font-semibold uppercase tracking-[0.3em] text-zinc-400">Time</p>
       <p className="mt-2 text-xl leading-tight text-zinc-900">{display ?? eventTime}</p>
@@ -463,14 +463,14 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
 
         {/* ── 2. Date + Time ── */}
         {(ev.eventDate || ev.eventTime) ? (
-          <div className={ev.eventDate && ev.eventTime ? "grid grid-cols-2 gap-3" : ""}>
+          <div className={ev.eventDate && ev.eventTime ? "grid grid-cols-2 items-stretch gap-3" : ""}>
             {ev.eventDate ? (
-              <ScrollReveal delay={60}>
+              <ScrollReveal delay={60} className="h-full">
                 <DateCard eventDate={ev.eventDate} />
               </ScrollReveal>
             ) : null}
             {ev.eventTime ? (
-              <ScrollReveal delay={100}>
+              <ScrollReveal delay={100} className="h-full">
                 <TimeCard eventTime={ev.eventTime} />
               </ScrollReveal>
             ) : null}
@@ -519,9 +519,9 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
             {isRsvpClosed && !hasResponded ? (
               <div className="w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-6 py-9 text-center shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]">
                 <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">RSVP closed</p>
-                <h2 className="mt-3 text-2xl font-semibold text-zinc-900">RSVP is now closed.</h2>
+                <h2 className={`mt-3 text-2xl text-zinc-900 ${serif}`}>Responses are now closed.</h2>
                 <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-600">
-                  We can no longer accept responses for this invitation.
+                  This invitation is no longer accepting RSVP responses.
                 </p>
               </div>
             ) : hasResponded ? (
@@ -564,7 +564,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
         {calendarPayload && hasResponded && guest.attending === true ? (
           <ScrollReveal delay={60}>
             <div className="pb-2 text-center">
-              <CalendarModal icsDataUrl={calendarPayload.icsDataUrl} />
+              <CalendarModal icsDataUrl={calendarPayload.icsDataUrl} googleUrl={calendarPayload.googleUrl} />
             </div>
           </ScrollReveal>
         ) : null}

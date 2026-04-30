@@ -63,14 +63,14 @@ export function RsvpResponsePanel({
     >
       {/* Status icon */}
       {isAttending ? (
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-50 shadow-[0_0_0_4px_rgba(16,185,129,0.1)]">
-          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-emerald-600" aria-hidden>
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-50 shadow-[0_0_0_4px_rgba(16,185,129,0.1)]">
+          <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7 text-emerald-600" aria-hidden>
             <path d="M4 12.5l5 5L20 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
       ) : (
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-zinc-200 bg-zinc-50">
-          <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-zinc-400" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7 text-zinc-400" aria-hidden>
             <path d="M12 8v5M12 16.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
           </svg>

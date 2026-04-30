@@ -23,33 +23,32 @@ export default async function AdminLoginPage({ searchParams }: Props) {
         <section className="app-card flex flex-col justify-between p-7 sm:p-9">
           <div>
             <p className="section-title">RSVP Admin</p>
-            <h1 className="headline-display mt-3 text-4xl leading-tight sm:text-5xl">Run events with clarity.</h1>
+            <h1 className="headline-display mt-3 text-4xl leading-tight sm:text-5xl">Guests, invites, and RSVPs — all in one place.</h1>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-              Manage guests, invites, follow-ups, and RSVP responses in one place. Built for fast operations with
-              elegant communication and clear visibility.
+              Manage your guest list, send invitations via WhatsApp or email, and track every RSVP response in real time.
             </p>
           </div>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Guests</p>
-              <p className="mt-1 text-sm font-medium text-zinc-900">Structured lists and status tracking</p>
+              <p className="mt-1 text-sm font-medium text-zinc-900">Import, filter, and track every family</p>
             </div>
             <div className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Invites</p>
-              <p className="mt-1 text-sm font-medium text-zinc-900">WhatsApp + email-ready workflows</p>
+              <p className="mt-1 text-sm font-medium text-zinc-900">Send via WhatsApp or email in one tap</p>
             </div>
             <div className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Dashboard</p>
-              <p className="mt-1 text-sm font-medium text-zinc-900">Activity, comms, and RSVP visibility</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">RSVPs</p>
+              <p className="mt-1 text-sm font-medium text-zinc-900">Live response tracking and follow-ups</p>
             </div>
           </div>
         </section>
 
         <section className="app-card p-7 sm:p-8">
-          <p className="section-title">Secure Sign In</p>
+          <p className="section-title">Sign In</p>
           <h2 className="headline-display mt-2 text-3xl">Welcome back</h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-            Select your account and enter your password to continue.
+            Select your account and enter your password.
           </p>
           <AdminLoginForm errorMessage={message} initialUser={user} users={users} />
           <p className="mt-5 text-xs text-zinc-500">

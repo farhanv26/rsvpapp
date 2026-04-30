@@ -63,7 +63,8 @@ export function CountdownTimer({ eventStartISO }: { eventStartISO: string }) {
                 className={`flex h-[4.6rem] w-[4.6rem] items-center justify-center rounded-[1.1rem] border border-[#e2d5c0] bg-[#fbf8f2] shadow-[0_1px_4px_rgba(63,47,31,0.07),inset_0_1px_0_rgba(255,255,255,0.85)] ${serif}`}
               >
                 <span
-                  className="text-[2rem] font-semibold leading-none tabular-nums text-[#1d1208]"
+                  key={`${label}-${value}`}
+                  className={`text-[2rem] font-semibold leading-none tabular-nums text-[#1d1208] ${label === "sec" ? "countdown-tick" : ""}`}
                   aria-label={`${value} ${label}`}
                 >
                   {pad(value)}

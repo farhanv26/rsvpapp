@@ -12,7 +12,8 @@
       "Bash(flutter analyze *)",
       "Bash(python3 scripts/search.py \"wedding RSVP event management premium luxury admin dashboard\" --design-system -p \"Wedding RSVP Platform\" -f markdown)",
       "Bash(python3 scripts/search.py \"luxury wedding event management RSVP operations premium minimal\" --design-system -p \"RSVP Platform\" -f markdown)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(python3 /Users/farhanv/.claude/skills/ui-ux-pro-max/scripts/search.py \"premium wedding RSVP event management minimal elegant\" --design-system -p \"WeddingRSVP\")"
     ]
   }
 }

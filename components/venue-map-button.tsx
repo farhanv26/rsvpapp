@@ -45,7 +45,7 @@ function DirectionsIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4 shrink-0" aria-hidden>
       <path
-        d="M8 2L8 14M3 9l5 5 5-5"
+        d="M3 8h10M9 4l4 4-4 4"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"

@@ -1,17 +1,42 @@
 type Props = {
   icsDataUrl: string;
+  googleUrl?: string;
 };
 
-export function CalendarModal({ icsDataUrl }: Props) {
+export function CalendarModal({ icsDataUrl, googleUrl }: Props) {
+  if (!googleUrl) {
+    return (
+      <a
+        href={icsDataUrl}
+        download="invitation.ics"
+        className="inline-flex items-center gap-2 rounded-2xl border border-[#e7dccb] bg-white px-5 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-[#faf6ef] active:scale-[0.99] touch-manipulation"
+      >
+        <CalIcon />
+        Add to calendar
+      </a>
+    );
+  }
+
   return (
-    <a
-      href={icsDataUrl}
-      download="invitation.ics"
-      className="inline-flex items-center gap-2 rounded-2xl border border-[#e7dccb] bg-white px-5 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-[#faf6ef] active:scale-[0.99] touch-manipulation"
-    >
-      <CalIcon />
-      Add to calendar
-    </a>
+    <div className="inline-flex items-center overflow-hidden rounded-2xl border border-[#e7dccb] bg-white shadow-sm">
+      <a
+        href={googleUrl}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="inline-flex items-center gap-2 border-r border-[#e7dccb] px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-[#faf6ef] active:scale-[0.99] touch-manipulation"
+      >
+        <CalIcon />
+        Google
+      </a>
+      <a
+        href={icsDataUrl}
+        download="invitation.ics"
+        className="inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-[#faf6ef] active:scale-[0.99] touch-manipulation"
+      >
+        <CalIcon />
+        Apple / ICS
+      </a>
+    </div>
   );
 }
 
