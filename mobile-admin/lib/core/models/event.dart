@@ -7,6 +7,7 @@ class Event {
     this.eventDate,
     this.venue,
     required this.theme,
+    this.imagePath,
     required this.createdAt,
     required this.guestCount,
   });
@@ -19,6 +20,7 @@ class Event {
         eventDate: json['eventDate'] != null ? DateTime.parse(json['eventDate'] as String) : null,
         venue: json['venue'] as String?,
         theme: json['theme'] as String,
+        imagePath: json['imagePath'] as String?,
         createdAt: DateTime.parse(json['createdAt'] as String),
         guestCount: (json['guestCount'] as num).toInt(),
       );
@@ -30,6 +32,7 @@ class Event {
   final DateTime? eventDate;
   final String? venue;
   final String theme;
+  final String? imagePath;
   final DateTime createdAt;
   final int guestCount;
 

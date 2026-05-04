@@ -1,22 +1,30 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../config/server_config.dart';
 import '../storage/secure_storage.dart';
 
-// Update this to your server URL. In development, use your local IP so the
-// device/simulator can reach the Next.js dev server (not 'localhost').
-const String kBaseUrl = 'http://localhost:3000/admin/api/mobile';
+// Default URL — used when no URL has been saved.
+// Override at build time: flutter run --dart-define=API_URL=http://192.168.x.x:3000/admin/api/mobile
+// Or configure at runtime via the login screen.
+const String kApiBaseUrl = String.fromEnvironment(
+  'API_URL',
+  defaultValue: 'https://farhanrafiya.vercel.app/admin/api/mobile',
+);
 
+// apiClientProvider recreates whenever serverUrlProvider changes (user saves a new URL).
 final apiClientProvider = Provider<ApiClient>((ref) {
   final storage = ref.watch(secureStorageProvider);
-  return ApiClient(storage);
+  final baseUrl = ref.watch(serverUrlProvider);
+  return ApiClient(storage, baseUrl: baseUrl);
 });
 
 class ApiClient {
-  ApiClient(this._storage) {
+  ApiClient(this._storage, {String? baseUrl}) {
+    final url = (baseUrl?.isNotEmpty == true) ? baseUrl! : kApiBaseUrl;
     _dio = Dio(BaseOptions(
-      baseUrl: kBaseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30),
+      baseUrl: url,
+      connectTimeout: const Duration(seconds: 12),
+      receiveTimeout: const Duration(seconds: 25),
       headers: {'Content-Type': 'application/json'},
     ));
 
@@ -28,16 +36,15 @@ class ApiClient {
         }
         handler.next(options);
       },
-      onError: (error, handler) {
-        handler.next(error);
-      },
+      onError: (error, handler) => handler.next(error),
     ));
   }
 
   final SecureStorage _storage;
   late final Dio _dio;
 
-  Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParameters}) =>
+  Future<Response<T>> get<T>(String path,
+          {Map<String, dynamic>? queryParameters}) =>
       _dio.get<T>(path, queryParameters: queryParameters);
 
   Future<Response<T>> post<T>(String path, {dynamic data}) =>
@@ -48,6 +55,8 @@ class ApiClient {
 
   Future<Response<T>> delete<T>(String path, {dynamic data}) =>
       _dio.delete<T>(path, data: data);
+
+  String get baseUrl => _dio.options.baseUrl;
 }
 
 class ApiException implements Exception {

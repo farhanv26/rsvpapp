@@ -6,7 +6,7 @@ import {
   forbiddenResponse,
   notFoundResponse,
 } from "@/lib/mobile-api-auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, withReconnect } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 import { generateSecureToken } from "@/lib/security";
 import {
@@ -35,10 +35,13 @@ export async function GET(
 
   const { eventId } = await params;
 
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, deletedAt: null },
-    select: { id: true, ownerUserId: true },
-  });
+  try {
+  const event = await withReconnect(() =>
+    prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+      select: { id: true, ownerUserId: true },
+    })
+  );
   if (!event) return notFoundResponse("Event not found");
   if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
 
@@ -213,6 +216,10 @@ export async function GET(
     })),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
+  } catch (err) {
+    console.error("[mobile/guests GET]", err);
+    return Response.json({ error: "Failed to load guests" }, { status: 500 });
+  }
 }
 
 /**
@@ -228,10 +235,12 @@ export async function POST(
 
   const { eventId } = await params;
 
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, deletedAt: null },
-    select: { id: true, ownerUserId: true },
-  });
+  const event = await withReconnect(() =>
+    prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+      select: { id: true, ownerUserId: true },
+    })
+  );
   if (!event) return notFoundResponse("Event not found");
   if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
 
@@ -245,6 +254,7 @@ export async function POST(
   const guestName = typeof body.guestName === "string" ? body.guestName.trim() : "";
   if (!guestName) return Response.json({ error: "guestName is required" }, { status: 400 });
 
+  try {
   const menCount = typeof body.menCount === "number" ? Math.max(0, body.menCount) : 0;
   const womenCount = typeof body.womenCount === "number" ? Math.max(0, body.womenCount) : 0;
   const kidsCount = typeof body.kidsCount === "number" ? Math.max(0, body.kidsCount) : 0;
@@ -308,4 +318,8 @@ export async function POST(
     },
     { status: 201 },
   );
+  } catch (err) {
+    console.error("[mobile/guests POST]", err);
+    return Response.json({ error: "Failed to create guest" }, { status: 500 });
+  }
 }

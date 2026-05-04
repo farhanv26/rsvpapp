@@ -50,11 +50,7 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
       );
 
   bool get _hasActiveFilters =>
-      _statusFilter != 'all' ||
-      _readiness != 'all' ||
-      _followup ||
-      _duplicate != 'all' ||
-      _sort != 'name_asc';
+      _statusFilter != 'all' || _readiness != 'all' || _followup || _duplicate != 'all' || _sort != 'name_asc';
 
   @override
   void dispose() {
@@ -77,20 +73,15 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.background,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.eventTitle, style: AppTextStyles.titleMedium),
-            const Text('Guest list',
-                style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                    fontWeight: FontWeight.w400)),
+            const Text('Guest list', style: TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w400)),
           ],
         ),
         actions: [
-          // Add guest
           IconButton(
             icon: const Icon(Icons.person_add_outlined),
             tooltip: 'Add guest',
@@ -98,26 +89,19 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
               final added = await Navigator.push<bool>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => GuestEditScreen(
-                    eventId: widget.eventId,
-                    guest: null,
-                  ),
+                  builder: (_) => GuestEditScreen(eventId: widget.eventId, guest: null),
                 ),
               );
-              if (added == true) {
-                ref.invalidate(guestsListProvider(_params));
-              }
+              if (added == true) ref.invalidate(guestsListProvider(_params));
             },
           ),
-          // Filters toggle
           Stack(
             alignment: Alignment.topRight,
             children: [
               IconButton(
                 icon: const Icon(Icons.tune_rounded),
                 tooltip: 'Filters & sort',
-                onPressed: () =>
-                    setState(() => _showFilters = !_showFilters),
+                onPressed: () => setState(() => _showFilters = !_showFilters),
               ),
               if (_hasActiveFilters)
                 Positioned(
@@ -126,47 +110,38 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                   child: Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.brandAccent,
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: const BoxDecoration(color: AppColors.brandAccent, shape: BoxShape.circle),
                   ),
                 ),
             ],
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(_showFilters ? 200 : 104),
+          preferredSize: Size.fromHeight(_showFilters ? 208 : 100),
           child: Column(
             children: [
-              // Search bar
+              // Search
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                 child: TextField(
                   controller: _searchCtrl,
-                  onChanged: (v) =>
-                      setState(() => _query = v.trim()),
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'Search by name, phone, or email…',
-                    prefixIcon:
-                        const Icon(Icons.search_rounded, size: 20),
+                    hintText: 'Search name, phone, or email…',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textMuted),
                     suffixIcon: _query.isNotEmpty
                         ? IconButton(
-                            icon:
-                                const Icon(Icons.clear_rounded, size: 18),
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              setState(() => _query = '');
-                            },
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            onPressed: () { _searchCtrl.clear(); setState(() => _query = ''); },
                           )
                         : null,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     isDense: true,
                   ),
                 ),
               ),
-              // Status filter chips
+              // Status chips
               SizedBox(
                 height: 40,
                 child: ListView(
@@ -175,82 +150,60 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                   children: _statusFilters.map((f) {
                     final selected = _statusFilter == f.$1;
                     return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _FilterChip(
-                        label: f.$2,
-                        selected: selected,
-                        onTap: () =>
-                            setState(() => _statusFilter = f.$1),
-                      ),
+                      padding: const EdgeInsets.only(right: 6),
+                      child: _Chip(label: f.$2, selected: selected, onTap: () => setState(() => _statusFilter = f.$1)),
                     );
                   }).toList(),
                 ),
               ),
-
-              // Expanded filters panel
+              // Expanded filters
               if (_showFilters)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                   decoration: const BoxDecoration(
                     color: AppColors.surfaceMuted,
-                    border: Border(
-                        top: BorderSide(color: AppColors.borderLight)),
+                    border: Border(top: BorderSide(color: AppColors.border)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          const Text('READINESS',
-                              style: AppTextStyles.sectionLabel),
+                          const Text('READINESS', style: AppTextStyles.sectionLabel),
                           const Spacer(),
                           if (_hasActiveFilters)
                             GestureDetector(
                               onTap: _clearFilters,
-                              child: const Text('Clear all',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.brandAccent,
-                                      fontWeight: FontWeight.w600)),
+                              child: const Text('Clear all', style: TextStyle(fontSize: 11, color: AppColors.brandAccent, fontWeight: FontWeight.w600)),
                             ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 7),
                       _chipRow([
                         ('all', 'All', _readiness == 'all'),
                         ('ready', 'Ready to send', _readiness == 'ready'),
-                        ('missing_contact', 'Missing contact',
-                            _readiness == 'missing_contact'),
-                        ('already_invited', 'Already invited',
-                            _readiness == 'already_invited'),
+                        ('missing_contact', 'Missing contact', _readiness == 'missing_contact'),
+                        ('already_invited', 'Already invited', _readiness == 'already_invited'),
                         ('responded', 'Responded', _readiness == 'responded'),
                       ], (v) => setState(() => _readiness = v)),
                       const SizedBox(height: 10),
-                      const Text('SPECIAL FILTERS',
-                          style: AppTextStyles.sectionLabel),
-                      const SizedBox(height: 6),
+                      const Text('SPECIAL', style: AppTextStyles.sectionLabel),
+                      const SizedBox(height: 7),
                       _chipRow([
-                        ('__followup__', 'Follow-up needed', _followup),
-                        ('all_dup', 'All duplicates', _duplicate == 'has_duplicates'),
-                        ('strong_dup', 'Strong duplicates',
-                            _duplicate == 'strong'),
+                        ('__followup__', 'Follow-up', _followup),
+                        ('all_dup', 'Duplicates', _duplicate == 'has_duplicates'),
+                        ('strong_dup', 'Strong dups', _duplicate == 'strong'),
                       ], (v) {
                         setState(() {
-                          if (v == '__followup__') {
-                            _followup = !_followup;
-                          } else if (v == 'all_dup') {
-                            _duplicate = _duplicate == 'has_duplicates'
-                                ? 'all'
-                                : 'has_duplicates';
-                          } else if (v == 'strong_dup') {
-                            _duplicate = _duplicate == 'strong' ? 'all' : 'strong';
-                          }
+                          if (v == '__followup__') { _followup = !_followup; }
+                          else if (v == 'all_dup') { _duplicate = _duplicate == 'has_duplicates' ? 'all' : 'has_duplicates'; }
+                          else if (v == 'strong_dup') { _duplicate = _duplicate == 'strong' ? 'all' : 'strong'; }
                         });
                       }),
                       const SizedBox(height: 10),
                       const Text('SORT', style: AppTextStyles.sectionLabel),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 7),
                       _chipRow([
                         ('name_asc', 'Name A–Z', _sort == 'name_asc'),
                         ('name_desc', 'Name Z–A', _sort == 'name_desc'),
@@ -265,77 +218,72 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
         ),
       ),
       body: guestsAsync.when(
-        loading: () => const Center(
-            child: CircularProgressIndicator(color: AppColors.brandAccent)),
+        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.brandAccent)),
         error: (e, _) => ErrorView(
-          message: e
-              .toString()
-              .replaceFirst('ApiException', '')
-              .replaceAll(':', '')
-              .trim(),
+          message: e.toString().replaceFirst('ApiException', '').replaceAll(':', '').trim(),
           onRetry: () => ref.invalidate(guestsListProvider(_params)),
         ),
         data: (guests) {
           if (guests.isEmpty) {
             return EmptyState(
               icon: Icons.person_search_rounded,
-              title: _query.isNotEmpty || _hasActiveFilters
-                  ? 'No matches'
-                  : 'No guests yet',
+              title: _query.isNotEmpty || _hasActiveFilters ? 'No matches' : 'No guests yet',
               subtitle: _query.isNotEmpty || _hasActiveFilters
                   ? 'Try a different search or filter.'
-                  : 'Add guests via the web or tap + above.',
+                  : 'Tap + to add your first guest.',
             );
           }
+
+          final attending = guests.where((g) => g.attending == true).length;
+          final declined = guests.where((g) => g.attending == false).length;
 
           return Column(
             children: [
               // Summary bar
               Container(
-                color: AppColors.surface,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
+                color: AppColors.surfaceMuted,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Row(
                   children: [
                     Text(
                       '${guests.length} guest${guests.length == 1 ? '' : 's'}',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500),
+                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                     ),
                     const Spacer(),
-                    Text(
-                      '${guests.where((g) => g.attending == true).length} attending',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.attending,
-                          fontWeight: FontWeight.w600),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(color: AppColors.attending, shape: BoxShape.circle),
                     ),
-                    const Text(' · ',
-                        style: TextStyle(color: AppColors.textMuted)),
+                    const SizedBox(width: 5),
                     Text(
-                      '${guests.where((g) => g.attending == false).length} declined',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.declined,
-                          fontWeight: FontWeight.w600),
+                      '$attending attending',
+                      style: const TextStyle(fontSize: 13, color: AppColors.attending, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(color: AppColors.declined, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '$declined declined',
+                      style: const TextStyle(fontSize: 13, color: AppColors.declined, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
               ),
               const Divider(height: 1, color: AppColors.border),
-
               Expanded(
                 child: RefreshIndicator(
                   color: AppColors.brandAccent,
-                  onRefresh: () async =>
-                      ref.invalidate(guestsListProvider(_params)),
+                  backgroundColor: AppColors.surfaceCard,
+                  onRefresh: () async => ref.invalidate(guestsListProvider(_params)),
                   child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 48),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
                     itemCount: guests.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: 8),
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, i) {
                       final guest = guests[i];
                       final service = ref.read(guestsServiceProvider);
@@ -343,38 +291,27 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                         guest: guest,
                         eventId: widget.eventId,
                         onMarkInvited: (channel) =>
-                            service.markInvited(widget.eventId, guest.id,
-                                channel: channel),
-                        onMarkUninvited: () =>
-                            service.markUninvited(widget.eventId, guest.id),
-                        onRecordRsvp: (attending, {count}) =>
-                            service.recordRsvp(
+                            service.markInvited(widget.eventId, guest.id, channel: channel),
+                        onMarkUninvited: () => service.markUninvited(widget.eventId, guest.id),
+                        onRecordRsvp: (attending, {count}) => service.recordRsvp(
                           widget.eventId,
                           guest.id,
                           attending: attending,
                           attendingCount: count,
                         ),
-                        onDelete: () =>
-                            service.deleteGuest(widget.eventId, guest.id),
+                        onDelete: () => service.deleteGuest(widget.eventId, guest.id),
                         onGetCommsHistory: () =>
-                            service.getCommunicationHistory(
-                                widget.eventId, guest.id),
+                            service.getCommunicationHistory(widget.eventId, guest.id),
                         onEdit: () async {
                           final updated = await Navigator.push<bool>(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => GuestEditScreen(
-                                eventId: widget.eventId,
-                                guest: guest,
-                              ),
+                              builder: (_) => GuestEditScreen(eventId: widget.eventId, guest: guest),
                             ),
                           );
-                          if (updated == true) {
-                            ref.invalidate(guestsListProvider(_params));
-                          }
+                          if (updated == true) ref.invalidate(guestsListProvider(_params));
                         },
-                        onRefresh: () =>
-                            ref.invalidate(guestsListProvider(_params)),
+                        onRefresh: () => ref.invalidate(guestsListProvider(_params)),
                       );
                     },
                   ),
@@ -387,33 +324,24 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
     );
   }
 
-  Widget _chipRow(
-    List<(String, String, bool)> items,
-    void Function(String) onSelect,
-  ) {
+  Widget _chipRow(List<(String, String, bool)> items, void Function(String) onSelect) {
     return Wrap(
       spacing: 6,
       runSpacing: 6,
-      children: items.map((item) {
-        return _FilterChip(
-          label: item.$2,
-          selected: item.$3,
-          onTap: () => onSelect(item.$1),
-          small: true,
-        );
-      }).toList(),
+      children: items.map((item) => _Chip(
+        label: item.$2,
+        selected: item.$3,
+        onTap: () => onSelect(item.$1),
+        small: true,
+      )).toList(),
     );
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.small = false,
-  });
+// ── Filter chip ────────────────────────────────────────────────────
 
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.selected, required this.onTap, this.small = false});
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -425,21 +353,18 @@ class _FilterChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: EdgeInsets.symmetric(
-            horizontal: small ? 10 : 12, vertical: small ? 4 : 6),
+        padding: EdgeInsets.symmetric(horizontal: small ? 10 : 12, vertical: small ? 4 : 6),
         decoration: BoxDecoration(
-          color: selected ? AppColors.brandMid : AppColors.surface,
+          color: selected ? AppColors.brandAccent : AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(
-              color: selected ? AppColors.brandMid : AppColors.border),
+          border: Border.all(color: selected ? AppColors.brandAccent : AppColors.border),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: small ? 11 : 12,
             fontWeight: FontWeight.w600,
-            color:
-                selected ? AppColors.textInverse : AppColors.textSecondary,
+            color: selected ? AppColors.textInverse : AppColors.textSecondary,
             letterSpacing: 0.1,
           ),
         ),

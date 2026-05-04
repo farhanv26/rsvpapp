@@ -6,7 +6,7 @@ import {
   forbiddenResponse,
   notFoundResponse,
 } from "@/lib/mobile-api-auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, withReconnect } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 
 type Params = { params: Promise<{ eventId: string; guestId: string }> };
@@ -15,10 +15,12 @@ async function resolveAndAuthorize(req: NextRequest, eventId: string, guestId: s
   const user = await getMobileAdminUser(req);
   if (!user) return { error: unauthorizedResponse() };
 
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, deletedAt: null },
-    select: { id: true, ownerUserId: true },
-  });
+  const event = await withReconnect(() =>
+    prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+      select: { id: true, ownerUserId: true },
+    })
+  );
   if (!event) return { error: notFoundResponse("Event not found") };
   if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id)
     return { error: forbiddenResponse() };
@@ -76,6 +78,8 @@ function serializeGuest(g: GuestSelectResult) {
  */
 export async function PUT(req: NextRequest, { params }: Params) {
   const { eventId, guestId } = await params;
+
+  try {
   const resolved = await resolveAndAuthorize(req, eventId, guestId);
   if ("error" in resolved) return resolved.error;
   const { user, guest } = resolved;
@@ -140,6 +144,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
   });
 
   return Response.json({ guest: serializeGuest(updated) });
+  } catch (err) {
+    console.error("[mobile/guest PUT]", err);
+    return Response.json({ error: "Failed to update guest" }, { status: 500 });
+  }
 }
 
 /**
@@ -148,6 +156,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
  */
 export async function DELETE(req: NextRequest, { params }: Params) {
   const { eventId, guestId } = await params;
+
+  try {
   const resolved = await resolveAndAuthorize(req, eventId, guestId);
   if ("error" in resolved) return resolved.error;
   const { user, guest } = resolved;
@@ -169,4 +179,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   });
 
   return Response.json({ ok: true });
+  } catch (err) {
+    console.error("[mobile/guest DELETE]", err);
+    return Response.json({ error: "Failed to delete guest" }, { status: 500 });
+  }
 }

@@ -6,7 +6,7 @@ import {
   forbiddenResponse,
   notFoundResponse,
 } from "@/lib/mobile-api-auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, withReconnect } from "@/lib/prisma";
 
 /** GET /admin/api/mobile/events/[eventId] — event detail with computed stats. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
 
   const { eventId } = await params;
 
-  const event = await prisma.event.findFirst({
+  const event = await withReconnect(() => prisma.event.findFirst({
     where: { id: eventId, deletedAt: null },
     select: {
       id: true,
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
         },
       },
     },
-  });
+  }));
 
   if (!event) return notFoundResponse("Event not found");
   if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();

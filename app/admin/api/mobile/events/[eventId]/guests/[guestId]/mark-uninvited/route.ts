@@ -6,7 +6,7 @@ import {
   forbiddenResponse,
   notFoundResponse,
 } from "@/lib/mobile-api-auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, withReconnect } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 
 type Params = { params: Promise<{ eventId: string; guestId: string }> };
@@ -21,39 +21,46 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { eventId, guestId } = await params;
 
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, deletedAt: null },
-    select: { id: true, ownerUserId: true },
-  });
-  if (!event) return notFoundResponse("Event not found");
-  if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+  try {
+    const event = await withReconnect(() =>
+      prisma.event.findFirst({
+        where: { id: eventId, deletedAt: null },
+        select: { id: true, ownerUserId: true },
+      })
+    );
+    if (!event) return notFoundResponse("Event not found");
+    if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
 
-  const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
-    select: { id: true, guestName: true },
-  });
-  if (!guest) return notFoundResponse("Guest not found");
+    const guest = await prisma.guest.findFirst({
+      where: { id: guestId, eventId, deletedAt: null },
+      select: { id: true, guestName: true },
+    });
+    if (!guest) return notFoundResponse("Guest not found");
 
-  await prisma.guest.update({
-    where: { id: guestId },
-    data: {
-      invitedAt: null,
-      inviteChannelLastUsed: null,
-      inviteCount: 0,
-      lastReminderAt: null,
-    },
-  });
+    await prisma.guest.update({
+      where: { id: guestId },
+      data: {
+        invitedAt: null,
+        inviteChannelLastUsed: null,
+        inviteCount: 0,
+        lastReminderAt: null,
+      },
+    });
 
-  await logAuditActivity({
-    eventId,
-    userId: user.id,
-    userName: user.name,
-    actionType: "guest_uninvited",
-    entityType: "Guest",
-    entityId: guestId,
-    entityName: guest.guestName,
-    message: `${user.name} marked "${guest.guestName}" as uninvited (mobile).`,
-  });
+    await logAuditActivity({
+      eventId,
+      userId: user.id,
+      userName: user.name,
+      actionType: "guest_uninvited",
+      entityType: "Guest",
+      entityId: guestId,
+      entityName: guest.guestName,
+      message: `${user.name} marked "${guest.guestName}" as uninvited (mobile).`,
+    });
 
-  return Response.json({ ok: true });
+    return Response.json({ ok: true });
+  } catch (err) {
+    console.error("[mobile/mark-uninvited POST]", err);
+    return Response.json({ error: "Failed to mark as uninvited" }, { status: 500 });
+  }
 }

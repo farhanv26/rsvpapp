@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
@@ -19,13 +21,22 @@ class CurrentUserNotifier extends StateNotifier<AdminUser?> {
   final SecureStorage _storage;
 
   Future<void> loadFromStorage() async {
-    final token = await _storage.getToken();
+    String? token;
+    try {
+      token = await _storage.getToken().timeout(const Duration(seconds: 5));
+    } catch (_) {
+      return; // Storage unavailable — treat as logged out.
+    }
     if (token == null) return;
     try {
-      final user = await _authService.me();
+      final user = await _authService.me().timeout(const Duration(seconds: 10));
       state = user;
+    } on ApiException catch (e) {
+      if (e.isUnauthorized || e.isForbidden) {
+        await _storage.deleteToken();
+      }
     } catch (_) {
-      await _storage.deleteToken();
+      // Network/timeout errors — keep token, retry on next launch.
     }
   }
 
