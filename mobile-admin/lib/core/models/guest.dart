@@ -24,6 +24,7 @@ class Guest {
     required this.isFamilyInvite,
     required this.excludeFromTotals,
     this.excludeReason,
+    this.duplicateStrength = GuestDuplicateStrength.none,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -53,6 +54,7 @@ class Guest {
         isFamilyInvite: json['isFamilyInvite'] as bool,
         excludeFromTotals: json['excludeFromTotals'] as bool,
         excludeReason: json['excludeReason'] as String?,
+        duplicateStrength: GuestDuplicateStrength.parse(json['duplicateStrength'] as String?),
         createdAt: DateTime.parse(json['createdAt'] as String),
         updatedAt: DateTime.parse(json['updatedAt'] as String),
       );
@@ -81,6 +83,7 @@ class Guest {
   final bool isFamilyInvite;
   final bool excludeFromTotals;
   final String? excludeReason;
+  final GuestDuplicateStrength duplicateStrength;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -114,3 +117,20 @@ class Guest {
 }
 
 enum GuestStatus { attending, declined, pending, notInvited }
+
+enum GuestDuplicateStrength {
+  none,
+  weak,
+  strong;
+
+  static GuestDuplicateStrength parse(String? raw) {
+    switch (raw) {
+      case 'strong':
+        return GuestDuplicateStrength.strong;
+      case 'weak':
+        return GuestDuplicateStrength.weak;
+      default:
+        return GuestDuplicateStrength.none;
+    }
+  }
+}

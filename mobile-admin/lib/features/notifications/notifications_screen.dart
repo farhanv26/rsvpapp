@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/notification.dart';
 import '../../core/services/notifications_service.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/error_message.dart';
 import '../../shared/widgets/empty_state.dart';
 
 class NotificationsScreen extends ConsumerWidget {
@@ -56,10 +57,12 @@ class NotificationsScreen extends ConsumerWidget {
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.brandAccent, strokeWidth: 2),
         ),
-        error: (e, _) {
-          final msg = e.toString().replaceFirst('ApiException', '').replaceAll(':', '').trim();
-          return _ErrorState(message: msg, onRetry: () => ref.invalidate(notificationsProvider));
-        },
+        error: (e, _) => _ErrorState(
+          message: userFacingErrorMessage(e),
+          onRetry: () {
+            ref.invalidate(notificationsProvider);
+          },
+        ),
         data: (result) {
           if (result.notifications.isEmpty) {
             return const EmptyState(
@@ -182,23 +185,14 @@ class _ErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            GestureDetector(
-              onTap: onRetry,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.refresh_rounded, size: 16, color: AppColors.brandAccent),
-                    SizedBox(width: 8),
-                    Text('Retry', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.brandAccent)),
-                  ],
-                ),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Try again'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brandAccent,
+                foregroundColor: AppColors.textOnAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               ),
             ),
           ],

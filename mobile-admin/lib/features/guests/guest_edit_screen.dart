@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/guest.dart';
 import '../../core/services/guests_service.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/error_message.dart';
 
 class GuestEditScreen extends ConsumerStatefulWidget {
   const GuestEditScreen({
@@ -46,7 +47,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
     _group = TextEditingController(text: g?.group ?? '');
     _table = TextEditingController(text: g?.tableName ?? '');
     _notes = TextEditingController(text: g?.notes ?? '');
-    _men = g?.menCount ?? 1;
+    _men = g?.menCount ?? 0;
     _women = g?.womenCount ?? 0;
     _kids = g?.kidsCount ?? 0;
   }
@@ -65,6 +66,11 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
 
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final party = _men + _women + _kids;
+    if (party <= 0) {
+      setState(() => _error = 'Add at least one person (men, women, or kids).');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -75,7 +81,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
       'menCount': _men,
       'womenCount': _women,
       'kidsCount': _kids,
-      'maxGuests': _men + _women + _kids > 0 ? _men + _women + _kids : 1,
+      'maxGuests': party,
       if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
       if (_phoneCode.text.trim().isNotEmpty)
         'phoneCountryCode': _phoneCode.text.trim(),
@@ -94,7 +100,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
       }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      setState(() => _error = e.toString().replaceAll('ApiException', '').replaceAll(':', '').trim());
+      setState(() => _error = userFacingErrorMessage(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -105,7 +111,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.background,
         title: Text(
           _isEditing ? 'Edit guest' : 'Add guest',
           style: AppTextStyles.titleMedium,

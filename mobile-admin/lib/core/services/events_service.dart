@@ -12,11 +12,11 @@ final eventsListProvider = FutureProvider<List<Event>>((ref) async {
   return ref.watch(eventsServiceProvider).listEvents();
 });
 
-final eventDetailProvider = FutureProvider.family<EventDetail, String>((ref, eventId) async {
+final eventDetailProvider = FutureProvider.autoDispose.family<EventDetail, String>((ref, eventId) async {
   return ref.watch(eventsServiceProvider).getEvent(eventId);
 });
 
-final eventActivityProvider = FutureProvider.family<List<ActivityItem>, String>((ref, eventId) async {
+final eventActivityProvider = FutureProvider.autoDispose.family<List<ActivityItem>, String>((ref, eventId) async {
   return ref.watch(eventsServiceProvider).getActivity(eventId);
 });
 
@@ -24,12 +24,13 @@ class EventsService {
   const EventsService(this._client);
 
   final ApiClient _client;
+  static const _requestTimeout = Duration(seconds: 15);
 
   Future<List<Event>> listEvents() async {
     try {
       final res = await _client
           .get<Map<String, dynamic>>('/events')
-          .timeout(const Duration(seconds: 8));
+          .timeout(_requestTimeout);
       final list = res.data!['events'] as List<dynamic>;
       return list.map((e) => Event.fromJson(e as Map<String, dynamic>)).toList();
     } on TimeoutException {
@@ -41,8 +42,12 @@ class EventsService {
 
   Future<EventDetail> getEvent(String eventId) async {
     try {
-      final res = await _client.get<Map<String, dynamic>>('/events/$eventId');
+      final res = await _client
+          .get<Map<String, dynamic>>('/events/$eventId')
+          .timeout(_requestTimeout);
       return EventDetail.fromJson(res.data!);
+    } on TimeoutException {
+      throw const ApiException('Event details request timed out. Pull to retry.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -50,9 +55,13 @@ class EventsService {
 
   Future<List<ActivityItem>> getActivity(String eventId) async {
     try {
-      final res = await _client.get<Map<String, dynamic>>('/events/$eventId/activity');
+      final res = await _client
+          .get<Map<String, dynamic>>('/events/$eventId/activity')
+          .timeout(_requestTimeout);
       final list = res.data!['activities'] as List<dynamic>;
       return list.map((e) => ActivityItem.fromJson(e as Map<String, dynamic>)).toList();
+    } on TimeoutException {
+      throw const ApiException('Activity request timed out. Pull to retry.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -72,7 +81,9 @@ class EventsService {
         if (venue != null) 'venue': venue,
         if (eventDate != null) 'eventDate': eventDate.toIso8601String(),
         if (rsvpDeadline != null) 'rsvpDeadline': rsvpDeadline.toIso8601String(),
-      });
+      }).timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const ApiException('Create event request timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }

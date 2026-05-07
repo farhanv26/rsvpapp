@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
@@ -66,7 +68,7 @@ final guestsListProvider =
 });
 
 final eventSectionsProvider =
-    FutureProvider.family<EventSections, String>((ref, eventId) async {
+    FutureProvider.autoDispose.family<EventSections, String>((ref, eventId) async {
   return ref.watch(guestsServiceProvider).getEventSections(eventId);
 });
 
@@ -74,6 +76,7 @@ class GuestsService {
   const GuestsService(this._client);
 
   final ApiClient _client;
+  static const _requestTimeout = Duration(seconds: 15);
 
   Future<List<Guest>> listGuests({
     required GuestListParams params,
@@ -93,9 +96,11 @@ class GuestsService {
           'page': page,
           'limit': limit,
         },
-      );
+      ).timeout(_requestTimeout);
       final list = res.data!['guests'] as List<dynamic>;
       return list.map((e) => Guest.fromJson(e as Map<String, dynamic>)).toList();
+    } on TimeoutException {
+      throw const ApiException('Guest list request timed out. Pull to retry.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -103,8 +108,12 @@ class GuestsService {
 
   Future<EventSections> getEventSections(String eventId) async {
     try {
-      final res = await _client.get<Map<String, dynamic>>('/events/$eventId/sections');
+      final res = await _client
+          .get<Map<String, dynamic>>('/events/$eventId/sections')
+          .timeout(_requestTimeout);
       return EventSections.fromJson(res.data!);
+    } on TimeoutException {
+      throw const ApiException('Event sections request timed out. Pull to retry.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -119,7 +128,9 @@ class GuestsService {
       await _client.post<void>(
         '/events/$eventId/guests/$guestId/mark-invited',
         data: {'channel': channel},
-      );
+      ).timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const ApiException('Mark invited timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -127,7 +138,11 @@ class GuestsService {
 
   Future<void> markUninvited(String eventId, String guestId) async {
     try {
-      await _client.post<void>('/events/$eventId/guests/$guestId/mark-uninvited');
+      await _client
+          .post<void>('/events/$eventId/guests/$guestId/mark-uninvited')
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const ApiException('Mark uninvited timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -148,7 +163,9 @@ class GuestsService {
           if (attendingCount != null) 'attendingCount': attendingCount,
           if (notes != null) 'notes': notes,
         },
-      );
+      ).timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const ApiException('RSVP update timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -159,8 +176,10 @@ class GuestsService {
       final res = await _client.post<Map<String, dynamic>>(
         '/events/$eventId/guests',
         data: data,
-      );
+      ).timeout(_requestTimeout);
       return Guest.fromJson(res.data!['guest'] as Map<String, dynamic>);
+    } on TimeoutException {
+      throw const ApiException('Create guest request timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -175,8 +194,10 @@ class GuestsService {
       final res = await _client.put<Map<String, dynamic>>(
         '/events/$eventId/guests/$guestId',
         data: data,
-      );
+      ).timeout(_requestTimeout);
       return Guest.fromJson(res.data!['guest'] as Map<String, dynamic>);
+    } on TimeoutException {
+      throw const ApiException('Update guest request timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -184,7 +205,11 @@ class GuestsService {
 
   Future<void> deleteGuest(String eventId, String guestId) async {
     try {
-      await _client.delete<void>('/events/$eventId/guests/$guestId');
+      await _client
+          .delete<void>('/events/$eventId/guests/$guestId')
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const ApiException('Delete guest request timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }
@@ -197,11 +222,13 @@ class GuestsService {
     try {
       final res = await _client.get<Map<String, dynamic>>(
         '/events/$eventId/guests/$guestId/communication-history',
-      );
+      ).timeout(_requestTimeout);
       final logs = res.data!['logs'] as List<dynamic>;
       return logs
           .map((e) => CommunicationLog.fromJson(e as Map<String, dynamic>))
           .toList();
+    } on TimeoutException {
+      throw const ApiException('Communication history request timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }

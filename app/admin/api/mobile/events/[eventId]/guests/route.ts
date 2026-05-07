@@ -97,6 +97,16 @@ export async function GET(
     },
   });
 
+  const duplicateStrengthMap = buildDuplicateStrengthMap(
+    guests.map((g) => ({
+      id: g.id,
+      guestName: g.guestName,
+      phone: g.phone,
+      phoneCountryCode: g.phoneCountryCode,
+      email: g.email,
+    })),
+  );
+
   // Filter by search query
   let filtered = guests;
   if (q) {
@@ -147,17 +157,8 @@ export async function GET(
 
   // Filter by duplicate
   if (duplicate !== "all") {
-    const strengthMap = buildDuplicateStrengthMap(
-      guests.map((g) => ({
-        id: g.id,
-        guestName: g.guestName,
-        phone: g.phone,
-        phoneCountryCode: g.phoneCountryCode,
-        email: g.email,
-      })),
-    );
     filtered = filtered.filter((g) => {
-      const strength = strengthMap.get(g.id) ?? "none";
+      const strength = duplicateStrengthMap.get(g.id) ?? "none";
       switch (duplicate) {
         case "has_duplicates": return strength !== "none";
         case "strong": return strength === "strong";
@@ -211,6 +212,7 @@ export async function GET(
       excludedWomenCount: g.excludedWomenCount ?? 0,
       excludedKidsCount: g.excludedKidsCount ?? 0,
       excludeReason: g.excludeReason,
+      duplicateStrength: duplicateStrengthMap.get(g.id) ?? "none",
       createdAt: g.createdAt.toISOString(),
       updatedAt: g.updatedAt.toISOString(),
     })),

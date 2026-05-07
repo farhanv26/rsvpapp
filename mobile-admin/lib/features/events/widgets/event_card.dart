@@ -73,18 +73,20 @@ class _ImageCard extends StatelessWidget {
                 Image.network(
                   event.imagePath!,
                   fit: BoxFit.cover,
+                  filterQuality: FilterQuality.low,
+                  cacheWidth: 1200,
                   errorBuilder: (_, __, ___) => _imageFallback(),
                   loadingBuilder: (_, child, progress) =>
                       progress == null ? child : _imageFallback(loading: true),
                 ),
                 // Bottom gradient for text legibility
-                const DecoratedBox(
+                DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Color(0xCC0B0908)],
-                      stops: [0.4, 1.0],
+                      colors: [Colors.transparent, AppColors.brandDeep.withValues(alpha: 0.88)],
+                      stops: const [0.4, 1.0],
                     ),
                   ),
                 ),

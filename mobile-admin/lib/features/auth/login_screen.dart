@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,9 +11,13 @@ import '../../shared/theme/app_theme.dart';
 final _adminUsersProvider = FutureProvider<List<String>>((ref) async {
   final client = ref.watch(apiClientProvider);
   try {
-    final res = await client.get<Map<String, dynamic>>('/auth/users');
+    final res = await client
+        .get<Map<String, dynamic>>('/auth/users')
+        .timeout(const Duration(seconds: 12));
     final list = res.data!['users'] as List<dynamic>;
     return list.cast<String>();
+  } on TimeoutException {
+    throw const ApiException('Loading users timed out. Check server settings and retry.');
   } on DioException catch (e) {
     throw mapDioError(e);
   }
@@ -109,7 +115,7 @@ class _UserSelectStepState extends ConsumerState<_UserSelectStep> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: AppShadows.button,
                 ),
-                child: const Icon(Icons.event_note_rounded, color: AppColors.textInverse, size: 26),
+                child: const Icon(Icons.event_note_rounded, color: AppColors.textOnAccent, size: 26),
               ),
 
               const SizedBox(height: 28),
@@ -211,9 +217,9 @@ class _UserSelectStepState extends ConsumerState<_UserSelectStep> {
                                   child: const Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.dns_outlined, size: 15, color: AppColors.textInverse),
+                                      Icon(Icons.dns_outlined, size: 15, color: AppColors.textOnAccent),
                                       SizedBox(width: 6),
-                                      Text('Configure', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textInverse)),
+                                      Text('Configure', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textOnAccent)),
                                     ],
                                   ),
                                 ),
@@ -261,7 +267,7 @@ class _UserSelectStepState extends ConsumerState<_UserSelectStep> {
                                 borderRadius: BorderRadius.circular(AppRadius.lg),
                               ),
                               child: const Center(
-                                child: Text('Continue', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textInverse)),
+                                child: Text('Continue', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textOnAccent)),
                               ),
                             ),
                           ),
@@ -518,11 +524,11 @@ class _PasswordStepState extends ConsumerState<_PasswordStep> {
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textInverse),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textOnAccent),
                             )
                           : const Text(
                               'Sign in',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textInverse, letterSpacing: -0.2),
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textOnAccent, letterSpacing: -0.2),
                             ),
                     ),
                   ),
@@ -573,7 +579,12 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
       await widget.onSave(url);
       if (mounted) Navigator.pop(context);
     } catch (_) {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = 'Invalid or unreachable URL. Check and try again.';
+        });
+      }
     }
   }
 
@@ -603,7 +614,7 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
           const Text('Server URL', style: AppTextStyles.titleSmall),
           const SizedBox(height: 6),
           const Text(
-            'Point to your RSVP admin API.\n• Simulator: http://localhost:3000/admin/api/mobile\n• Physical device: use your Mac\'s local IP instead of localhost',
+            'Point to your RSVP server.\nIf you enter only a domain/IP, the app auto-appends /admin/api/mobile.\n• Simulator: http://localhost:3000\n• Physical device: use your Mac\'s local IP instead of localhost',
             style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
           ),
           const SizedBox(height: 16),
@@ -616,7 +627,7 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
             style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
             decoration: InputDecoration(
               labelText: 'API URL',
-              hintText: 'http://localhost:3000/admin/api/mobile',
+              hintText: 'http://localhost:3000',
               errorText: _error,
               prefixIcon: const Icon(Icons.dns_outlined, size: 20),
             ),
@@ -640,8 +651,8 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
                 ),
                 child: Center(
                   child: _saving
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textInverse))
-                      : const Text('Save', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textInverse)),
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textOnAccent))
+                      : const Text('Save', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textOnAccent)),
                 ),
               ),
             ),

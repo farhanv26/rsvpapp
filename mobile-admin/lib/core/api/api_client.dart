@@ -1,7 +1,8 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/server_config.dart';
-import '../storage/secure_storage.dart';
 
 // Default URL — used when no URL has been saved.
 // Override at build time: flutter run --dart-define=API_URL=http://192.168.x.x:3000/admin/api/mobile
@@ -13,24 +14,26 @@ const String kApiBaseUrl = String.fromEnvironment(
 
 // apiClientProvider recreates whenever serverUrlProvider changes (user saves a new URL).
 final apiClientProvider = Provider<ApiClient>((ref) {
-  final storage = ref.watch(secureStorageProvider);
   final baseUrl = ref.watch(serverUrlProvider);
-  return ApiClient(storage, baseUrl: baseUrl);
+  return ApiClient(baseUrl: baseUrl);
 });
 
 class ApiClient {
-  ApiClient(this._storage, {String? baseUrl}) {
+  static String? _inMemoryToken;
+
+  ApiClient({String? baseUrl}) {
     final url = (baseUrl?.isNotEmpty == true) ? baseUrl! : kApiBaseUrl;
     _dio = Dio(BaseOptions(
       baseUrl: url,
       connectTimeout: const Duration(seconds: 12),
+      sendTimeout: const Duration(seconds: 12),
       receiveTimeout: const Duration(seconds: 25),
       headers: {'Content-Type': 'application/json'},
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        final token = await _storage.getToken();
+      onRequest: (options, handler) {
+        final token = _inMemoryToken;
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -40,23 +43,33 @@ class ApiClient {
     ));
   }
 
-  final SecureStorage _storage;
   late final Dio _dio;
 
-  Future<Response<T>> get<T>(String path,
-          {Map<String, dynamic>? queryParameters}) =>
-      _dio.get<T>(path, queryParameters: queryParameters);
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) =>
+      _dio.get<T>(path, queryParameters: queryParameters, options: options);
 
-  Future<Response<T>> post<T>(String path, {dynamic data}) =>
-      _dio.post<T>(path, data: data);
+  Future<Response<T>> post<T>(String path, {dynamic data, Options? options}) =>
+      _dio.post<T>(path, data: data, options: options);
 
-  Future<Response<T>> put<T>(String path, {dynamic data}) =>
-      _dio.put<T>(path, data: data);
+  Future<Response<T>> put<T>(String path, {dynamic data, Options? options}) =>
+      _dio.put<T>(path, data: data, options: options);
 
-  Future<Response<T>> delete<T>(String path, {dynamic data}) =>
-      _dio.delete<T>(path, data: data);
+  Future<Response<T>> delete<T>(String path, {dynamic data, Options? options}) =>
+      _dio.delete<T>(path, data: data, options: options);
 
   String get baseUrl => _dio.options.baseUrl;
+
+  void setAuthToken(String? token) {
+    _inMemoryToken = token;
+  }
+
+  void clearAuthToken() {
+    _inMemoryToken = null;
+  }
 }
 
 class ApiException implements Exception {
@@ -75,8 +88,18 @@ class ApiException implements Exception {
 ApiException mapDioError(DioException e) {
   final code = e.response?.statusCode;
   final body = e.response?.data;
-  final message = (body is Map && body['error'] is String)
-      ? body['error'] as String
-      : e.message ?? 'Network error';
+  String message;
+  if (body is Map && body['error'] is String) {
+    message = (body['error'] as String).trim();
+  } else if (e.type == DioExceptionType.connectionTimeout ||
+      e.type == DioExceptionType.receiveTimeout ||
+      e.type == DioExceptionType.sendTimeout) {
+    message = 'Request timed out. Check your connection.';
+  } else if (e.type == DioExceptionType.connectionError) {
+    message = 'Could not reach the server. Check URL and network.';
+  } else {
+    final raw = e.message?.trim();
+    message = (raw != null && raw.isNotEmpty) ? raw : 'Could not complete the request.';
+  }
   return ApiException(message, statusCode: code);
 }

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/event_sections.dart';
-import '../../../core/models/guest.dart';
+import '../../../core/models/guest.dart' show Guest, GuestDuplicateStrength, GuestStatus;
 import '../../../shared/theme/app_theme.dart';
 
 class GuestTile extends StatelessWidget {
@@ -44,50 +44,50 @@ class GuestTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Top row: avatar + info + status + menu ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 8, 0),
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar
                 _Avatar(name: guest.guestName, status: guest.status),
                 const SizedBox(width: 12),
-
-                // Name + count + metadata
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(guest.guestName, style: AppTextStyles.titleSmall),
-                      const SizedBox(height: 3),
-                      _CountRow(guest: guest),
+                      Text(
+                        guest.guestName,
+                        style: AppTextStyles.titleSmall.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      _CountSummaryRow(guest: guest),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _StatusBadge(status: guest.status, attendingCount: guest.attendingCount),
+                          _InviteStateBadge(invited: guest.invitedAt != null, responded: guest.respondedAt != null),
+                          if (guest.duplicateStrength != GuestDuplicateStrength.none)
+                            _DuplicateBadge(strength: guest.duplicateStrength),
+                          if (guest.excludeFromTotals) _ExcludedBadge(reason: guest.excludeReason),
+                        ],
+                      ),
                       if (guest.group != null || guest.tableName != null) ...[
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 10),
                         Wrap(
                           spacing: 6,
+                          runSpacing: 4,
                           children: [
                             if (guest.group != null)
                               _MetaTag(icon: Icons.label_outline_rounded, label: guest.group!),
                             if (guest.tableName != null)
-                              _MetaTag(icon: Icons.table_restaurant_outlined, label: 'T: ${guest.tableName}'),
+                              _MetaTag(icon: Icons.table_restaurant_outlined, label: 'Table: ${guest.tableName}'),
                           ],
                         ),
                       ],
                     ],
                   ),
-                ),
-
-                // Status badge + more menu
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _StatusBadge(status: guest.status, attendingCount: guest.attendingCount),
-                    if (guest.excludeFromTotals) ...[
-                      const SizedBox(height: 4),
-                      _ExcludedBadge(reason: guest.excludeReason),
-                    ],
-                  ],
                 ),
                 _MoreMenu(
                   guest: guest,
@@ -104,7 +104,7 @@ class GuestTile extends StatelessWidget {
           // ── Contact info ──
           if (guest.phone != null || guest.email != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Wrap(
                 spacing: 10,
                 runSpacing: 4,
@@ -128,18 +128,18 @@ class GuestTile extends StatelessWidget {
           // ── Invite metadata ──
           if (guest.invitedAt != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Text(
                 'Invited ${DateFormat('d MMM').format(guest.invitedAt!)} via ${guest.inviteChannelLastUsed ?? 'manual'}'
                 '${guest.inviteCount > 1 ? ' · ${guest.inviteCount}×' : ''}',
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.35),
               ),
             ),
 
           // ── Host message ──
           if (guest.hostMessage != null && guest.hostMessage!.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
@@ -163,43 +163,52 @@ class GuestTile extends StatelessWidget {
               ),
             ),
 
-          // ── Action row ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (hasPhone) ...[
-                  _IconAction(
-                    icon: Icons.chat_rounded,
-                    label: 'WhatsApp',
-                    color: const Color(0xFF25D366),
-                    onTap: () => _openWhatsApp(phone, guest.greeting),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (hasPhone) ...[
+                      _IconAction(
+                        icon: Icons.chat_rounded,
+                        label: 'WhatsApp',
+                        color: const Color(0xFF128C7E),
+                        onTap: () => _openWhatsApp(phone, guest.greeting),
+                      ),
+                      _IconAction(
+                        icon: Icons.message_rounded,
+                        label: 'Message',
+                        color: AppColors.invited,
+                        onTap: () => _openSms(phone),
+                      ),
+                    ],
+                    if (guest.invitedAt == null && onMarkInvited != null)
+                      _IconAction(
+                        icon: Icons.check_circle_outline_rounded,
+                        label: 'Mark invited',
+                        color: AppColors.brandMid,
+                        onTap: () => _showMarkInvitedSheet(context),
+                      ),
+                  ],
+                ),
+                if (onRecordRsvp != null) ...[
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: () => _showRsvpSheet(context),
+                    icon: const Icon(Icons.edit_note_rounded, size: 20),
+                    label: const Text('Record RSVP'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.brandAccent,
+                      foregroundColor: AppColors.textOnAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  _IconAction(
-                    icon: Icons.message_rounded,
-                    label: 'iMessage',
-                    color: AppColors.invited,
-                    onTap: () => _openSms(phone),
-                  ),
-                  const SizedBox(width: 8),
                 ],
-                if (guest.invitedAt == null && onMarkInvited != null) ...[
-                  _IconAction(
-                    icon: Icons.check_circle_outline_rounded,
-                    label: 'Mark Invited',
-                    color: AppColors.brandAccent,
-                    onTap: () => _showMarkInvitedSheet(context),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                if (onRecordRsvp != null)
-                  _IconAction(
-                    icon: Icons.edit_note_rounded,
-                    label: 'Record RSVP',
-                    color: AppColors.brandAccentBright,
-                    onTap: () => _showRsvpSheet(context),
-                  ),
               ],
             ),
           ),
@@ -302,39 +311,113 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-// ── Count row ──────────────────────────────────────────────────────
+// ── Party size summary ─────────────────────────────────────────────
 
-class _CountRow extends StatelessWidget {
-  const _CountRow({required this.guest});
+class _CountSummaryRow extends StatelessWidget {
+  const _CountSummaryRow({required this.guest});
   final Guest guest;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Row(
+        children: [
+          _CountPill(label: 'Men', value: guest.menCount),
+          _sep(),
+          _CountPill(label: 'Women', value: guest.womenCount),
+          _sep(),
+          _CountPill(label: 'Kids', value: guest.kidsCount),
+          _sep(),
+          Expanded(
+            child: Text(
+              '${guest.totalCount} total',
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sep() => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Container(width: 1, height: 16, color: AppColors.border),
+      );
+}
+
+class _CountPill extends StatelessWidget {
+  const _CountPill({required this.label, required this.value});
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _CountPill(label: 'M', count: guest.menCount),
-        _CountPill(label: 'W', count: guest.womenCount),
-        if (guest.kidsCount > 0) _CountPill(label: 'K', count: guest.kidsCount),
-        Text(
-          '${guest.totalCount} total',
-          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-        ),
+        Text(label.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.textMuted, letterSpacing: 0.5)),
+        Text('$value', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
       ],
     );
   }
 }
 
-class _CountPill extends StatelessWidget {
-  const _CountPill({required this.label, required this.count});
-  final String label;
-  final int count;
+class _InviteStateBadge extends StatelessWidget {
+  const _InviteStateBadge({required this.invited, required this.responded});
+  final bool invited;
+  final bool responded;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      '$label $count',
-      style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
+    final (label, bg, fg) = !invited
+        ? ('Not invited', AppColors.notInvitedBg, AppColors.notInvited)
+        : !responded
+            ? ('Awaiting RSVP', AppColors.pendingBg, AppColors.pending)
+            : ('Invited', AppColors.invitedBg, AppColors.invited);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: fg.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg, letterSpacing: 0.15),
+      ),
+    );
+  }
+}
+
+class _DuplicateBadge extends StatelessWidget {
+  const _DuplicateBadge({required this.strength});
+  final GuestDuplicateStrength strength;
+
+  @override
+  Widget build(BuildContext context) {
+    final isStrong = strength == GuestDuplicateStrength.strong;
+    final fg = isStrong ? AppColors.warning : AppColors.textSecondary;
+    final bg = isStrong ? AppColors.warningBg : AppColors.surfaceMuted;
+    final label = isStrong ? 'Dup · strong' : 'Dup · weak';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: fg.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg, letterSpacing: 0.15),
+      ),
     );
   }
 }
@@ -399,26 +482,29 @@ class _IconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: color.withValues(alpha: 0.22)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
-            ),
-          ],
+    return Material(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            border: Border.all(color: color.withValues(alpha: 0.22)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -436,16 +522,16 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, bg, fg) = switch (status) {
       GuestStatus.attending => (
-          'Attending${attendingCount != null ? " ($attendingCount)" : ""}',
+          'RSVP: Attending${attendingCount != null ? " ($attendingCount)" : ""}',
           AppColors.attendingBg,
           AppColors.attending,
         ),
-      GuestStatus.declined => ('Declined', AppColors.declinedBg, AppColors.declined),
-      GuestStatus.pending => ('Pending', AppColors.pendingBg, AppColors.pending),
-      GuestStatus.notInvited => ('Not invited', AppColors.notInvitedBg, AppColors.notInvited),
+      GuestStatus.declined => ('RSVP: Declined', AppColors.declinedBg, AppColors.declined),
+      GuestStatus.pending => ('RSVP: Pending', AppColors.pendingBg, AppColors.pending),
+      GuestStatus.notInvited => ('RSVP: —', AppColors.notInvitedBg, AppColors.notInvited),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -453,7 +539,7 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg, letterSpacing: 0.2),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg, letterSpacing: 0.15),
       ),
     );
   }
@@ -527,13 +613,17 @@ class _MoreMenu extends StatelessWidget {
         switch (value) {
           case 'edit':
             onEdit?.call();
+            return;
           case 'uninvite':
             await onMarkUninvited?.call();
             onRefresh?.call();
+            return;
           case 'history':
             if (onCommsHistory != null && context.mounted) _showCommsHistory(context);
+            return;
           case 'delete':
             if (context.mounted) await _confirmDelete(context);
+            return;
         }
       },
     );
@@ -744,8 +834,8 @@ class _RsvpSheetState extends State<_RsvpSheet> {
                 ),
                 child: Center(
                   child: _saving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textInverse))
-                      : const Text('Save RSVP', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textInverse)),
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textOnAccent))
+                      : const Text('Save RSVP', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textOnAccent)),
                 ),
               ),
             ),

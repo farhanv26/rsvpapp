@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/services/events_service.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/error_message.dart';
 
 class CreateEventScreen extends ConsumerStatefulWidget {
   const CreateEventScreen({super.key});
@@ -43,7 +44,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() {
-        _error = e.toString().replaceFirst('ApiException', '').replaceAll(':', '').trim();
+        _error = userFacingErrorMessage(e);
         _saving = false;
       });
     }
@@ -60,7 +61,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.dark(
             primary: AppColors.brandAccent,
-            onPrimary: AppColors.textInverse,
+            onPrimary: AppColors.textOnAccent,
             surface: AppColors.surfaceElevated,
             onSurface: AppColors.textPrimary,
           ),
@@ -226,7 +227,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.textInverse,
+                                color: AppColors.textOnAccent,
                               ),
                             )
                           : const Text(
@@ -234,7 +235,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.textInverse,
+                                color: AppColors.textOnAccent,
                                 letterSpacing: -0.2,
                               ),
                             ),

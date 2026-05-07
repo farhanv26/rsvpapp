@@ -19,20 +19,46 @@ class ServerUrlNotifier extends StateNotifier<String> {
     try {
       final saved = await _storage.getServerUrl()
           .timeout(const Duration(seconds: 4));
-      if (mounted && saved != null && saved.isNotEmpty) state = saved;
+      if (mounted && saved != null && saved.isNotEmpty) {
+        state = saved;
+      }
     } catch (_) {
       // Any error (timeout, keychain issue) → keep using default URL.
     }
   }
 
   Future<void> setUrl(String url) async {
-    final trimmed = url.trim().replaceAll(RegExp(r'/$'), '');
-    await _storage.saveServerUrl(trimmed);
-    state = trimmed;
+    final normalized = _normalizeApiUrl(url);
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      throw const FormatException('Invalid server URL');
+    }
+    if (uri.scheme != 'http' && uri.scheme != 'https') {
+      throw const FormatException('Invalid server URL scheme');
+    }
+    await _storage.saveServerUrl(normalized);
+    state = normalized;
   }
 
   Future<void> reset() async {
     await _storage.clearServerUrl();
     state = kApiBaseUrl;
+  }
+
+  String _normalizeApiUrl(String input) {
+    final cleaned = input.trim().replaceAll(RegExp(r'/$'), '');
+    final uri = Uri.tryParse(cleaned);
+    if (uri == null) return cleaned;
+    if (!uri.hasScheme || uri.host.isEmpty) return cleaned;
+
+    const requiredSuffix = '/admin/api/mobile';
+    final path = uri.path.isEmpty ? '' : uri.path;
+    final hasSuffix = path.endsWith(requiredSuffix);
+    final normalizedPath = hasSuffix
+        ? path
+        : path.isEmpty
+            ? requiredSuffix
+            : '$path$requiredSuffix';
+    return uri.replace(path: normalizedPath, query: null, fragment: null).toString().replaceAll(RegExp(r'/$'), '');
   }
 }

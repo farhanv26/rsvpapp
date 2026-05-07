@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/activity.dart';
 import '../../core/services/events_service.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/error_message.dart';
 import '../../shared/widgets/empty_state.dart';
 
 class ActivityScreen extends ConsumerWidget {
@@ -23,7 +24,7 @@ class ActivityScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.background,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 1,
         shadowColor: AppColors.border,
@@ -53,13 +54,8 @@ class ActivityScreen extends ConsumerWidget {
             child: CircularProgressIndicator(
                 color: AppColors.brandAccent, strokeWidth: 2)),
         error: (e, _) => ErrorView(
-          message: e
-              .toString()
-              .replaceFirst('ApiException', '')
-              .replaceAll(':', '')
-              .trim(),
-          onRetry: () =>
-              ref.invalidate(eventActivityProvider(eventId)),
+          message: userFacingErrorMessage(e),
+          onRetry: () => ref.invalidate(eventActivityProvider(eventId)),
         ),
         data: (items) {
           if (items.isEmpty) {
@@ -71,20 +67,21 @@ class ActivityScreen extends ConsumerWidget {
             );
           }
 
+          final flatItems = _buildItems(items);
           return RefreshIndicator(
             color: AppColors.brandAccent,
             onRefresh: () async =>
                 ref.invalidate(eventActivityProvider(eventId)),
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
-              itemCount: _buildItems(items).length,
+              itemCount: flatItems.length,
               itemBuilder: (_, i) {
-                final row = _buildItems(items)[i];
+                final row = flatItems[i];
                 if (row is _DateHeader) {
                   return _DateHeaderTile(label: row.label);
                 }
                 final item = row as ActivityItem;
-                final isLast = _isLastBeforeHeader(items, i, _buildItems(items));
+                final isLast = _isLastBeforeHeader(i, flatItems);
                 return _ActivityRow(item: item, isLast: isLast);
               },
             ),
@@ -109,8 +106,7 @@ class ActivityScreen extends ConsumerWidget {
     return result;
   }
 
-  bool _isLastBeforeHeader(
-      List<ActivityItem> items, int flatIndex, List<dynamic> flat) {
+  bool _isLastBeforeHeader(int flatIndex, List<dynamic> flat) {
     if (flatIndex >= flat.length - 1) return true;
     return flat[flatIndex + 1] is _DateHeader;
   }

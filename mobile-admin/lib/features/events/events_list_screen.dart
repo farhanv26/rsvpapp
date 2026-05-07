@@ -5,7 +5,9 @@ import '../../core/models/event.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/notifications_service.dart';
+import '../../shared/navigation/adaptive_page_route.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/error_message.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../notifications/notifications_screen.dart';
 import 'create_event_screen.dart';
@@ -25,7 +27,7 @@ class EventsListScreen extends ConsumerWidget {
       body: eventsAsync.when(
         loading: () => const _LoadingSkeleton(),
         error: (e, _) => _ErrorBody(
-          message: e.toString().replaceFirst('ApiException', '').replaceAll(':', '').trim(),
+          message: userFacingErrorMessage(e),
           onRetry: () => ref.invalidate(eventsListProvider),
         ),
         data: (events) => _EventsBody(events: events, user: user, ref: ref),
@@ -39,7 +41,7 @@ class EventsListScreen extends ConsumerWidget {
           if (created == true) ref.invalidate(eventsListProvider);
         },
         backgroundColor: AppColors.brandAccent,
-        foregroundColor: AppColors.textInverse,
+        foregroundColor: AppColors.textOnAccent,
         elevation: 0,
         icon: const Icon(Icons.add_rounded, size: 20),
         label: const Text('New Event', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
@@ -94,9 +96,7 @@ class _EventsBody extends StatelessWidget {
                 event: events[i],
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => EventDetailScreen(eventId: events[i].id),
-                  ),
+                  adaptivePushRoute(EventDetailScreen(eventId: events[i].id)),
                 ),
               ),
             ),
@@ -116,7 +116,7 @@ class _Header extends ConsumerWidget {
   final WidgetRef ref;
 
   @override
-  Widget build(BuildContext context, WidgetRef watchRef) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
       child: Row(
@@ -199,13 +199,16 @@ class _SummaryHero extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF2A1F10), Color(0xFF160F06)],
+            colors: [
+              AppColors.brandDeep,
+              AppColors.brandDeep.withValues(alpha: 0.88),
+            ],
           ),
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.brandAccent.withValues(alpha: 0.18)),
+          border: Border.all(color: AppColors.brandAccent.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [
@@ -252,7 +255,7 @@ class _HeroStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = accent ? (accentColor ?? AppColors.brandAccent) : AppColors.textPrimary;
+    final color = accent ? (accentColor ?? AppColors.brandAccentBright) : AppColors.textInverse;
     return Expanded(
       child: Column(
         children: [
@@ -265,7 +268,12 @@ class _HeroStat extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label.toUpperCase(),
-            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textMuted, letterSpacing: 0.8),
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: color.withValues(alpha: 0.55),
+              letterSpacing: 0.8,
+            ),
           ),
         ],
       ),
@@ -276,7 +284,7 @@ class _HeroStat extends StatelessWidget {
 class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 36, color: AppColors.border);
+    return Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.18));
   }
 }
 

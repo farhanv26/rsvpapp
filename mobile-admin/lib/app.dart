@@ -13,10 +13,10 @@ class RsvpAdminApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarBrightness: Brightness.dark,
-      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
       systemNavigationBarColor: AppColors.background,
-      systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ));
     return MaterialApp(
       title: 'RSVP Admin',
@@ -114,7 +114,7 @@ class _SplashScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.event_note_rounded, color: AppColors.textInverse, size: 40),
+                child: const Icon(Icons.event_note_rounded, color: AppColors.textOnAccent, size: 40),
               ),
             ),
             const SizedBox(height: 28),
