@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 
-export type GuestCommunicationChannel = "whatsapp" | "email" | "manual";
+export type GuestCommunicationChannel = "whatsapp" | "email" | "imessage" | "manual";
 
 export async function logGuestCommunication(input: {
   eventId: string;

@@ -89,9 +89,12 @@ export function RsvpResponsePanel({
         {isAttending ? (
           <>
             We&apos;re delighted you&apos;ll be joining us.
-            {typeof attendingCount === "number" && attendingCount > 0
-              ? ` ${attendingCount} ${attendingCount === 1 ? "guest" : "guests"} confirmed.`
-              : ""}
+            {typeof attendingCount === "number" && attendingCount > 0 ? (
+              <>
+                <br />
+                {attendingCount} {attendingCount === 1 ? "guest" : "guests"} confirmed.
+              </>
+            ) : null}
           </>
         ) : (
           "We're sorry you won't be able to make it, but we completely understand."

@@ -92,7 +92,7 @@ function parseOptionalDate(value?: string) {
   if (!year || !month || !day) {
     return null;
   }
-  return new Date(year, month - 1, day);
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
 function slugify(value: string) {
@@ -524,8 +524,8 @@ export async function createGuestAction(formData: FormData) {
     eventId,
     entityType: "Guest",
     entityId: createdGuest.id,
-    title: `${createdGuest.guestName} added to ${eventDisplay}`,
-    description: `${admin.name} added this family (${createdGuest.maxGuests} max invited · ${createdGuest.menCount} men, ${createdGuest.womenCount} women, ${createdGuest.kidsCount} kids).`,
+    title: `${createdGuest.guestName} added`,
+    description: `${eventDisplay} · ${createdGuest.maxGuests} max invited (${createdGuest.menCount}M, ${createdGuest.womenCount}W, ${createdGuest.kidsCount}K) — added by ${admin.name}.`,
     guestName: createdGuest.guestName,
     attendingCount: createdGuest.maxGuests,
     actorName: admin.name,
@@ -680,7 +680,7 @@ export async function updateGuestAction(formData: FormData) {
     entityType: "Guest",
     entityId: guestId,
     title: `${updatedGuest.guestName} · guest details updated`,
-    description: `${admin.name} saved changes for ${eventDisplay}.`,
+    description: `${eventDisplay} · Updated by ${admin.name}.`,
     guestName: updatedGuest.guestName,
     actorName: admin.name,
     channels: { inApp: true, email: false },
@@ -1426,9 +1426,9 @@ export async function markGuestsInvitedAction(
       type: "GUEST_INVITE_MARKED",
       title:
         result.count === 1 && named[0]
-          ? `“${named[0].guestName}” was marked invited · ${eventDisplay}`
-          : `${result.count} guests marked invited · ${eventDisplay}`,
-      description: `${admin.name} via ${channel}.${sample ? ` Includes: ${sample}${more}.` : ""}`,
+          ? `${named[0].guestName} was marked invited`
+          : `${result.count} guests marked invited`,
+      description: `${eventDisplay} · ${admin.name} via ${channel}.${sample ? ` Includes: ${sample}${more}.` : ""}`,
       entityType: "Guest",
       entityId: eventId,
     });
@@ -1505,9 +1505,9 @@ export async function markGuestsUninvitedAction(eventId: string, guestIds: strin
       type: "GUEST_INVITE_CLEARED",
       title:
         result.count === 1 && previouslyInvited[0]
-          ? `“${previouslyInvited[0].guestName}” set back to uninvited`
+          ? `${previouslyInvited[0].guestName} set back to uninvited`
           : `${result.count} guests set back to uninvited`,
-      description: `${eventDisplay} — ${admin.name} cleared invite tracking.${sample ? ` Includes: ${sample}${more}.` : ""} Existing RSVPs were left unchanged.`,
+      description: `${eventDisplay} · ${admin.name} cleared invite tracking.${sample ? ` Includes: ${sample}${more}.` : ""} RSVPs were left unchanged.`,
       entityType: "Guest",
       entityId: previouslyInvited[0]?.id ?? uniqueIds[0] ?? eventId,
     });
@@ -1679,7 +1679,7 @@ export async function triggerGuestSendAction(
     guestId: guest.id,
     userId: admin.id,
     actorName: admin.name,
-    channel: channel === "whatsapp" ? "whatsapp" : "manual",
+    channel: channel === "whatsapp" ? "whatsapp" : "imessage",
     actionKey: channel === "whatsapp" ? "whatsapp_prepared" : "imessage_prepared",
     label:
       channel === "whatsapp"
@@ -1789,9 +1789,9 @@ export async function recordGuestManualRsvpAction(input: {
     entityType: "RSVP",
     entityId: guest.id,
     title: nextAttending
-      ? `${guest.guestName} — ${nextAttendingCount} attending · ${eventDisplay}`
-      : `${guest.guestName} declined · ${eventDisplay}`,
-    description: `${admin.name} recorded this RSVP manually.${wasResponded ? " (updated)" : ""}`,
+      ? `${guest.guestName} — ${nextAttendingCount} attending (admin)`
+      : `${guest.guestName} declined (admin)`,
+    description: `${eventDisplay} · Recorded manually by ${admin.name}${wasResponded ? " — updated." : "."}`,
     guestName: guest.guestName,
     attendingLabel: nextAttending ? "Attending" : "Declined",
     attendingCount: nextAttending ? nextAttendingCount : null,

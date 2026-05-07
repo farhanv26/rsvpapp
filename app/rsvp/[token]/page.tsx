@@ -167,8 +167,8 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 }
 
 function DateCard({ eventDate }: { eventDate: Date }) {
-  const dayName = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(eventDate);
-  const fullDate = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(eventDate);
+  const dayName = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(eventDate);
+  const fullDate = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(eventDate);
   return (
     <div className={`flex h-full flex-col justify-center overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
       <div className="mb-3 h-0.5 bg-gradient-to-r from-transparent via-[#b28944]/40 to-transparent" aria-hidden />
@@ -490,7 +490,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
             <div className="space-y-2 text-center">
               <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
                 RSVP by{" "}
-                {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(ev.rsvpDeadline)}
+                {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(ev.rsvpDeadline)}
               </p>
               {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" ? (
                 <p
@@ -503,10 +503,10 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
                   }`}
                 >
                   {deadlineMeta.status === "closes_today"
-                    ? "RSVP closes today"
-                    : `RSVP closes soon · ${deadlineMeta.daysRemaining} day${
+                    ? "Closes today"
+                    : `Closes in ${deadlineMeta.daysRemaining} day${
                         deadlineMeta.daysRemaining === 1 ? "" : "s"
-                      } left`}
+                      }`}
                 </p>
               ) : null}
             </div>

@@ -102,6 +102,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const totalMen = event.guests.reduce((sum, g) => sum + guestCountedBreakdown(g).men, 0);
   const totalWomen = event.guests.reduce((sum, g) => sum + guestCountedBreakdown(g).women, 0);
   const totalKids = event.guests.reduce((sum, g) => sum + guestCountedBreakdown(g).kids, 0);
+  const totalAdults = totalMen + totalWomen;
   const totalResponded = countedGuests.filter((guest) => guest.respondedAt).length;
   const invitedFamilies = countedGuests.filter((guest) => guest.invitedAt).length;
   const totalPending = countedGuests.filter((guest) => !guest.respondedAt).length;
@@ -298,6 +299,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     "communication_email_guest_skipped",
     "communication_whatsapp_prepared",
     "communication_whatsapp_bulk_prepared",
+    "communication_imessage_prepared",
     "guest_invite_marked",
     "guest_invite_cleared",
     "communication_email_guest_reminder_sent",
@@ -343,7 +345,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                   {event.eventDate ? (
                     <span className="flex items-center gap-1.5 text-sm text-zinc-600">
                       <CalendarIcon />
-                      {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(event.eventDate)}
+                      {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(event.eventDate)}
                       {event.eventTime ? ` · ${event.eventTime}` : null}
                     </span>
                   ) : null}
@@ -363,7 +365,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                   <span className="text-xs text-zinc-500">
                     RSVP deadline{" "}
                     <strong className="font-semibold text-zinc-800">
-                      {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(event.rsvpDeadline)}
+                      {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(event.rsvpDeadline)}
                     </strong>
                   </span>
                   <span
@@ -382,7 +384,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                       : deadlineMeta?.status === "closes_today"
                         ? "Closes today"
                         : deadlineMeta?.status === "closing_soon"
-                          ? `${deadlineMeta.daysRemaining}d left`
+                          ? `Closes in ${deadlineMeta.daysRemaining} day${deadlineMeta.daysRemaining === 1 ? "" : "s"}`
                           : "Open"}
                   </span>
                 </div>
@@ -394,13 +396,13 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                   <KpiCell
                     label="Confirmed"
                     value={totalConfirmedAttendees}
-                    sub={`of ${totalMaximumInvited}`}
+                    total={totalMaximumInvited}
                     accent="emerald"
                   />
                   <KpiCell
                     label="Response rate"
                     value={`${Math.round(responseRate * 100)}%`}
-                    sub={`${totalResponded}/${countedGuests.length}`}
+                    sub={`${totalResponded} of ${countedGuests.length} families`}
                   />
                   <KpiCell
                     label="Pending"
@@ -540,22 +542,29 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             {/* Families breakdown */}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label="Total families" value={totalFamilies} sub={excludedGuests > 0 ? `${excludedGuests} excluded` : undefined} />
-              <StatCard label="Counted families" value={countedGuests.length} />
+              <StatCard label="Total people invited" value={totalMaximumInvited} sub="sum of all maxGuests" />
               <StatCard label="Invited families" value={invitedFamilies} />
               <StatCard label="Pending RSVP" value={totalPending} accent={totalPending > 0 ? "amber" : undefined} />
             </div>
 
             {/* Responses */}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label="Attending families" value={totalAttendingFamilies} sub={`${totalDeclinedFamilies} declined`} />
+              <StatCard label="Attending families" value={totalAttendingFamilies} />
               <StatCard label="Declined families" value={totalDeclinedFamilies} />
+              <StatCard label="Responded" value={totalResponded} sub={`of ${countedGuests.length} counted`} />
+              <StatCard label="Counted families" value={countedGuests.length} />
+            </div>
+
+            {/* Gender breakdown */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label="Men (counted)" value={totalMen} />
               <StatCard label="Women (counted)" value={totalWomen} />
+              <StatCard label="Total adults" value={totalAdults} sub={`${totalMen}M + ${totalWomen}W`} accent="blue" />
+              <StatCard label="Kids (counted)" value={totalKids} />
             </div>
 
             {/* Misc */}
-            <div className="grid gap-3 sm:grid-cols-3">
-              <StatCard label="Kids (counted)" value={totalKids} />
+            <div className="grid gap-3 sm:grid-cols-2">
               <StatCard label="Duplicate families" value={duplicateFamiliesCount} sub="with excluded count > 0" accent={duplicateFamiliesCount > 0 ? "rose" : undefined} />
               <StatCard label="Duplicate people" value={duplicatePeopleCount} sub="sum of excluded counts" />
             </div>
@@ -890,7 +899,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                   ? "RSVP is closed for this event."
                   : deadlineMeta.status === "closes_today"
                     ? "RSVP closes today."
-                    : `RSVP closes in ${deadlineMeta.daysRemaining} day${deadlineMeta.daysRemaining === 1 ? "" : "s"}.`}
+                    : `Closes in ${deadlineMeta.daysRemaining} day${deadlineMeta.daysRemaining === 1 ? "" : "s"}.`}
               </p>
             </div>
           </CollapsibleSection>
@@ -913,19 +922,48 @@ function KpiCell({
   label,
   value,
   sub,
+  subBold,
   accent,
+  total,
 }: {
   label: string;
   value: number | string;
   sub?: string;
+  subBold?: boolean;
   accent?: "emerald" | "amber";
+  total?: number;
 }) {
+  const progress = total !== undefined && typeof value === "number" && total > 0 ? value / total : undefined;
   return (
     <div className="px-4 py-3 text-center">
-      <p className={`text-xl font-semibold tabular-nums ${accent === "emerald" ? "text-emerald-800" : accent === "amber" ? "text-amber-800" : "text-zinc-900"}`}>
-        {value}
-      </p>
-      {sub ? <p className="text-[10px] text-zinc-400">{sub}</p> : null}
+      {total !== undefined ? (
+        <>
+          <div className="flex items-baseline justify-center gap-0.5">
+            <p className={`text-xl font-semibold tabular-nums ${accent === "emerald" ? "text-emerald-800" : "text-zinc-900"}`}>
+              {value}
+            </p>
+            <span className="text-sm font-medium tabular-nums text-zinc-400">/{total}</span>
+          </div>
+          <p className="text-[10px] font-medium text-zinc-400">confirmed / invited</p>
+          {progress !== undefined ? (
+            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-black/8">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all duration-700"
+                style={{ width: `${Math.round(Math.min(progress, 1) * 100)}%` }}
+              />
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <p className={`text-xl font-semibold tabular-nums ${accent === "emerald" ? "text-emerald-800" : accent === "amber" ? "text-amber-800" : "text-zinc-900"}`}>
+            {value}
+          </p>
+          {sub ? (
+            <p className={`text-[10px] tabular-nums ${subBold ? "font-semibold text-zinc-500" : "text-zinc-400"}`}>{sub}</p>
+          ) : null}
+        </>
+      )}
       <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">{label}</p>
     </div>
   );

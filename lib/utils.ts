@@ -62,16 +62,19 @@ export function getSafeImageSrc(value: string | null | undefined) {
 
 export type RsvpDeadlineStatus = "open" | "closing_soon" | "closes_today" | "closed";
 
-function startOfLocalDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+function startOfUtcDay(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 }
 
 export function getRsvpDeadlineMeta(deadline: Date | null | undefined, now = new Date()) {
   if (!deadline) {
     return null;
   }
-  const today = startOfLocalDay(now);
-  const deadlineDay = startOfLocalDay(deadline);
+  // "today" uses local getters so it matches the calendar date the user sees,
+  // even when UTC has ticked past midnight. Deadline uses UTC getters because
+  // it is stored as UTC midnight in the database.
+  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const deadlineDay = new Date(Date.UTC(deadline.getUTCFullYear(), deadline.getUTCMonth(), deadline.getUTCDate()));
   const msPerDay = 24 * 60 * 60 * 1000;
   const daysRemaining = Math.round((deadlineDay.getTime() - today.getTime()) / msPerDay);
 

@@ -171,13 +171,14 @@ const filterTabs: {
   { id: "not_invited", label: "Not Invited" },
 ];
 
-type InviteFilterId = "all" | "not_invited" | "invited" | "invited_whatsapp" | "invited_email";
+type InviteFilterId = "all" | "not_invited" | "invited" | "invited_whatsapp" | "invited_message" | "invited_email";
 
 const inviteFilterTabs: { id: InviteFilterId; label: string }[] = [
   { id: "all", label: "All" },
   { id: "not_invited", label: "Not Invited Yet" },
   { id: "invited", label: "Invited" },
   { id: "invited_whatsapp", label: "WhatsApp" },
+  { id: "invited_message", label: "Message" },
   { id: "invited_email", label: "Email" },
 ];
 
@@ -274,6 +275,7 @@ function inviteBadgeLabel(g: GuestPanelGuest): string {
   const ch = g.inviteChannelLastUsed;
   if (ch === "whatsapp") return "WhatsApp Sent";
   if (ch === "email") return "Email Sent";
+  if (ch === "imessage") return "Message Sent";
   if (ch === "manual") return "Marked";
   return "Invited";
 }
@@ -281,6 +283,7 @@ function inviteBadgeLabel(g: GuestPanelGuest): string {
 function lastCommChannelLabel(channel: string): string {
   if (channel === "whatsapp") return "WhatsApp";
   if (channel === "email") return "Email";
+  if (channel === "imessage") return "Message";
   if (channel === "manual") return "Manual";
   return channel;
 }
@@ -292,6 +295,7 @@ function inviteBadgeClass(g: GuestPanelGuest): string {
   const ch = g.inviteChannelLastUsed;
   if (ch === "whatsapp") return `${base} bg-emerald-100 text-emerald-900`;
   if (ch === "email") return `${base} bg-sky-100 text-sky-900`;
+  if (ch === "imessage") return `${base} bg-blue-100 text-blue-900`;
   if (ch === "manual") return `${base} border border-[#e2d4bf] bg-[#f9f3e8] text-[#5c4a33]`;
   return `${base} border border-[#e2d4bf] bg-[#f9f3e8] text-[#6a5434]`;
 }
@@ -438,6 +442,7 @@ export function EventGuestsPanel({
   const [emailSendingGuestId, setEmailSendingGuestId] = useState<string | null>(null);
   const [ownershipPendingGuestId, setOwnershipPendingGuestId] = useState<string | null>(null);
   const [emailSentGuestId, setEmailSentGuestId] = useState<string | null>(null);
+  const [messageSentGuestId, setMessageSentGuestId] = useState<string | null>(null);
   const [bulkEmailStatus, setBulkEmailStatus] = useState<string | null>(null);
   const [sendInvitesOpen, setSendInvitesOpen] = useState(false);
   const [sendInvitesNonce, setSendInvitesNonce] = useState(0);
@@ -608,6 +613,8 @@ export function EventGuestsPanel({
       list = list.filter((g) => Boolean(g.invitedAt));
     } else if (inviteFilter === "invited_whatsapp") {
       list = list.filter((g) => Boolean(g.invitedAt) && g.inviteChannelLastUsed === "whatsapp");
+    } else if (inviteFilter === "invited_message") {
+      list = list.filter((g) => Boolean(g.invitedAt) && g.inviteChannelLastUsed === "imessage");
     } else if (inviteFilter === "invited_email") {
       list = list.filter((g) => Boolean(g.invitedAt) && g.inviteChannelLastUsed === "email");
     }
@@ -1836,48 +1843,56 @@ export function EventGuestsPanel({
       <div className="mt-4">
         {!trueEmpty ? (
           <div className="mb-3 overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffdfa] shadow-sm">
-            <div className="border-b border-[#efe6d8] px-4 py-2 sm:px-5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Current view summary</p>
+            <div className="border-b border-[#efe6d8] px-4 py-1.5 sm:px-5">
+              <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-zinc-400">Current view</p>
             </div>
             <div className="flex min-w-0 flex-nowrap items-stretch overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
-                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.families}</span>
+              {/* Core counts */}
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-2.5 sm:px-5">
+                <span className="text-lg font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.families}</span>
                 <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Famil{visibleSubsetStats.families === 1 ? "y" : "ies"}</span>
               </div>
               <div className="w-px shrink-0 self-stretch bg-[#efe6d8]" aria-hidden />
-              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
-                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.maxInvited}</span>
-                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Max Invited</span>
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-2.5 sm:px-5">
+                <span className="text-lg font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.maxInvited}</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Max</span>
               </div>
               <div className="w-px shrink-0 self-stretch bg-[#efe6d8]" aria-hidden />
-              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
-                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.attendingHeadcount}</span>
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-2.5 sm:px-5">
+                <span className="text-lg font-bold tabular-nums leading-none text-emerald-900">{visibleSubsetStats.attendingHeadcount}</span>
                 <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Attending</span>
-                <span className="text-[10px] text-zinc-400">{visibleSubsetStats.attendingFamilies} famil{visibleSubsetStats.attendingFamilies === 1 ? "y" : "ies"}</span>
+                {visibleSubsetStats.attendingFamilies > 0 ? (
+                  <span className="text-[9px] tabular-nums text-emerald-700/80">{visibleSubsetStats.attendingFamilies} fam.</span>
+                ) : null}
               </div>
               <div className="w-px shrink-0 self-stretch bg-[#efe6d8]" aria-hidden />
-              <div className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
-                <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
-                  <span className="text-lg font-bold tabular-nums leading-none text-sky-950">{visibleSubsetStats.men}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-700">Men</span>
+              {/* Demographics cluster */}
+              <div className="flex shrink-0 items-center gap-1.5 px-3 py-2">
+                <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-sky-200/70 bg-sky-50/80 px-2.5 py-1.5">
+                  <span className="text-sm font-bold tabular-nums leading-none text-sky-950">{visibleSubsetStats.men}</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-sky-700">Men</span>
                 </div>
-                <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
-                  <span className="text-lg font-bold tabular-nums leading-none text-rose-950">{visibleSubsetStats.women}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-rose-700">Women</span>
+                <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-rose-200/70 bg-rose-50/80 px-2.5 py-1.5">
+                  <span className="text-sm font-bold tabular-nums leading-none text-rose-950">{visibleSubsetStats.women}</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-rose-700">Women</span>
                 </div>
-                <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-                  <span className="text-lg font-bold tabular-nums leading-none text-amber-950">{visibleSubsetStats.kids}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Kids</span>
+                <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-violet-200/70 bg-violet-50/80 px-2.5 py-1.5">
+                  <span className="text-sm font-bold tabular-nums leading-none text-violet-950">{visibleSubsetStats.men + visibleSubsetStats.women}</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-violet-700">Adults</span>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-amber-200/70 bg-amber-50/80 px-2.5 py-1.5">
+                  <span className="text-sm font-bold tabular-nums leading-none text-amber-950">{visibleSubsetStats.kids}</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-700">Kids</span>
                 </div>
               </div>
               <div className="w-px shrink-0 self-stretch bg-[#efe6d8]" aria-hidden />
-              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
-                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.invitedFamilies}</span>
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-2.5 sm:px-5">
+                <span className="text-lg font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.invitedFamilies}</span>
                 <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Invited</span>
               </div>
-              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-3 sm:px-5">
-                <span className="text-xl font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.notInvitedFamilies}</span>
-                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Not Invited</span>
+              <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 py-2.5 sm:px-5">
+                <span className="text-lg font-bold tabular-nums leading-none text-zinc-900">{visibleSubsetStats.notInvitedFamilies}</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Not Sent</span>
               </div>
             </div>
           </div>
@@ -2107,7 +2122,7 @@ export function EventGuestsPanel({
                                 onClick={async () => {
                                   if (
                                     !confirm(
-                                      `Set “${guest.guestName}” back to uninvited? Invite tracking clears; RSVP stays on file.`,
+                                      `Set "${guest.guestName}" back to uninvited? Invite tracking clears; RSVP stays on file.`,
                                     )
                                   ) {
                                     return;
@@ -2152,13 +2167,27 @@ export function EventGuestsPanel({
                             </a>
                             <a
                               href={messageDirectUrl}
-                              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-sky-300/45 bg-sky-50 text-sky-700"
-                              aria-label="Message"
+                              className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border transition ${
+                                messageSentGuestId === guest.id
+                                  ? "border-blue-300 bg-blue-100 text-blue-700"
+                                  : "border-sky-300/45 bg-sky-50 text-sky-700"
+                              }`}
+                              aria-label={messageSentGuestId === guest.id ? "Message sent" : "Message"}
                               onClick={() => {
-                                void triggerGuestSendAction(eventId, guest.id, "imessage");
+                                setMessageSentGuestId(guest.id);
+                                void triggerGuestSendAction(eventId, guest.id, "imessage").then(() => {
+                                  router.refresh();
+                                  setTimeout(() => setMessageSentGuestId(null), 2000);
+                                });
                               }}
                             >
-                              <MessageIcon className="h-[16px] w-[16px]" />
+                              {messageSentGuestId === guest.id ? (
+                                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : (
+                                <MessageIcon className="h-[16px] w-[16px]" />
+                              )}
                             </a>
                             <button
                               type="button"
@@ -2590,7 +2619,7 @@ export function EventGuestsPanel({
                                   onClick={async () => {
                                     if (
                                       !confirm(
-                                        `Set “${guest.guestName}” back to uninvited? Invite tracking clears; RSVP stays on file.`,
+                                        `Set "${guest.guestName}" back to uninvited? Invite tracking clears; RSVP stays on file.`,
                                       )
                                     ) {
                                       return;
@@ -2797,18 +2826,34 @@ export function EventGuestsPanel({
                                 </a>
                                 <a
                                   href={messageDirectUrl}
-                                  className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-sky-300/45 bg-sky-50 text-sky-700 transition hover:bg-sky-100 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
-                                  aria-label="Send via Message / iMessage"
+                                  className={`inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border transition sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0 ${
+                                    messageSentGuestId === guest.id
+                                      ? "border-blue-300 bg-blue-100 text-blue-700"
+                                      : "border-sky-300/45 bg-sky-50 text-sky-700 hover:bg-sky-100"
+                                  }`}
+                                  aria-label={messageSentGuestId === guest.id ? "Message sent" : "Send via Message / iMessage"}
                                   title={
-                                    guest.phone?.trim()
-                                      ? "Opens Message / iMessage directly to this guest with the invite prefilled"
-                                      : "Opens Message / iMessage compose with the invite prefilled (choose recipient)"
+                                    messageSentGuestId === guest.id
+                                      ? "Message sent"
+                                      : guest.phone?.trim()
+                                        ? "Opens Message / iMessage directly to this guest with the invite prefilled"
+                                        : "Opens Message / iMessage compose with the invite prefilled (choose recipient)"
                                   }
                                   onClick={() => {
-                                    void triggerGuestSendAction(eventId, guest.id, "imessage");
+                                    setMessageSentGuestId(guest.id);
+                                    void triggerGuestSendAction(eventId, guest.id, "imessage").then(() => {
+                                      router.refresh();
+                                      setTimeout(() => setMessageSentGuestId(null), 2000);
+                                    });
                                   }}
                                 >
-                                  <MessageIcon className="h-[16px] w-[16px]" />
+                                  {messageSentGuestId === guest.id ? (
+                                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  ) : (
+                                    <MessageIcon className="h-[16px] w-[16px]" />
+                                  )}
                                 </a>
                               </div>
                               <button
@@ -2923,7 +2968,7 @@ export function EventGuestsPanel({
 
       {editingGuest ? (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+          className="fixed inset-0 z-[120] flex items-end justify-center sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="guest-edit-title"
@@ -2936,7 +2981,7 @@ export function EventGuestsPanel({
               if (!guestEditPending) setEditingGuestId(null);
             }}
           />
-          <div className="relative z-10 flex max-h-[min(92vh,52rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffdfa] shadow-xl">
+          <div className="relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-[#e7dccb] bg-[#fffdfa] shadow-xl sm:max-h-[min(92vh,52rem)] sm:max-w-2xl sm:rounded-2xl">
             <div className="shrink-0 border-b border-[#efe4d4] px-5 py-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -2947,11 +2992,14 @@ export function EventGuestsPanel({
                 </div>
                 <button
                   type="button"
-                  className="btn-secondary px-3 py-1.5 text-xs"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[#e2d4bf] bg-white text-zinc-500 hover:bg-zinc-50 disabled:opacity-50"
                   disabled={guestEditPending}
+                  aria-label="Close"
                   onClick={() => setEditingGuestId(null)}
                 >
-                  Close
+                  <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3" aria-hidden>
+                    <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -2962,6 +3010,7 @@ export function EventGuestsPanel({
                 </p>
               ) : null}
               <form
+                id="guest-edit-form"
                 key={editingGuest.id}
                 className="grid gap-2 sm:grid-cols-2"
                 onSubmit={async (e) => {
@@ -3187,12 +3236,28 @@ export function EventGuestsPanel({
                     <p className="mt-2 text-xs text-zinc-500">No image for this variant.</p>
                   )}
                 </div>
-                <div className="sm:col-span-2 flex flex-wrap gap-2">
-                  <button type="submit" className="btn-secondary px-3 py-1.5 text-sm" disabled={guestEditPending}>
-                    {guestEditPending ? "Saving…" : "Save changes"}
-                  </button>
-                </div>
               </form>
+            </div>
+            {/* Sticky action footer — always visible above keyboard on mobile */}
+            <div className="shrink-0 border-t border-[#efe4d4] bg-[#fffdfa] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  className="btn-secondary flex-1"
+                  disabled={guestEditPending}
+                  onClick={() => setEditingGuestId(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="guest-edit-form"
+                  className="btn-primary flex-1"
+                  disabled={guestEditPending}
+                >
+                  {guestEditPending ? "Saving…" : "Save changes"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

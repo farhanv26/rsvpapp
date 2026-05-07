@@ -273,8 +273,8 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-3xl border border-[#e7dccb] bg-[#fffdfa] shadow-[0_4px_24px_-12px_rgba(71,52,29,0.18)]">
-      <div className="border-b border-[#ece4d4] px-6 py-4 sm:px-7">
+    <section className="rounded-3xl border border-[#e7dccb] bg-[#fffdfa] shadow-[0_4px_24px_-12px_rgba(71,52,29,0.18)]">
+      <div className="rounded-t-3xl border-b border-[#ece4d4] px-6 py-4 sm:px-7">
         <div className="flex items-baseline gap-3">
           <span className="font-mono text-[10px] font-semibold tracking-[0.22em] text-zinc-400">{number}</span>
           <h2 className="text-base font-semibold text-zinc-900">{title}</h2>

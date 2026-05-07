@@ -51,9 +51,9 @@ export async function submitRsvpAction(formData: FormData) {
 
   if (guest.event.rsvpDeadline) {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
     const d = guest.event.rsvpDeadline;
-    const deadlineDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const deadlineDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
     if (today > deadlineDate) {
       throw new Error("RSVP is now closed.");
     }
@@ -121,6 +121,29 @@ export async function submitRsvpAction(formData: FormData) {
     },
   });
 
+  let auditMessage: string;
+  switch (type) {
+    case "accepted":
+      auditMessage = `${guest.guestName} RSVP'd — attending (${nextAttendingCount ?? 0}).`;
+      break;
+    case "declined":
+      auditMessage = `${guest.guestName} declined the invitation.`;
+      break;
+    case "changed_to_attending":
+      auditMessage = `${guest.guestName} changed RSVP from declined to attending (${nextAttendingCount ?? 0}).`;
+      break;
+    case "changed_to_declined":
+      auditMessage = `${guest.guestName} changed RSVP from attending to not attending.`;
+      break;
+    case "updated_attendee_count":
+      auditMessage = `${guest.guestName} updated attending count: ${guest.attendingCount ?? 0} → ${nextAttendingCount ?? 0}.`;
+      break;
+    default:
+      auditMessage = wasResponded
+        ? `${guest.guestName} updated RSVP (${nextAttending ? `${nextAttendingCount ?? 0} attending` : "declined"}).`
+        : `${guest.guestName} submitted RSVP (${nextAttending ? `${nextAttendingCount ?? 0} attending` : "declined"}).`;
+  }
+
   await logAuditActivity({
     eventId: guest.eventId,
     userId: null,
@@ -129,9 +152,7 @@ export async function submitRsvpAction(formData: FormData) {
     entityType: "RSVP",
     entityId: guest.id,
     entityName: guest.guestName,
-    message: wasResponded
-      ? `${guest.guestName} updated RSVP (${nextAttending ? `${nextAttendingCount ?? 0} attending` : "declined"}).`
-      : `${guest.guestName} submitted RSVP (${nextAttending ? `${nextAttendingCount ?? 0} attending` : "declined"}).`,
+    message: auditMessage,
     metadata: {
       attending: nextAttending,
       attendingCount: nextAttendingCount ?? 0,
@@ -140,19 +161,41 @@ export async function submitRsvpAction(formData: FormData) {
     },
   });
   const eventDisplay = guest.event.coupleNames?.trim() || guest.event.title || "your event";
+
+  let notifTitle: string;
+  switch (type) {
+    case "accepted":
+      notifTitle = `${guest.guestName} RSVP’d — ${nextAttendingCount ?? 0} attending`;
+      break;
+    case "declined":
+      notifTitle = `${guest.guestName} declined`;
+      break;
+    case "changed_to_attending":
+      notifTitle = `${guest.guestName} changed to attending — ${nextAttendingCount ?? 0}`;
+      break;
+    case "changed_to_declined":
+      notifTitle = `${guest.guestName} changed to not attending`;
+      break;
+    case "updated_attendee_count":
+      notifTitle = `${guest.guestName} updated count — now ${nextAttendingCount ?? 0}`;
+      break;
+    default:
+      notifTitle = nextAttending
+        ? `${guest.guestName} updated RSVP — ${nextAttendingCount ?? 0} attending`
+        : `${guest.guestName} updated RSVP`;
+  }
+
+  const notifDescription = nextAttending
+    ? `${eventDisplay} · Open the guest list to adjust seating or follow up.`
+    : `${eventDisplay}`;
+
   await dispatchEventCommunication({
     trigger: wasResponded ? "rsvp_updated" : "rsvp_submitted",
     eventId: guest.eventId,
     entityType: "RSVP",
     entityId: guest.id,
-    title: wasResponded
-      ? `${guest.guestName} updated RSVP · ${eventDisplay}`
-      : nextAttending
-        ? `${guest.guestName} RSVP’d — ${nextAttendingCount ?? 0} attending · ${eventDisplay}`
-        : `${guest.guestName} declined · ${eventDisplay}`,
-    description: nextAttending
-      ? `Open the guest list if you need to adjust seating or follow up.`
-      : `They declined for ${eventDisplay}.`,
+    title: notifTitle,
+    description: notifDescription,
     guestName: guest.guestName,
     attendingLabel: nextAttending ? "Attending" : "Declined",
     attendingCount: nextAttendingCount,
