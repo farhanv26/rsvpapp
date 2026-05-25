@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 import { dispatchEventCommunication } from "@/lib/communications";
 import { rsvpSchema } from "@/lib/validation";
+import { easternCalendarDay } from "@/lib/utils";
 
 export async function submitRsvpAction(formData: FormData) {
   const token = String(formData.get("token") || "");
@@ -51,7 +52,7 @@ export async function submitRsvpAction(formData: FormData) {
 
   if (guest.event.rsvpDeadline) {
     const now = new Date();
-    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const today = easternCalendarDay(now);
     const d = guest.event.rsvpDeadline;
     const deadlineDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
     if (today > deadlineDate) {

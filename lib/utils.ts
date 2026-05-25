@@ -66,15 +66,22 @@ function startOfUtcDay(value: Date) {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 }
 
+/** Returns the calendar date of `ts` as a UTC-midnight Date, interpreted in Eastern time (ET). */
+export function easternCalendarDay(ts: Date): Date {
+  const ymd = ts.toLocaleDateString("en-CA", { timeZone: "America/New_York" }); // "YYYY-MM-DD"
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
 export function getRsvpDeadlineMeta(deadline: Date | null | undefined, now = new Date()) {
   if (!deadline) {
     return null;
   }
-  // "today" uses local getters so it matches the calendar date the user sees,
-  // even when UTC has ticked past midnight. Deadline uses UTC getters because
-  // it is stored as UTC midnight in the database.
-  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-  const deadlineDay = new Date(Date.UTC(deadline.getUTCFullYear(), deadline.getUTCMonth(), deadline.getUTCDate()));
+  // "today" is the Eastern-timezone calendar date so daysRemaining matches
+  // what the user sees on their clock regardless of where the server runs.
+  // Deadline is stored as UTC midnight so we extract its UTC date parts.
+  const today = easternCalendarDay(now);
+  const deadlineDay = startOfUtcDay(deadline);
   const msPerDay = 24 * 60 * 60 * 1000;
   const daysRemaining = Math.round((deadlineDay.getTime() - today.getTime()) / msPerDay);
 
