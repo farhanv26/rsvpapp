@@ -32,15 +32,18 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
       await ref.read(eventsServiceProvider).createEvent(
-        title: _titleCtrl.text.trim(),
-        coupleNames: _coupleNamesCtrl.text.trim().isEmpty ? null : _coupleNamesCtrl.text.trim(),
-        venue: _venueCtrl.text.trim().isEmpty ? null : _venueCtrl.text.trim(),
-        eventDate: _eventDate,
-        rsvpDeadline: _rsvpDeadline,
-      );
+            title: _titleCtrl.text.trim(),
+            coupleNames: _coupleNamesCtrl.text.trim().isEmpty ? null : _coupleNamesCtrl.text.trim(),
+            venue: _venueCtrl.text.trim().isEmpty ? null : _venueCtrl.text.trim(),
+            eventDate: _eventDate,
+            rsvpDeadline: _rsvpDeadline,
+          );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() {
@@ -59,9 +62,9 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
       lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: AppColors.brandAccent,
-            onPrimary: AppColors.textOnAccent,
+          colorScheme: const ColorScheme.light(
+            primary: AppColors.brandDeep,
+            onPrimary: AppColors.textInverse,
             surface: AppColors.surfaceElevated,
             onSurface: AppColors.textPrimary,
           ),
@@ -86,11 +89,11 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
-        title: const Text('New Event'),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.pop(context),
         ),
+        title: const Text('New Event', style: AppTextStyles.titleMedium),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -127,14 +130,14 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.dangerBg,
                     borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     children: [
                       const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 14)),
+                        child: Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
                       ),
                     ],
                   ),
@@ -142,7 +145,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                 const SizedBox(height: 20),
               ],
 
-              const _SectionLabel('Event Details'),
+              const _SectionLabel('Event details'),
               const SizedBox(height: 10),
 
               TextFormField(
@@ -156,7 +159,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                 ),
                 validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               TextFormField(
                 controller: _coupleNamesCtrl,
@@ -168,7 +171,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                   prefixIcon: Icon(Icons.favorite_border_rounded, size: 20),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               TextFormField(
                 controller: _venueCtrl,
@@ -181,7 +184,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               const _SectionLabel('Dates'),
               const SizedBox(height: 10),
 
@@ -201,12 +204,12 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                 onClear: () => setState(() => _rsvpDeadline = null),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 36),
 
               GestureDetector(
                 onTap: _saving ? null : _save,
                 child: AnimatedOpacity(
-                  opacity: _saving ? 0.6 : 1.0,
+                  opacity: _saving ? 0.5 : 1.0,
                   duration: const Duration(milliseconds: 150),
                   child: Container(
                     width: double.infinity,
@@ -225,15 +228,12 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.textOnAccent,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textOnAccent),
                             )
                           : const Text(
                               'Create Event',
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textOnAccent,
                                 letterSpacing: -0.2,
@@ -277,32 +277,38 @@ class _DatePickerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasValue = value != null;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-            color: value != null ? AppColors.brandAccent.withValues(alpha: 0.4) : AppColors.border,
+            color: hasValue ? AppColors.brandDeep.withValues(alpha: 0.3) : AppColors.border,
           ),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: value != null ? AppColors.brandAccent : AppColors.textMuted),
+            Icon(
+              icon,
+              size: 18,
+              color: hasValue ? AppColors.brandDeep : AppColors.textMuted,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                value != null ? DateFormat('EEEE, d MMMM yyyy').format(value!) : label,
+                hasValue ? DateFormat('EEEE, d MMMM yyyy').format(value!) : label,
                 style: TextStyle(
-                  fontSize: 15,
-                  color: value != null ? AppColors.textPrimary : AppColors.textMuted,
-                  fontWeight: value != null ? FontWeight.w500 : FontWeight.w400,
+                  fontSize: 14,
+                  color: hasValue ? AppColors.textPrimary : AppColors.textMuted,
+                  fontWeight: hasValue ? FontWeight.w500 : FontWeight.w400,
                 ),
               ),
             ),
-            if (value != null)
+            if (hasValue)
               GestureDetector(
                 onTap: onClear,
                 child: const Padding(

@@ -37,9 +37,10 @@ class GuestTile extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,12 +200,12 @@ class GuestTile extends StatelessWidget {
                   const SizedBox(height: 10),
                   FilledButton.icon(
                     onPressed: () => _showRsvpSheet(context),
-                    icon: const Icon(Icons.edit_note_rounded, size: 20),
+                    icon: const Icon(Icons.edit_note_rounded, size: 18),
                     label: const Text('Record RSVP'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.brandAccent,
-                      foregroundColor: AppColors.textOnAccent,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: AppColors.brandDeep,
+                      foregroundColor: AppColors.textInverse,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                     ),
                   ),
@@ -294,17 +295,17 @@ class _Avatar extends StatelessWidget {
     };
 
     return Container(
-      width: 40,
-      height: 40,
+      width: 42,
+      height: 42,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: AppColors.brandDeep,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
       ),
       child: Center(
         child: Text(
           initial,
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textInverse),
         ),
       ),
     );
@@ -324,7 +325,7 @@ class _CountSummaryRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.borderLight),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -825,17 +826,13 @@ class _RsvpSheetState extends State<_RsvpSheet> {
                 width: double.infinity,
                 height: 50,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.brandAccentBright, AppColors.brandAccent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: AppColors.brandDeep,
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: Center(
                   child: _saving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textOnAccent))
-                      : const Text('Save RSVP', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textOnAccent)),
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textInverse))
+                      : const Text('Save RSVP', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textInverse)),
                 ),
               ),
             ),

@@ -24,12 +24,10 @@ class NotificationsService {
   final ApiClient _client;
   static const _requestTimeout = Duration(seconds: 12);
 
-  // Reuses /admin/api/notifications (sibling of /mobile); use relative path so
-  // Dio resolves to .../admin/api/notifications (not site root).
   Future<NotificationsResult> listNotifications({int take = 30}) async {
     try {
       final res = await _client.get<Map<String, dynamic>>(
-        '../notifications',
+        '/notifications',
         queryParameters: {'take': take},
       ).timeout(_requestTimeout);
       final data = res.data!;
@@ -54,7 +52,7 @@ class NotificationsService {
   Future<void> markRead({String? id, bool all = false}) async {
     try {
       await _client.post<void>(
-        '../notifications/read',
+        '/notifications/read',
         data: all ? {'all': true} : {'id': id},
       ).timeout(_requestTimeout);
     } on TimeoutException {

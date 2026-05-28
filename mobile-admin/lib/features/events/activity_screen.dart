@@ -25,34 +25,27 @@ class ActivityScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
-        surfaceTintColor: Colors.transparent,
-        scrolledUnderElevation: 1,
-        shadowColor: AppColors.border,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(eventTitle, style: AppTextStyles.titleMedium),
             const Text(
-              'Recent activity',
-              style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w400),
+              'Activity log',
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w400),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () =>
-                ref.invalidate(eventActivityProvider(eventId)),
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            onPressed: () => ref.invalidate(eventActivityProvider(eventId)),
           ),
         ],
       ),
       body: activityAsync.when(
         loading: () => const Center(
-            child: CircularProgressIndicator(
-                color: AppColors.brandAccent, strokeWidth: 2)),
+          child: CircularProgressIndicator(color: AppColors.brandAccent, strokeWidth: 2),
+        ),
         error: (e, _) => ErrorView(
           message: userFacingErrorMessage(e),
           onRetry: () => ref.invalidate(eventActivityProvider(eventId)),
@@ -62,26 +55,22 @@ class ActivityScreen extends ConsumerWidget {
             return const EmptyState(
               icon: Icons.history_rounded,
               title: 'No activity yet',
-              subtitle:
-                  'RSVP updates, invites, and changes will appear here.',
+              subtitle: 'RSVP updates, invites, and changes will appear here.',
             );
           }
 
-          final flatItems = _buildItems(items);
+          final flat = _buildFlat(items);
           return RefreshIndicator(
             color: AppColors.brandAccent,
-            onRefresh: () async =>
-                ref.invalidate(eventActivityProvider(eventId)),
+            onRefresh: () async => ref.invalidate(eventActivityProvider(eventId)),
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
-              itemCount: flatItems.length,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
+              itemCount: flat.length,
               itemBuilder: (_, i) {
-                final row = flatItems[i];
-                if (row is _DateHeader) {
-                  return _DateHeaderTile(label: row.label);
-                }
+                final row = flat[i];
+                if (row is _Header) return _DateTile(label: row.label);
                 final item = row as ActivityItem;
-                final isLast = _isLastBeforeHeader(i, flatItems);
+                final isLast = _isLastBeforeHeader(i, flat);
                 return _ActivityRow(item: item, isLast: isLast);
               },
             ),
@@ -91,14 +80,13 @@ class ActivityScreen extends ConsumerWidget {
     );
   }
 
-  // Interleave date headers into flat list
-  List<dynamic> _buildItems(List<ActivityItem> items) {
+  List<dynamic> _buildFlat(List<ActivityItem> items) {
     final result = <dynamic>[];
     String? lastDate;
     for (final item in items) {
       final dateKey = _dayKey(item.createdAt.toLocal());
       if (dateKey != lastDate) {
-        result.add(_DateHeader(label: _formatDateHeader(item.createdAt.toLocal())));
+        result.add(_Header(label: _formatDate(item.createdAt.toLocal())));
         lastDate = dateKey;
       }
       result.add(item);
@@ -106,15 +94,15 @@ class ActivityScreen extends ConsumerWidget {
     return result;
   }
 
-  bool _isLastBeforeHeader(int flatIndex, List<dynamic> flat) {
-    if (flatIndex >= flat.length - 1) return true;
-    return flat[flatIndex + 1] is _DateHeader;
+  bool _isLastBeforeHeader(int i, List<dynamic> flat) {
+    if (i >= flat.length - 1) return true;
+    return flat[i + 1] is _Header;
   }
 
   String _dayKey(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
-  String _formatDateHeader(DateTime dt) {
+  String _formatDate(DateTime dt) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final d = DateTime(dt.year, dt.month, dt.day);
@@ -126,78 +114,64 @@ class ActivityScreen extends ConsumerWidget {
   }
 }
 
-class _DateHeader {
-  const _DateHeader({required this.label});
+class _Header {
+  const _Header({required this.label});
   final String label;
 }
 
-// ── Date separator ─────────────────────────────────────────────────
-
-class _DateHeaderTile extends StatelessWidget {
-  const _DateHeaderTile({required this.label});
+class _DateTile extends StatelessWidget {
+  const _DateTile({required this.label});
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 10),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 10),
       child: Row(
         children: [
-          Text(
-            label.toUpperCase(),
-            style: AppTextStyles.sectionLabel,
-          ),
+          Text(label.toUpperCase(), style: AppTextStyles.sectionLabel),
           const SizedBox(width: 10),
-          const Expanded(
-            child: Divider(
-                height: 1, color: AppColors.borderLight, thickness: 1),
-          ),
+          const Expanded(child: Divider(height: 1, color: AppColors.border)),
         ],
       ),
     );
   }
 }
 
-// ── Activity row with timeline connector ──────────────────────────
-
 class _ActivityRow extends StatelessWidget {
   const _ActivityRow({required this.item, required this.isLast});
-
   final ActivityItem item;
   final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = _typeStyle(item.type);
+    final (icon, color) = _style(item.type);
 
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Timeline column
+          // Timeline
           SizedBox(
             width: 44,
             child: Column(
               children: [
-                // Icon circle
                 Container(
-                  width: 34,
-                  height: 34,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: color.withValues(alpha: 0.18), width: 1),
+                    border: Border.all(color: color.withValues(alpha: 0.15)),
                   ),
                   child: Icon(icon, size: 16, color: color),
                 ),
-                // Connecting line
                 if (!isLast)
                   Expanded(
                     child: Center(
                       child: Container(
                         width: 1.5,
-                        margin: const EdgeInsets.only(top: 3),
+                        margin: const EdgeInsets.only(top: 4),
                         color: AppColors.borderLight,
                       ),
                     ),
@@ -209,8 +183,7 @@ class _ActivityRow extends StatelessWidget {
           // Content
           Expanded(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                  0, 0, 0, isLast ? 0 : 16),
+              padding: EdgeInsets.fromLTRB(0, 0, 0, isLast ? 0 : 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -227,19 +200,12 @@ class _ActivityRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     item.description,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                      height: 1.4,
-                    ),
+                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _formatTime(item.createdAt),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textMuted,
-                    ),
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 4),
                 ],
@@ -251,32 +217,22 @@ class _ActivityRow extends StatelessWidget {
     );
   }
 
-  (IconData, Color) _typeStyle(String type) {
-    switch (type) {
-      case 'rsvp_attending':
-        return (Icons.check_circle_rounded, AppColors.attending);
-      case 'rsvp_declined':
-        return (Icons.cancel_rounded, AppColors.declined);
-      case 'guest_invited':
-        return (Icons.send_rounded, AppColors.invited);
-      case 'guest_uninvited':
-        return (
-            Icons.remove_circle_outline_rounded, AppColors.textMuted);
-      case 'guest_created':
-        return (Icons.person_add_rounded, AppColors.brandAccent);
-      case 'guest_updated':
-        return (Icons.edit_rounded, AppColors.brandMid);
-      case 'guest_deleted':
-        return (Icons.delete_rounded, AppColors.danger);
-      default:
-        return (Icons.history_rounded, AppColors.textSecondary);
-    }
+  (IconData, Color) _style(String type) {
+    return switch (type) {
+      'rsvp_attending' => (Icons.check_circle_rounded, AppColors.attending),
+      'rsvp_declined' => (Icons.cancel_rounded, AppColors.declined),
+      'guest_invited' => (Icons.send_rounded, AppColors.invited),
+      'guest_uninvited' => (Icons.remove_circle_outline_rounded, AppColors.textMuted),
+      'guest_created' => (Icons.person_add_rounded, AppColors.brandAccent),
+      'guest_updated' => (Icons.edit_rounded, AppColors.brandMid),
+      'guest_deleted' => (Icons.delete_rounded, AppColors.danger),
+      _ => (Icons.history_rounded, AppColors.textSecondary),
+    };
   }
 
   String _formatTime(DateTime dt) {
     final local = dt.toLocal();
-    final now = DateTime.now();
-    final diff = now.difference(local);
+    final diff = DateTime.now().difference(local);
     if (diff.inMinutes < 1) return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';

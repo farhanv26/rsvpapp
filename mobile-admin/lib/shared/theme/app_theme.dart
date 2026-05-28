@@ -1,68 +1,75 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Warm admin palette aligned with the web app: parchment field, deep brown ink, gold accents.
+/// Modern navy + gold palette — premium event admin aesthetic.
 class AppColors {
-  // Brand
-  static const brandDeep = Color(0xFF3D2914);
-  static const brandMid = Color(0xFF5C3D1E);
-  static const brandAccent = Color(0xFFB8923F);
-  static const brandAccentBright = Color(0xFFD4A84B);
-  static const brandAccentLight = Color(0xFFFFF6E8);
-
   // Surfaces
-  static const background = Color(0xFFF4EFE6);
-  static const surface = Color(0xFFFFFBF5);
-  static const surfaceMuted = Color(0xFFEDE6D9);
-  static const surfaceCard = Color(0xFFFFFBF5);
+  static const background = Color(0xFFF5F6FB);
+  static const surface = Color(0xFFFFFFFF);
+  static const surfaceCard = Color(0xFFFFFFFF);
   static const surfaceElevated = Color(0xFFFFFFFF);
-  static const surfaceHighlight = Color(0xFFF0E8DB);
+  static const surfaceMuted = Color(0xFFF0F1F8);
+  static const surfaceHighlight = Color(0xFFE6E9F5);
 
   // Borders
-  static const border = Color(0xFFE0D5C5);
-  static const borderLight = Color(0xFFEDE4D6);
-  static const borderStrong = Color(0xFFC4B5A3);
+  static const border = Color(0xFFE2E5F0);
+  static const borderLight = Color(0xFFEBEDF6);
+  static const borderStrong = Color(0xFFC5CADF);
 
   // Text
-  static const textPrimary = Color(0xFF2C1810);
-  static const textSecondary = Color(0xFF6B5B4F);
-  static const textMuted = Color(0xFF8A7B6E);
-  static const textInverse = Color(0xFFFFFBF5);
-  static const textOnAccent = Color(0xFF2C1810);
+  static const textPrimary = Color(0xFF1A1F3C);
+  static const textSecondary = Color(0xFF6B7194);
+  static const textMuted = Color(0xFF9B9FC0);
+  static const textInverse = Color(0xFFFFFFFF);
+  static const textOnAccent = Color(0xFF1A1F3C);
 
-  // Status
-  static const attending = Color(0xFF1F7A4A);
-  static const attendingBg = Color(0xFFE8F5EE);
-  static const attendingText = Color(0xFF1F7A4A);
+  // Brand (navy)
+  static const brandDeep = Color(0xFF1A1F3C);
+  static const brandMid = Color(0xFF2E3561);
 
-  static const declined = Color(0xFFB42318);
-  static const declinedBg = Color(0xFFFDEBE7);
-  static const declinedText = Color(0xFFB42318);
+  // Accent (gold)
+  static const brandAccent = Color(0xFFF5A623);
+  static const brandAccentBright = Color(0xFFF8B93D);
+  static const brandAccentLight = Color(0xFFFFF8ED);
 
-  static const pending = Color(0xFF9A6B16);
-  static const pendingBg = Color(0xFFFDF6E4);
-  static const pendingText = Color(0xFF9A6B16);
+  // Status — Attending
+  static const attending = Color(0xFF059669);
+  static const attendingBg = Color(0xFFD1FAE5);
+  static const attendingText = Color(0xFF059669);
 
-  static const invited = Color(0xFF2563C6);
-  static const invitedBg = Color(0xFFEEF4FC);
-  static const invitedText = Color(0xFF2563C6);
+  // Status — Declined
+  static const declined = Color(0xFFDC2626);
+  static const declinedBg = Color(0xFFFEE2E2);
+  static const declinedText = Color(0xFFDC2626);
 
-  static const notInvited = Color(0xFF8A7B6E);
-  static const notInvitedBg = Color(0xFFF0EBE3);
+  // Status — Pending
+  static const pending = Color(0xFFD97706);
+  static const pendingBg = Color(0xFFFEF3C7);
+  static const pendingText = Color(0xFFD97706);
 
-  static const danger = Color(0xFFB42318);
-  static const dangerBg = Color(0xFFFDEBE7);
-  static const warning = Color(0xFF9A6B16);
-  static const warningBg = Color(0xFFFDF6E4);
-  static const success = Color(0xFF1F7A4A);
-  static const successBg = Color(0xFFE8F5EE);
+  // Status — Invited
+  static const invited = Color(0xFF3B82F6);
+  static const invitedBg = Color(0xFFEFF6FF);
+  static const invitedText = Color(0xFF3B82F6);
+
+  // Status — Not invited
+  static const notInvited = Color(0xFF9B9FC0);
+  static const notInvitedBg = Color(0xFFF5F6FB);
+
+  // Semantic
+  static const danger = Color(0xFFDC2626);
+  static const dangerBg = Color(0xFFFEE2E2);
+  static const warning = Color(0xFFD97706);
+  static const warningBg = Color(0xFFFEF3C7);
+  static const success = Color(0xFF059669);
+  static const successBg = Color(0xFFD1FAE5);
 }
 
 class AppTextStyles {
   static const sectionLabel = TextStyle(
     fontSize: 10,
     fontWeight: FontWeight.w700,
-    letterSpacing: 1.6,
+    letterSpacing: 1.4,
     color: AppColors.textMuted,
     height: 1.0,
   );
@@ -149,27 +156,33 @@ class AppSpacing {
 }
 
 class AppRadius {
-  static const double sm = 10;
-  static const double md = 14;
-  static const double lg = 18;
-  static const double xl = 22;
-  static const double xxl = 28;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 20;
+  static const double xxl = 24;
   static const double pill = 100;
 }
 
 class AppShadows {
   static List<BoxShadow> get card => [
         BoxShadow(
-          color: AppColors.brandDeep.withValues(alpha: 0.06),
-          offset: const Offset(0, 2),
-          blurRadius: 10,
+          color: AppColors.brandDeep.withValues(alpha: 0.05),
+          offset: const Offset(0, 1),
+          blurRadius: 8,
+        ),
+        BoxShadow(
+          color: AppColors.brandDeep.withValues(alpha: 0.03),
+          offset: const Offset(0, 4),
+          blurRadius: 16,
+          spreadRadius: -2,
         ),
       ];
 
   static List<BoxShadow> get cardLift => [
         BoxShadow(
-          color: AppColors.brandDeep.withValues(alpha: 0.10),
-          offset: const Offset(0, 8),
+          color: AppColors.brandDeep.withValues(alpha: 0.08),
+          offset: const Offset(0, 4),
           blurRadius: 24,
           spreadRadius: -4,
         ),
@@ -177,10 +190,18 @@ class AppShadows {
 
   static List<BoxShadow> get button => [
         BoxShadow(
-          color: AppColors.brandAccent.withValues(alpha: 0.35),
-          offset: const Offset(0, 6),
-          blurRadius: 18,
+          color: AppColors.brandAccent.withValues(alpha: 0.3),
+          offset: const Offset(0, 4),
+          blurRadius: 16,
           spreadRadius: -4,
+        ),
+      ];
+
+  static List<BoxShadow> get bottomNav => [
+        BoxShadow(
+          color: AppColors.brandDeep.withValues(alpha: 0.06),
+          offset: const Offset(0, -1),
+          blurRadius: 0,
         ),
       ];
 }
@@ -193,10 +214,11 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       canvasColor: AppColors.background,
       colorScheme: const ColorScheme.light(
-        primary: AppColors.brandAccent,
-        secondary: AppColors.brandAccentBright,
+        primary: AppColors.brandDeep,
+        secondary: AppColors.brandAccent,
         surface: AppColors.surfaceCard,
-        onPrimary: AppColors.textOnAccent,
+        onPrimary: AppColors.textInverse,
+        onSecondary: AppColors.textOnAccent,
         onSurface: AppColors.textPrimary,
         error: AppColors.danger,
       ),
@@ -210,13 +232,38 @@ class AppTheme {
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.dark,
         ),
-        titleTextStyle: const TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 17,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.3,
-        ),
+        titleTextStyle: AppTextStyles.titleMedium,
         iconTheme: const IconThemeData(color: AppColors.textSecondary, size: 22),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        height: 68,
+        indicatorColor: AppColors.brandAccentLight,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.brandDeep,
+              letterSpacing: 0.1,
+            );
+          }
+          return const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textMuted,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: AppColors.brandDeep, size: 22);
+          }
+          return const IconThemeData(color: AppColors.textMuted, size: 22);
+        }),
       ),
       cardTheme: CardThemeData(
         color: AppColors.surfaceCard,
@@ -246,7 +293,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.brandAccent, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.brandDeep, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -258,7 +305,7 @@ class AppTheme {
         ),
         hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 15),
         labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-        floatingLabelStyle: const TextStyle(color: AppColors.brandMid, fontSize: 13),
+        floatingLabelStyle: const TextStyle(color: AppColors.brandDeep, fontSize: 13, fontWeight: FontWeight.w500),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -282,15 +329,25 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.brandMid,
+          foregroundColor: AppColors.brandDeep,
           textStyle: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: -0.1),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.brandAccent,
+          foregroundColor: AppColors.textOnAccent,
+          elevation: 0,
+          minimumSize: const Size(double.infinity, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceMuted,
         selectedColor: AppColors.brandAccentLight,
         labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
-        secondaryLabelStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+        secondaryLabelStyle: const TextStyle(color: AppColors.brandDeep, fontSize: 12, fontWeight: FontWeight.w600),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         side: const BorderSide(color: AppColors.border),

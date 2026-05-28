@@ -58,7 +58,7 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
     super.dispose();
   }
 
-  void _clearAllFilters() => setState(() {
+  void _clearFilters() => setState(() {
         _statusFilter = 'all';
         _readiness = 'all';
         _followup = false;
@@ -88,7 +88,7 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
           Navigator.pop(ctx);
         },
         onResetAll: () {
-          _clearAllFilters();
+          _clearFilters();
           Navigator.pop(ctx);
         },
       ),
@@ -116,7 +116,7 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add_outlined),
+            icon: const Icon(Icons.person_add_outlined, size: 21),
             tooltip: 'Add guest',
             onPressed: () async {
               final added = await Navigator.push<bool>(
@@ -132,7 +132,7 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
             alignment: Alignment.topRight,
             children: [
               IconButton(
-                icon: const Icon(Icons.tune_rounded),
+                icon: const Icon(Icons.tune_rounded, size: 21),
                 tooltip: 'Filters & sort',
                 onPressed: _openFilterSheet,
               ),
@@ -141,16 +141,19 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                   top: 10,
                   right: 10,
                   child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(color: AppColors.brandAccent, shape: BoxShape.circle),
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: AppColors.brandAccent,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
             ],
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(100),
+          preferredSize: const Size.fromHeight(96),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -186,7 +189,11 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                     final selected = _statusFilter == f.$1;
                     return Padding(
                       padding: const EdgeInsets.only(right: 6),
-                      child: _Chip(label: f.$2, selected: selected, onTap: () => setState(() => _statusFilter = f.$1)),
+                      child: _StatusChip(
+                        label: f.$2,
+                        selected: selected,
+                        onTap: () => setState(() => _statusFilter = f.$1),
+                      ),
                     );
                   }).toList(),
                 ),
@@ -196,7 +203,9 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
         ),
       ),
       body: guestsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.brandAccent)),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AppColors.brandAccent, strokeWidth: 2),
+        ),
         error: (e, _) => ErrorView(
           message: userFacingErrorMessage(e),
           onRetry: () => ref.invalidate(guestsListProvider(_params)),
@@ -218,22 +227,26 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
 
           return Column(
             children: [
+              // Summary bar
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   border: Border(bottom: BorderSide(color: AppColors.border.withValues(alpha: 0.8))),
-                  boxShadow: AppShadows.card,
                 ),
                 child: Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
+                  spacing: 10,
+                  runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       '${guests.length} shown',
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     _SummaryPill(color: AppColors.attending, label: '$attending attending'),
                     _SummaryPill(color: AppColors.declined, label: '$declined declined'),
@@ -241,6 +254,7 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                   ],
                 ),
               ),
+
               Expanded(
                 child: RefreshIndicator(
                   color: AppColors.brandAccent,
@@ -256,8 +270,7 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                       return GuestTile(
                         guest: guest,
                         eventId: widget.eventId,
-                        onMarkInvited: (channel) =>
-                            service.markInvited(widget.eventId, guest.id, channel: channel),
+                        onMarkInvited: (channel) => service.markInvited(widget.eventId, guest.id, channel: channel),
                         onMarkUninvited: () => service.markUninvited(widget.eventId, guest.id),
                         onRecordRsvp: (attending, {count}) => service.recordRsvp(
                           widget.eventId,
@@ -266,8 +279,7 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                           attendingCount: count,
                         ),
                         onDelete: () => service.deleteGuest(widget.eventId, guest.id),
-                        onGetCommsHistory: () =>
-                            service.getCommunicationHistory(widget.eventId, guest.id),
+                        onGetCommsHistory: () => service.getCommunicationHistory(widget.eventId, guest.id),
                         onEdit: () async {
                           final updated = await Navigator.push<bool>(
                             context,
@@ -291,6 +303,8 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
   }
 }
 
+// ── Summary pill ───────────────────────────────────────────────────
+
 class _SummaryPill extends StatelessWidget {
   const _SummaryPill({required this.color, required this.label});
   final Color color;
@@ -299,21 +313,22 @@ class _SummaryPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
       ),
     );
   }
 }
 
-/// Scrollable filters with safe area, reset, apply, and drag-to-dismiss.
+// ── Filter bottom sheet ────────────────────────────────────────────
+
 class _GuestFiltersSheet extends StatefulWidget {
   const _GuestFiltersSheet({
     required this.initialReadiness,
@@ -375,7 +390,6 @@ class _GuestFiltersSheetState extends State<_GuestFiltersSheet> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.close_rounded),
-                    tooltip: 'Close',
                     color: AppColors.textSecondary,
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -388,7 +402,7 @@ class _GuestFiltersSheetState extends State<_GuestFiltersSheet> {
                   ),
                   TextButton(
                     onPressed: widget.onResetAll,
-                    child: const Text('Reset all'),
+                    child: const Text('Reset'),
                   ),
                 ],
               ),
@@ -401,7 +415,7 @@ class _GuestFiltersSheetState extends State<_GuestFiltersSheet> {
                   children: [
                     const Text('READINESS', style: AppTextStyles.sectionLabel),
                     const SizedBox(height: 8),
-                    _filterChipWrap([
+                    _chips([
                       ('all', 'All', _readiness == 'all'),
                       ('ready', 'Ready to send', _readiness == 'ready'),
                       ('missing_contact', 'Missing contact', _readiness == 'missing_contact'),
@@ -411,7 +425,7 @@ class _GuestFiltersSheetState extends State<_GuestFiltersSheet> {
                     const SizedBox(height: 18),
                     const Text('SPECIAL', style: AppTextStyles.sectionLabel),
                     const SizedBox(height: 8),
-                    _filterChipWrap([
+                    _chips([
                       ('__followup__', 'Follow-up only', _followup),
                       ('all_dup', 'Has duplicates', _duplicate == 'has_duplicates'),
                       ('strong_dup', 'Strong duplicates', _duplicate == 'strong'),
@@ -427,9 +441,9 @@ class _GuestFiltersSheetState extends State<_GuestFiltersSheet> {
                       });
                     }),
                     const SizedBox(height: 18),
-                    const Text('SORT', style: AppTextStyles.sectionLabel),
+                    const Text('SORT BY', style: AppTextStyles.sectionLabel),
                     const SizedBox(height: 8),
-                    _filterChipWrap([
+                    _chips([
                       ('name_asc', 'Name A–Z', _sort == 'name_asc'),
                       ('name_desc', 'Name Z–A', _sort == 'name_desc'),
                       ('status', 'By status', _sort == 'status'),
@@ -452,12 +466,12 @@ class _GuestFiltersSheetState extends State<_GuestFiltersSheet> {
                         child: const Text('Close'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       flex: 2,
                       child: FilledButton(
                         onPressed: () => widget.onApply(_readiness, _followup, _duplicate, _sort),
-                        child: const Text('Apply'),
+                        child: const Text('Apply filters'),
                       ),
                     ),
                   ],
@@ -470,54 +484,15 @@ class _GuestFiltersSheetState extends State<_GuestFiltersSheet> {
     );
   }
 
-  Widget _filterChipWrap(List<(String, String, bool)> items, void Function(String) onSelect) {
+  Widget _chips(List<(String, String, bool)> items, void Function(String) onSelect) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: items
-          .map(
-            (item) => _FilterChip(
-              label: item.$2,
-              selected: item.$3,
-              onTap: () => onSelect(item.$1),
-            ),
-          )
-          .toList(),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.brandAccentLight : AppColors.surfaceMuted,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(color: selected ? AppColors.brandAccent : AppColors.border),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: selected ? AppColors.brandMid : AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ),
+      children: items.map((item) => _Chip(
+        label: item.$2,
+        selected: item.$3,
+        onTap: () => onSelect(item.$1),
+      )).toList(),
     );
   }
 }
@@ -533,20 +508,54 @@ class _Chip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? AppColors.brandAccent : AppColors.surfaceCard,
+          color: selected ? AppColors.brandDeep : AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(color: selected ? AppColors.brandAccent : AppColors.border),
+          border: Border.all(
+            color: selected ? AppColors.brandDeep : AppColors.border,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: selected ? AppColors.textOnAccent : AppColors.textSecondary,
-            letterSpacing: 0.1,
+            color: selected ? AppColors.textInverse : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Status chip (app bar bottom) ───────────────────────────────────
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.brandDeep : AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(color: selected ? AppColors.brandDeep : AppColors.border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.textInverse : AppColors.textSecondary,
           ),
         ),
       ),

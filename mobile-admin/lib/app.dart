@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/events_service.dart';
 import 'features/auth/login_screen.dart';
-import 'features/events/events_list_screen.dart';
+import 'features/home/home_screen.dart';
 import 'shared/theme/app_theme.dart';
 
 class RsvpAdminApp extends StatelessWidget {
@@ -15,7 +15,7 @@ class RsvpAdminApp extends StatelessWidget {
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarBrightness: Brightness.light,
       statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: AppColors.background,
+      systemNavigationBarColor: AppColors.surface,
       systemNavigationBarIconBrightness: Brightness.dark,
     ));
     return MaterialApp(
@@ -77,7 +77,7 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
     if (_booting) return const _SplashScreen();
 
     final user = ref.watch(currentUserProvider);
-    return user == null ? const LoginScreen() : const EventsListScreen();
+    return user == null ? const LoginScreen() : const HomeScreen();
   }
 }
 

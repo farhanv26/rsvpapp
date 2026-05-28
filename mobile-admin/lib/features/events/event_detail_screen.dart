@@ -31,7 +31,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _startLoadingWatchdog();
+    _startWatchdog();
   }
 
   @override
@@ -40,7 +40,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     super.dispose();
   }
 
-  void _startLoadingWatchdog() {
+  void _startWatchdog() {
     _loadingTimer?.cancel();
     _showLoadTimeout = false;
     _loadingTimer = Timer(const Duration(seconds: 15), () {
@@ -51,7 +51,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
 
   void _refresh() {
     setState(() => _showLoadTimeout = false);
-    _startLoadingWatchdog();
+    _startWatchdog();
     ref.invalidate(eventDetailProvider(widget.eventId));
     ref.invalidate(eventSectionsProvider(widget.eventId));
   }
@@ -68,6 +68,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
         title: detailAsync.maybeWhen(
           data: (d) => Text(
             d.event.displayName,
@@ -75,11 +77,11 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.titleMedium,
           ),
-          orElse: () => const Text('Event'),
+          orElse: () => const Text('Event', style: AppTextStyles.titleMedium),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.refresh_rounded, size: 20),
             tooltip: 'Refresh',
             onPressed: _refresh,
           ),
@@ -98,7 +100,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
           message: userFacingErrorMessage(e),
           onRetry: _refresh,
         ),
-        data: (detail) => _EventDetailScrollView(
+        data: (detail) => _EventDetailBody(
           eventId: widget.eventId,
           detail: detail,
           onRefresh: _refresh,
@@ -108,63 +110,42 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   }
 }
 
-class _EventDetailScrollView extends ConsumerStatefulWidget {
-  const _EventDetailScrollView({
+// ── Scrollable detail body ─────────────────────────────────────────
+
+class _EventDetailBody extends ConsumerWidget {
+  const _EventDetailBody({
     required this.eventId,
     required this.detail,
     required this.onRefresh,
   });
-
   final String eventId;
   final EventDetail detail;
   final VoidCallback onRefresh;
 
   @override
-  ConsumerState<_EventDetailScrollView> createState() => _EventDetailScrollViewState();
-}
-
-class _EventDetailScrollViewState extends ConsumerState<_EventDetailScrollView> {
-  late final ScrollController _scroll;
-
-  @override
-  void initState() {
-    super.initState();
-    _scroll = ScrollController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) return;
-      _scroll.jumpTo(0);
-    });
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ev = widget.detail.event;
-    final s = widget.detail.stats;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ev = detail.event;
+    final s = detail.stats;
     final baseUrl = ref.watch(apiClientProvider).baseUrl;
     final imageUrl = resolvePublicImageUrl(baseUrl, ev.imagePath);
-    final sectionsAsync = ref.watch(eventSectionsProvider(widget.eventId));
+    final sectionsAsync = ref.watch(eventSectionsProvider(eventId));
 
     return RefreshIndicator(
       color: AppColors.brandAccent,
       backgroundColor: AppColors.surfaceCard,
-      onRefresh: () async => widget.onRefresh(),
+      onRefresh: () async => onRefresh(),
       child: CustomScrollView(
-        controller: _scroll,
-        primary: false,
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         slivers: [
+          // Hero image
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              child: _HeroInviteCard(imageUrl: imageUrl, eventName: ev.displayName),
+              child: _HeroCard(imageUrl: imageUrl, eventName: ev.displayName),
             ),
           ),
+
+          // Meta info
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -175,26 +156,26 @@ class _EventDetailScrollViewState extends ConsumerState<_EventDetailScrollView> 
                     Text(ev.eventSubtitle!, style: AppTextStyles.bodySmall),
                     const SizedBox(height: 12),
                   ],
-                  _MetaRows(ev: ev),
+                  _MetaCard(ev: ev),
+                  const SizedBox(height: 16),
+                  _RsvpProgress(rate: s.responseRate, responded: s.totalResponded, of: s.countedFamilies),
                   const SizedBox(height: 20),
-                  const Text('RSVP PROGRESS', style: AppTextStyles.sectionLabel),
-                  const SizedBox(height: 8),
-                  _RsvpProgressBar(rate: s.responseRate, responded: s.totalResponded, of: s.countedFamilies),
-                  const SizedBox(height: 20),
-                  const Text('QUICK STATS', style: AppTextStyles.sectionLabel),
+                  const Text('STATS', style: AppTextStyles.sectionLabel),
                   const SizedBox(height: 10),
                 ],
               ),
             ),
           ),
+
+          // Stats grid
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 1.22,
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1.1,
               ),
               delegate: SliverChildListDelegate([
                 StatCard(
@@ -218,7 +199,7 @@ class _EventDetailScrollViewState extends ConsumerState<_EventDetailScrollView> 
                 StatCard(
                   label: 'Confirmed',
                   value: '${s.confirmedAttendees}',
-                  sub: 'guests',
+                  sub: 'headcount',
                   color: AppColors.brandAccent,
                   progress: s.totalMaxInvited > 0
                       ? (s.confirmedAttendees / s.totalMaxInvited).clamp(0.0, 1.0)
@@ -230,7 +211,7 @@ class _EventDetailScrollViewState extends ConsumerState<_EventDetailScrollView> 
                   progress: s.totalFamilies > 0 ? s.invitedFamilies / s.totalFamilies : 0,
                 ),
                 StatCard(
-                  label: 'Awaiting RSVP',
+                  label: 'Awaiting',
                   value: '${s.awaitingRsvpCount}',
                   color: AppColors.pending,
                   progress: s.invitedFamilies > 0
@@ -240,47 +221,61 @@ class _EventDetailScrollViewState extends ConsumerState<_EventDetailScrollView> 
               ]),
             ),
           ),
+
+          // Guest summary
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: _GuestSummaryCard(stats: s),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _GuestSummary(stats: s),
             ),
           ),
+
+          // Quick actions
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('QUICK ACTIONS', style: AppTextStyles.sectionLabel),
+                  const Text('MANAGE', style: AppTextStyles.sectionLabel),
                   const SizedBox(height: 10),
-                  _ActionTile(
-                    icon: Icons.people_rounded,
-                    label: 'Guest list',
-                    sub: '${s.totalFamilies} families · manage RSVPs',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => GuestsListScreen(eventId: widget.eventId, eventTitle: ev.displayName),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.people_rounded,
+                          label: 'Guests',
+                          sub: '${s.totalFamilies} families',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GuestsListScreen(eventId: eventId, eventTitle: ev.displayName),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _ActionTile(
-                    icon: Icons.history_rounded,
-                    label: 'Activity',
-                    sub: 'Audit trail and recent actions',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ActivityScreen(eventId: widget.eventId, eventTitle: ev.displayName),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.history_rounded,
+                          label: 'Activity',
+                          sub: 'Audit trail',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ActivityScreen(eventId: eventId, eventTitle: ev.displayName),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
+
+          // Sections
           SliverToBoxAdapter(
             child: sectionsAsync.when(
               loading: () => const Padding(
@@ -295,7 +290,7 @@ class _EventDetailScrollViewState extends ConsumerState<_EventDetailScrollView> 
               ),
               error: (_, __) => const SizedBox.shrink(),
               data: (sec) => Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                 child: _SectionsColumn(sec: sec),
               ),
             ),
@@ -306,8 +301,10 @@ class _EventDetailScrollViewState extends ConsumerState<_EventDetailScrollView> 
   }
 }
 
-class _HeroInviteCard extends StatelessWidget {
-  const _HeroInviteCard({required this.imageUrl, required this.eventName});
+// ── Hero card ──────────────────────────────────────────────────────
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({required this.imageUrl, required this.eventName});
   final String? imageUrl;
   final String eventName;
 
@@ -321,63 +318,56 @@ class _HeroInviteCard extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: AspectRatio(
-        aspectRatio: 16 / 10,
+        aspectRatio: 16 / 9,
         child: imageUrl != null
             ? Image.network(
                 imageUrl!,
                 fit: BoxFit.cover,
-                alignment: Alignment.center,
                 filterQuality: FilterQuality.medium,
-                loadingBuilder: (_, child, progress) {
-                  if (progress == null) return child;
-                  return Container(
-                    color: AppColors.surfaceMuted,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brandAccent),
+                loadingBuilder: (_, child, progress) => progress == null
+                    ? child
+                    : Container(
+                        color: AppColors.surfaceMuted,
+                        child: const Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brandAccent),
+                          ),
+                        ),
                       ),
-                    ),
-                  );
-                },
-                errorBuilder: (_, __, ___) => _fallback(eventName),
+                errorBuilder: (_, __, ___) => _fallback(),
               )
-            : _fallback(eventName),
+            : _fallback(),
       ),
     );
   }
 
-  Widget _fallback(String name) {
-    return Container(
-      color: AppColors.surfaceMuted,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.photo_outlined, size: 36, color: AppColors.textMuted.withValues(alpha: 0.7)),
-          const SizedBox(height: 10),
-          Text(
-            'No invite card image',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.textMuted.withValues(alpha: 0.9)),
+  Widget _fallback() => Container(
+        color: AppColors.surfaceMuted,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.photo_outlined, size: 36, color: AppColors.textMuted),
+              const SizedBox(height: 8),
+              Text(
+                eventName,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textSecondary),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            name,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
 }
 
-class _MetaRows extends StatelessWidget {
-  const _MetaRows({required this.ev});
+// ── Meta card ──────────────────────────────────────────────────────
+
+class _MetaCard extends StatelessWidget {
+  const _MetaCard({required this.ev});
   final EventDetailInfo ev;
 
   @override
@@ -397,7 +387,6 @@ class _MetaRows extends StatelessWidget {
     if (rows.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
@@ -407,30 +396,28 @@ class _MetaRows extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: rows
-            .map(
-              (r) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(r.$1, size: 16, color: AppColors.brandMid),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(r.$2, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.35)),
-                    ),
-                  ],
-                ),
+        children: rows.map((r) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(r.$1, size: 15, color: AppColors.brandAccent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(r.$2, style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary, height: 1.35)),
               ),
-            )
-            .toList(),
+            ],
+          ),
+        )).toList(),
       ),
     );
   }
 }
 
-class _RsvpProgressBar extends StatelessWidget {
-  const _RsvpProgressBar({required this.rate, required this.responded, required this.of});
+// ── RSVP progress ──────────────────────────────────────────────────
+
+class _RsvpProgress extends StatelessWidget {
+  const _RsvpProgress({required this.rate, required this.responded, required this.of});
   final int rate;
   final int responded;
   final int of;
@@ -438,7 +425,7 @@ class _RsvpProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -449,25 +436,36 @@ class _RsvpProgressBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('$rate%', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+              Text(
+                '$rate%',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.5,
+                  height: 1.0,
+                ),
+              ),
               const SizedBox(width: 8),
-              Expanded(
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
                 child: Text(
                   of > 0 ? '$responded of $of families responded' : 'No counted families yet',
-                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: of > 0 ? (rate / 100).clamp(0.0, 1.0) : 0,
-              minHeight: 8,
+              minHeight: 6,
               backgroundColor: AppColors.surfaceMuted,
-              color: AppColors.brandAccent,
+              valueColor: const AlwaysStoppedAnimation(AppColors.brandAccent),
             ),
           ),
         ],
@@ -476,8 +474,10 @@ class _RsvpProgressBar extends StatelessWidget {
   }
 }
 
-class _GuestSummaryCard extends StatelessWidget {
-  const _GuestSummaryCard({required this.stats});
+// ── Guest summary ──────────────────────────────────────────────────
+
+class _GuestSummary extends StatelessWidget {
+  const _GuestSummary({required this.stats});
   final EventStats stats;
 
   @override
@@ -495,52 +495,66 @@ class _GuestSummaryCard extends StatelessWidget {
         children: [
           const Text('GUEST SUMMARY', style: AppTextStyles.sectionLabel),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+          Row(
             children: [
-              _MiniStat(label: 'Families', value: '${stats.totalFamilies}'),
-              _MiniStat(label: 'Headcount', value: '${stats.totalMaxInvited}'),
-              _MiniStat(label: 'Men', value: '${stats.totalMen}'),
-              _MiniStat(label: 'Women', value: '${stats.totalWomen}'),
-              _MiniStat(label: 'Kids', value: '${stats.totalKids}'),
-              _MiniStat(label: 'Not invited', value: '${stats.notInvitedCount}'),
+              Expanded(child: _SummaryMetric(label: 'Families', value: '${stats.totalFamilies}')),
+              _vDivider(),
+              Expanded(child: _SummaryMetric(label: 'Headcount', value: '${stats.totalMaxInvited}')),
+              _vDivider(),
+              Expanded(child: _SummaryMetric(label: 'Men', value: '${stats.totalMen}')),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _SummaryMetric(label: 'Women', value: '${stats.totalWomen}')),
+              _vDivider(),
+              Expanded(child: _SummaryMetric(label: 'Kids', value: '${stats.totalKids}')),
+              _vDivider(),
+              Expanded(child: _SummaryMetric(label: 'Not invited', value: '${stats.notInvitedCount}', muted: true)),
             ],
           ),
         ],
       ),
     );
   }
+
+  Widget _vDivider() => Container(width: 1, height: 32, color: AppColors.borderLight);
 }
 
-class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.label, required this.value});
+class _SummaryMetric extends StatelessWidget {
+  const _SummaryMetric({required this.label, required this.value, this.muted = false});
   final String label;
   final String value;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.brandAccentLight,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.textMuted, letterSpacing: 0.6)),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-        ],
-      ),
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: muted ? AppColors.textMuted : AppColors.textPrimary,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w500),
+        ),
+      ],
     );
   }
 }
 
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
+// ── Quick action tiles ─────────────────────────────────────────────
+
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({
     required this.icon,
     required this.label,
     required this.sub,
@@ -560,7 +574,7 @@ class _ActionTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(color: AppColors.border),
@@ -569,27 +583,25 @@ class _ActionTile extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: AppColors.brandAccentLight,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
+                  color: AppColors.brandDeep,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: AppColors.brandMid),
+                child: Icon(icon, color: AppColors.textInverse, size: 18),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(label, style: AppTextStyles.titleSmall),
-                    const SizedBox(height: 2),
-                    Text(sub, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                    Text(sub, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 18),
             ],
           ),
         ),
@@ -597,6 +609,8 @@ class _ActionTile extends StatelessWidget {
     );
   }
 }
+
+// ── Sections ───────────────────────────────────────────────────────
 
 class _SectionsColumn extends StatelessWidget {
   const _SectionsColumn({required this.sec});
@@ -613,7 +627,7 @@ class _SectionsColumn extends StatelessWidget {
           const SizedBox(height: 20),
         ],
         const Text('FOLLOW-UP', style: AppTextStyles.sectionLabel),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _SectionCard(
           child: SectionStatRow(
             icon: Icons.hourglass_top_rounded,
@@ -624,7 +638,7 @@ class _SectionsColumn extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         const Text('READINESS', style: AppTextStyles.sectionLabel),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _SectionCard(
           child: Column(
             children: [
@@ -640,7 +654,7 @@ class _SectionsColumn extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         const Text('LIST HYGIENE', style: AppTextStyles.sectionLabel),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _SectionCard(
           child: Column(
             children: [
@@ -664,7 +678,7 @@ class _SectionsColumn extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         const Text('COMMUNICATIONS', style: AppTextStyles.sectionLabel),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _SectionCard(
           child: Column(
             children: [
@@ -677,7 +691,12 @@ class _SectionsColumn extends StatelessWidget {
                 color: sec.communications.recentLogs > 0 ? AppColors.brandAccent : null,
               ),
               const _Hairline(),
-              SectionStatRow(icon: Icons.people_outline_rounded, label: 'Guests with history', value: '${sec.communications.guestsWithLogs}', color: AppColors.attending),
+              SectionStatRow(
+                icon: Icons.people_outline_rounded,
+                label: 'Guests with history',
+                value: '${sec.communications.guestsWithLogs}',
+                color: AppColors.attending,
+              ),
             ],
           ),
         ),
@@ -691,18 +710,16 @@ class _SectionCard extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.card,
-      ),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.border),
+          boxShadow: AppShadows.card,
+        ),
+        child: child,
+      );
 }
 
 class _Hairline extends StatelessWidget {
@@ -734,21 +751,21 @@ class _DeadlineAlert extends StatelessWidget {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: fgColor.withValues(alpha: 0.25)),
+        border: Border.all(color: fgColor.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: fgColor),
+          Icon(icon, size: 18, color: fgColor),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: fgColor)),
+                Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fgColor)),
                 if (deadline != null)
                   Text(
                     DateFormat('d MMM yyyy').format(deadline!),
-                    style: TextStyle(fontSize: 12, color: fgColor.withValues(alpha: 0.85)),
+                    style: TextStyle(fontSize: 12, color: fgColor.withValues(alpha: 0.8)),
                   ),
               ],
             ),

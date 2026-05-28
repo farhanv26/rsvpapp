@@ -27,37 +27,37 @@ class EmptyState extends StatelessWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: AppColors.brandAccentLight,
+                color: AppColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: AppColors.brandAccent.withValues(alpha: 0.15)),
+                border: Border.all(color: AppColors.border),
               ),
-              child: Icon(icon, color: AppColors.brandAccent, size: 32),
+              child: Icon(icon, color: AppColors.textMuted, size: 30),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             Text(
               title,
               style: const TextStyle(
-                fontSize: 17,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
                 letterSpacing: -0.2,
               ),
+              textAlign: TextAlign.center,
             ),
             if (subtitle != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 subtitle!,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   color: AppColors.textSecondary,
-                  height: 1.55,
+                  height: 1.5,
                 ),
               ),
             ],
             if (action != null) ...[
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               action!,
             ],
           ],
@@ -91,16 +91,10 @@ class ErrorView extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.dangerBg,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                    color: AppColors.danger.withValues(alpha: 0.15)),
               ),
-              child: const Icon(
-                Icons.wifi_off_rounded,
-                size: 30,
-                color: AppColors.danger,
-              ),
+              child: const Icon(Icons.wifi_off_rounded, size: 28, color: AppColors.danger),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
             const Text(
               'Something went wrong',
               style: TextStyle(
@@ -110,7 +104,7 @@ class ErrorView extends StatelessWidget {
                 letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
@@ -120,45 +114,30 @@ class ErrorView extends StatelessWidget {
                 height: 1.5,
               ),
             ),
-            const SizedBox(height: 24),
-            GestureDetector(
-              onTap: onRetry,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [AppColors.brandMid, Color(0xFF302216)],
-                  ),
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF302216)
-                          .withValues(alpha: 0.25),
-                      offset: const Offset(0, 4),
-                      blurRadius: 12,
-                      spreadRadius: -2,
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.refresh_rounded,
-                        size: 16, color: AppColors.textInverse),
-                    SizedBox(width: 8),
-                    Text(
-                      'Try again',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textInverse,
-                        letterSpacing: -0.1,
+            const SizedBox(height: 20),
+            Material(
+              color: AppColors.brandAccent,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              child: InkWell(
+                onTap: onRetry,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 16, color: AppColors.textOnAccent),
+                      SizedBox(width: 8),
+                      Text(
+                        'Try again',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textOnAccent,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

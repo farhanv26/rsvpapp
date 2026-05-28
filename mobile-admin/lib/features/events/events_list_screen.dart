@@ -9,13 +9,14 @@ import '../../shared/navigation/adaptive_page_route.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/utils/error_message.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../notifications/notifications_screen.dart';
 import 'create_event_screen.dart';
 import 'event_detail_screen.dart';
 import 'widgets/event_card.dart';
 
 class EventsListScreen extends ConsumerWidget {
-  const EventsListScreen({super.key});
+  const EventsListScreen({super.key, this.onNotificationsTap});
+
+  final VoidCallback? onNotificationsTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,11 +27,24 @@ class EventsListScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: eventsAsync.when(
         loading: () => const _LoadingSkeleton(),
-        error: (e, _) => _ErrorBody(
-          message: userFacingErrorMessage(e),
-          onRetry: () => ref.invalidate(eventsListProvider),
+        error: (e, _) => SafeArea(
+          child: Column(
+            children: [
+              _Header(user: user, onNotificationsTap: onNotificationsTap),
+              Expanded(
+                child: ErrorView(
+                  message: userFacingErrorMessage(e),
+                  onRetry: () => ref.invalidate(eventsListProvider),
+                ),
+              ),
+            ],
+          ),
         ),
-        data: (events) => _EventsBody(events: events, user: user, ref: ref),
+        data: (events) => _EventsBody(
+          events: events,
+          user: user,
+          onNotificationsTap: onNotificationsTap,
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -44,7 +58,8 @@ class EventsListScreen extends ConsumerWidget {
         foregroundColor: AppColors.textOnAccent,
         elevation: 0,
         icon: const Icon(Icons.add_rounded, size: 20),
-        label: const Text('New Event', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        label: const Text('New Event', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
       ),
     );
   }
@@ -52,21 +67,25 @@ class EventsListScreen extends ConsumerWidget {
 
 // ── Main body ──────────────────────────────────────────────────────
 
-class _EventsBody extends StatelessWidget {
-  const _EventsBody({required this.events, required this.user, required this.ref});
+class _EventsBody extends ConsumerWidget {
+  const _EventsBody({
+    required this.events,
+    required this.user,
+    this.onNotificationsTap,
+  });
   final List<Event> events;
   final dynamic user;
-  final WidgetRef ref;
+  final VoidCallback? onNotificationsTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
 
     if (events.isEmpty) {
       return SafeArea(
         child: Column(
           children: [
-            _Header(user: user, now: now, ref: ref),
+            _Header(user: user, onNotificationsTap: onNotificationsTap),
             const Expanded(
               child: EmptyState(
                 icon: Icons.event_note_outlined,
@@ -85,10 +104,14 @@ class _EventsBody extends StatelessWidget {
       onRefresh: () async => ref.invalidate(eventsListProvider),
       child: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(child: SafeArea(child: _Header(user: user, now: now, ref: ref))),
-          SliverToBoxAdapter(child: _SummaryHero(events: events)),
+          SliverToBoxAdapter(
+            child: SafeArea(
+              child: _Header(user: user, now: now, onNotificationsTap: onNotificationsTap),
+            ),
+          ),
+          SliverToBoxAdapter(child: _SummaryStrip(events: events)),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
             sliver: SliverList.separated(
               itemCount: events.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -110,73 +133,86 @@ class _EventsBody extends StatelessWidget {
 // ── Header ─────────────────────────────────────────────────────────
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.user, required this.now, required this.ref});
+  const _Header({required this.user, this.now, this.onNotificationsTap});
   final dynamic user;
-  final DateTime now;
-  final WidgetRef ref;
+  final DateTime? now;
+  final VoidCallback? onNotificationsTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final date = now ?? DateTime.now();
+    final unread = ref.watch(notificationsProvider).valueOrNull?.unreadCount ?? 0;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+      padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user != null ? 'Hi, ${user.name.split(' ').first}' : 'Events',
+                  user != null ? 'Hi, ${(user.name as String).split(' ').first}' : 'Events',
                   style: AppTextStyles.titleLarge,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  DateFormat('EEEE, d MMMM').format(now),
-                  style: const TextStyle(fontSize: 13, color: AppColors.textMuted, fontWeight: FontWeight.w400),
+                  DateFormat('EEEE, d MMMM').format(date),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ],
             ),
           ),
-          _NotificationIconButton(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+          if (onNotificationsTap != null)
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined, size: 22),
+                  color: AppColors.textSecondary,
+                  tooltip: 'Notifications',
+                  onPressed: onNotificationsTap,
+                ),
+                if (unread > 0)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: const BoxDecoration(
+                        color: AppColors.declined,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          unread > 9 ? '9+' : '$unread',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, size: 20),
-            tooltip: 'Sign out',
-            onPressed: () => _confirmLogout(context, ref),
-          ),
         ],
       ),
     );
-  }
-
-  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text('You will be returned to the login screen.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Sign out'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) await ref.read(currentUserProvider.notifier).logout();
   }
 }
 
-// ── Summary hero card ──────────────────────────────────────────────
+// ── Summary strip ──────────────────────────────────────────────────
 
-class _SummaryHero extends StatelessWidget {
-  const _SummaryHero({required this.events});
+class _SummaryStrip extends StatelessWidget {
+  const _SummaryStrip({required this.events});
   final List<Event> events;
 
   @override
@@ -195,151 +231,105 @@ class _SummaryHero extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.brandDeep,
-              AppColors.brandDeep.withValues(alpha: 0.88),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.brandAccent.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          children: [
-            _HeroStat(value: '${events.length}', label: 'Events', icon: Icons.event_rounded),
-            _Divider(),
-            _HeroStat(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Row(
+        children: [
+          Expanded(child: _StatPill(value: '${events.length}', label: 'Total', icon: Icons.event_rounded)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _StatPill(
               value: '$upcoming',
               label: 'Upcoming',
               icon: Icons.upcoming_rounded,
-              accent: upcoming > 0,
+              highlight: upcoming > 0,
             ),
-            _Divider(),
-            _HeroStat(value: '$totalGuests', label: 'Guests', icon: Icons.people_outline_rounded),
-            if (todayCount > 0) ...[
-              _Divider(),
-              _HeroStat(
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: _StatPill(value: '$totalGuests', label: 'Guests', icon: Icons.people_outline_rounded)),
+          if (todayCount > 0) ...[
+            const SizedBox(width: 10),
+            Expanded(
+              child: _StatPill(
                 value: '$todayCount',
                 label: 'Today',
                 icon: Icons.today_rounded,
-                accent: true,
-                accentColor: AppColors.danger,
+                highlight: true,
+                dangerHighlight: true,
               ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroStat extends StatelessWidget {
-  const _HeroStat({
-    required this.value,
-    required this.label,
-    required this.icon,
-    this.accent = false,
-    this.accentColor,
-  });
-  final String value;
-  final String label;
-  final IconData icon;
-  final bool accent;
-  final Color? accentColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = accent ? (accentColor ?? AppColors.brandAccentBright) : AppColors.textInverse;
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, size: 14, color: color.withValues(alpha: 0.6)),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color, letterSpacing: -0.5, height: 1.0),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-              color: color.withValues(alpha: 0.55),
-              letterSpacing: 0.8,
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _Divider extends StatelessWidget {
+class _StatPill extends StatelessWidget {
+  const _StatPill({
+    required this.value,
+    required this.label,
+    required this.icon,
+    this.highlight = false,
+    this.dangerHighlight = false,
+  });
+  final String value;
+  final String label;
+  final IconData icon;
+  final bool highlight;
+  final bool dangerHighlight;
+
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.18));
-  }
-}
+    final Color accent = dangerHighlight
+        ? AppColors.declined
+        : highlight
+            ? AppColors.brandAccent
+            : AppColors.textSecondary;
+    final Color bg = dangerHighlight
+        ? AppColors.declinedBg
+        : highlight
+            ? AppColors.brandAccentLight
+            : AppColors.surfaceMuted;
 
-// ── Notification badge button ──────────────────────────────────────
-
-class _NotificationIconButton extends ConsumerWidget {
-  const _NotificationIconButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(notificationsProvider).valueOrNull?.unreadCount ?? 0;
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined),
-          tooltip: 'Notifications',
-          onPressed: onTap,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: (dangerHighlight
+                  ? AppColors.declined
+                  : highlight
+                      ? AppColors.brandAccent
+                      : AppColors.border)
+              .withValues(alpha: 0.3),
         ),
-        if (unread > 0)
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Container(
-              width: 16,
-              height: 16,
-              decoration: const BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
-              child: Center(
-                child: Text(
-                  unread > 9 ? '9+' : '$unread',
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
-                ),
-              ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 14, color: accent.withValues(alpha: 0.7)),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: accent,
+              letterSpacing: -0.3,
+              height: 1.0,
             ),
           ),
-      ],
-    );
-  }
-}
-
-// ── Error body ─────────────────────────────────────────────────────
-
-class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({required this.message, required this.onRetry});
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          Expanded(child: ErrorView(message: message, onRetry: onRetry)),
+          const SizedBox(height: 3),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              color: accent.withValues(alpha: 0.65),
+              letterSpacing: 0.6,
+            ),
+          ),
         ],
       ),
     );
@@ -358,7 +348,7 @@ class _LoadingSkeleton extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 80, 16, 0),
         children: [
-          const _ShimmerBox(height: 88, radius: AppRadius.lg),
+          const _ShimmerRow(4),
           const SizedBox(height: 20),
           ...List.generate(
             4,
@@ -368,6 +358,26 @@ class _LoadingSkeleton extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ShimmerRow extends StatelessWidget {
+  const _ShimmerRow(this.count);
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(
+        count,
+        (i) => Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(left: i == 0 ? 0 : 10),
+            child: const _ShimmerBox(height: 70, radius: AppRadius.md),
+          ),
+        ),
       ),
     );
   }
@@ -427,8 +437,11 @@ class _ShimmerBoxState extends State<_ShimmerBox> with SingleTickerProviderState
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.3, end: 0.6).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
+      ..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -447,7 +460,7 @@ class _ShimmerBoxState extends State<_ShimmerBox> with SingleTickerProviderState
           width: w,
           height: widget.height,
           decoration: BoxDecoration(
-            color: AppColors.surfaceHighlight.withValues(alpha: _anim.value + 0.3),
+            color: Color.lerp(AppColors.surfaceMuted, AppColors.surfaceHighlight, _anim.value),
             borderRadius: BorderRadius.circular(widget.radius),
           ),
         ),

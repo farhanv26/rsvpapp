@@ -22,6 +22,8 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final valueColor = color ?? AppColors.textPrimary;
+    final accentBg = color != null ? color!.withValues(alpha: 0.07) : AppColors.surfaceCard;
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
@@ -29,25 +31,27 @@ class StatCard extends StatelessWidget {
         border: Border.all(color: AppColors.border),
         boxShadow: AppShadows.card,
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Padding(
+            child: Container(
+              color: accentBg,
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, size: 16, color: valueColor.withValues(alpha: 0.5)),
+                    Icon(icon, size: 15, color: valueColor.withValues(alpha: 0.55)),
                     const SizedBox(height: 6),
                   ],
                   Text(
                     value,
                     style: AppTextStyles.statValue.copyWith(color: valueColor),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(label.toUpperCase(), style: AppTextStyles.statLabel),
                   if (sub != null) ...[
                     const SizedBox(height: 2),
@@ -61,19 +65,16 @@ class StatCard extends StatelessWidget {
             ),
           ),
           if (progress != null)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppRadius.md)),
-              child: SizedBox(
-                height: 3,
-                child: LinearProgressIndicator(
-                  value: progress!.clamp(0.0, 1.0),
-                  backgroundColor: valueColor.withValues(alpha: 0.08),
-                  valueColor: AlwaysStoppedAnimation(valueColor.withValues(alpha: 0.6)),
-                ),
+            SizedBox(
+              height: 3,
+              child: LinearProgressIndicator(
+                value: progress!.clamp(0.0, 1.0),
+                backgroundColor: valueColor.withValues(alpha: 0.1),
+                valueColor: AlwaysStoppedAnimation(valueColor.withValues(alpha: 0.55)),
               ),
             )
           else
-            const SizedBox(height: 12),
+            const SizedBox(height: 1),
         ],
       ),
     );

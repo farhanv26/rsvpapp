@@ -13,7 +13,7 @@ class GuestEditScreen extends ConsumerStatefulWidget {
   });
 
   final String eventId;
-  final Guest? guest; // null = create mode
+  final Guest? guest;
 
   @override
   ConsumerState<GuestEditScreen> createState() => _GuestEditScreenState();
@@ -54,13 +54,9 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
 
   @override
   void dispose() {
-    _name.dispose();
-    _phone.dispose();
-    _phoneCode.dispose();
-    _email.dispose();
-    _group.dispose();
-    _table.dispose();
-    _notes.dispose();
+    for (final c in [_name, _phone, _phoneCode, _email, _group, _table, _notes]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -71,10 +67,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
       setState(() => _error = 'Add at least one person (men, women, or kids).');
       return;
     }
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+    setState(() { _saving = true; _error = null; });
 
     final data = <String, dynamic>{
       'guestName': _name.text.trim(),
@@ -83,8 +76,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
       'kidsCount': _kids,
       'maxGuests': party,
       if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
-      if (_phoneCode.text.trim().isNotEmpty)
-        'phoneCountryCode': _phoneCode.text.trim(),
+      if (_phoneCode.text.trim().isNotEmpty) 'phoneCountryCode': _phoneCode.text.trim(),
       if (_email.text.trim().isNotEmpty) 'email': _email.text.trim(),
       if (_group.text.trim().isNotEmpty) 'group': _group.text.trim(),
       if (_table.text.trim().isNotEmpty) 'tableName': _table.text.trim(),
@@ -108,6 +100,10 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final initial = widget.guest?.guestName.isNotEmpty == true
+        ? widget.guest!.guestName[0].toUpperCase()
+        : null;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -123,15 +119,15 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.brandAccent),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brandAccent),
                   )
                 : const Text(
                     'Save',
                     style: TextStyle(
-                        color: AppColors.brandAccent,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15),
+                      color: AppColors.brandAccent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
                   ),
           ),
         ],
@@ -139,11 +135,36 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 48),
           children: [
+            // Avatar header
+            if (_isEditing && initial != null) ...[
+              Center(
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppColors.brandDeep,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Center(
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textInverse,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             if (_error != null) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.dangerBg,
                   borderRadius: BorderRadius.circular(AppRadius.md),
@@ -154,15 +175,15 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
                     const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
                     const SizedBox(width: 10),
                     Expanded(
-                        child: Text(_error!,
-                            style: const TextStyle(color: AppColors.danger, fontSize: 14))),
+                      child: Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
             ],
 
-            _sectionLabel('Name'),
+            _label('Name'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _name,
@@ -171,39 +192,31 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
                 hintText: 'Guest name',
                 prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
               ),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Name is required' : null,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
             ),
             const SizedBox(height: 20),
 
-            _sectionLabel('Guest count'),
+            _label('Guest count'),
             const SizedBox(height: 8),
             _CountCard(
               men: _men,
               women: _women,
               kids: _kids,
-              onChanged: (m, w, k) => setState(() {
-                _men = m;
-                _women = w;
-                _kids = k;
-              }),
+              onChanged: (m, w, k) => setState(() { _men = m; _women = w; _kids = k; }),
             ),
             const SizedBox(height: 20),
 
-            _sectionLabel('Contact'),
+            _label('Contact'),
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  width: 90,
+                  width: 88,
                   child: TextFormField(
                     controller: _phoneCode,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      hintText: '+1',
-                      labelText: 'Code',
-                    ),
+                    decoration: const InputDecoration(hintText: '+1', labelText: 'Code'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -219,7 +232,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             TextFormField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
@@ -230,7 +243,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
             ),
             const SizedBox(height: 20),
 
-            _sectionLabel('Organisation'),
+            _label('Organisation'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _group,
@@ -239,7 +252,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
                 prefixIcon: Icon(Icons.label_outline_rounded, size: 20),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             TextFormField(
               controller: _table,
               decoration: const InputDecoration(
@@ -249,7 +262,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
             ),
             const SizedBox(height: 20),
 
-            _sectionLabel('Notes'),
+            _label('Notes'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _notes,
@@ -265,9 +278,7 @@ class _GuestEditScreenState extends ConsumerState<GuestEditScreen> {
     );
   }
 
-  Widget _sectionLabel(String text) {
-    return Text(text.toUpperCase(), style: AppTextStyles.sectionLabel);
-  }
+  Widget _label(String text) => Text(text.toUpperCase(), style: AppTextStyles.sectionLabel);
 }
 
 class _CountCard extends StatelessWidget {
@@ -277,16 +288,14 @@ class _CountCard extends StatelessWidget {
     required this.kids,
     required this.onChanged,
   });
-
   final int men;
   final int women;
   final int kids;
-  final void Function(int men, int women, int kids) onChanged;
+  final void Function(int, int, int) onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -331,7 +340,6 @@ class _CountRow extends StatelessWidget {
     required this.onInc,
     this.onDec,
   });
-
   final IconData icon;
   final String label;
   final int value;
@@ -341,30 +349,27 @@ class _CountRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           Icon(icon, size: 18, color: AppColors.textSecondary),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textSecondary)),
+            child: Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
           ),
           _StepBtn(icon: Icons.remove, onTap: onDec),
-          const SizedBox(width: 16),
           SizedBox(
-            width: 24,
+            width: 36,
             child: Text(
               '$value',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary),
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
-          const SizedBox(width: 16),
           _StepBtn(icon: Icons.add, onTap: onInc),
         ],
       ),
@@ -382,18 +387,19 @@ class _StepBtn extends StatelessWidget {
     final enabled = onTap != null;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: enabled ? AppColors.brandAccentLight : AppColors.surfaceMuted,
+          color: enabled ? AppColors.brandDeep : AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-              color: enabled ? AppColors.borderStrong : AppColors.borderLight),
         ),
-        child: Icon(icon,
-            size: 16,
-            color: enabled ? AppColors.brandAccent : AppColors.textMuted),
+        child: Icon(
+          icon,
+          size: 16,
+          color: enabled ? AppColors.textInverse : AppColors.textMuted,
+        ),
       ),
     );
   }
