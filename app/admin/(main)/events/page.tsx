@@ -61,6 +61,13 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
       maxGuests: number;
       respondedAt: Date | null;
       invitedAt: Date | null;
+      menCount: number;
+      womenCount: number;
+      kidsCount: number;
+      excludedGuestCount: number;
+      excludedMenCount: number;
+      excludedWomenCount: number;
+      excludedKidsCount: number;
     }>;
   }> = [];
   let loadError: null | { message: string; stack?: string } = null;
@@ -98,6 +105,13 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
             maxGuests: true,
             respondedAt: true,
             invitedAt: true,
+            menCount: true,
+            womenCount: true,
+            kidsCount: true,
+            excludedGuestCount: true,
+            excludedMenCount: true,
+            excludedWomenCount: true,
+            excludedKidsCount: true,
           },
         },
       },
@@ -425,12 +439,28 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
               let declinedFamilies = 0;
               let confirmedAttendees = 0;
               let pendingFamilies = 0;
+              let countedGuestsLength = guests.length;
 
               try {
-                responded = guests.filter((g) => Boolean(g.respondedAt)).length;
-                attendingFamilies = guests.filter((g) => g.attending === true).length;
-                declinedFamilies = guests.filter((g) => g.attending === false).length;
-                confirmedAttendees = guests.reduce(
+                const guestEffectiveTotal = (g: (typeof guests)[number]) => {
+                  const excMen = g.excludedMenCount ?? 0;
+                  const excWomen = g.excludedWomenCount ?? 0;
+                  const excKids = g.excludedKidsCount ?? 0;
+                  const catSum = excMen + excWomen + excKids;
+                  const rawMen = g.menCount ?? 0;
+                  const rawWomen = g.womenCount ?? 0;
+                  const rawKids = g.kidsCount ?? 0;
+                  const rawTotal = rawMen + rawWomen + rawKids > 0 ? rawMen + rawWomen + rawKids : g.maxGuests;
+                  if (catSum > 0) return Math.max(rawMen - excMen, 0) + Math.max(rawWomen - excWomen, 0) + Math.max(rawKids - excKids, 0);
+                  const legacyExcluded = g.excludedGuestCount ?? 0;
+                  return Math.max(rawTotal - legacyExcluded, 0);
+                };
+                const countedGuests = guests.filter((g) => guestEffectiveTotal(g) > 0);
+                countedGuestsLength = countedGuests.length;
+                responded = countedGuests.filter((g) => Boolean(g.respondedAt)).length;
+                attendingFamilies = countedGuests.filter((g) => g.attending === true).length;
+                declinedFamilies = countedGuests.filter((g) => g.attending === false).length;
+                confirmedAttendees = countedGuests.reduce(
                   (sum, g) =>
                     sum +
                     (typeof g.attendingCount === "number" && Number.isFinite(g.attendingCount)
@@ -438,7 +468,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                       : 0),
                   0,
                 );
-                pendingFamilies = Math.max(0, guests.length - responded);
+                pendingFamilies = Math.max(0, countedGuests.length - responded);
                 console.info("[admin/events] event stats generated", {
                   eventId: event.id,
                   guests: guests.length,
@@ -452,7 +482,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                 console.error("[admin/events] failed generating event stats", { eventId: event.id, error: e });
               }
 
-              const rsvpRate = guests.length > 0 ? responded / guests.length : 0;
+              const rsvpRate = countedGuestsLength > 0 ? responded / countedGuestsLength : 0;
 
               return (
                 <article
@@ -524,12 +554,12 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                     )}
 
                     {/* RSVP progress bar */}
-                    {guests.length > 0 ? (
+                    {countedGuestsLength > 0 ? (
                       <div className="mt-4">
                         <div className="flex items-center justify-between text-xs text-zinc-500">
                           <span>Response rate</span>
                           <span className="tabular-nums font-medium">
-                            {responded}&thinsp;/&thinsp;{guests.length}
+                            {responded}&thinsp;/&thinsp;{countedGuestsLength}
                           </span>
                         </div>
                         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#ece5d6]">
