@@ -65,20 +65,31 @@ function parsePerCategoryExclusionFromForm(
   };
 }
 
-function parseItineraryField(formData: FormData): { time: string; title: string; description?: string | null }[] | null {
+function parseItineraryField(
+  formData: FormData,
+): { startTime?: string; time?: string; endTime?: string; title: string; icon?: string; description?: string | null }[] | null {
   const raw = formData.get("itinerary");
   if (!raw || typeof raw !== "string") return null;
   try {
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) return null;
     return arr
-      .filter((x) => x && typeof x.time === "string" && typeof x.title === "string")
+      .filter(
+        (x) =>
+          x &&
+          typeof x.title === "string" &&
+          // accept either new startTime field or legacy time field
+          (typeof x.startTime === "string" || typeof x.time === "string"),
+      )
       .map((x) => ({
-        time: String(x.time).trim(),
+        startTime: x.startTime ? String(x.startTime).trim() : undefined,
+        time: x.time ? String(x.time).trim() : undefined,
+        endTime: x.endTime ? String(x.endTime).trim() : undefined,
         title: String(x.title).trim(),
+        icon: x.icon ? String(x.icon).trim() : undefined,
         description: x.description ? String(x.description).trim() : null,
       }))
-      .filter((x) => x.time && x.title);
+      .filter((x) => (x.startTime || x.time) && x.title);
   } catch {
     return null;
   }
@@ -1685,6 +1696,49 @@ export async function triggerGuestSendAction(
       channel === "whatsapp"
         ? "WhatsApp message prepared / opened"
         : "Message / iMessage compose opened",
+    success: true,
+  });
+  revalidatePath(`/admin/events/${eventId}`);
+  return { ok: true as const };
+}
+
+export async function markGuestEventReminderSentAction(
+  eventId: string,
+  guestId: string,
+  channel: "whatsapp" | "imessage",
+) {
+  const { admin } = await ensureEventAccess(eventId, "manage");
+  const guest = await prisma.guest.findFirst({
+    where: { id: guestId, eventId, deletedAt: null },
+    select: { id: true, guestName: true, attending: true },
+  });
+  if (!guest) throw new Error("Guest not found for this event.");
+  if (!guest.attending) throw new Error("Guest is not marked as attending.");
+
+  await logAuditActivity({
+    eventId,
+    userId: admin.id,
+    userName: admin.name,
+    actionType: channel === "whatsapp" ? "communication_whatsapp_prepared" : "communication_imessage_prepared",
+    entityType: "Guest",
+    entityId: guest.id,
+    entityName: guest.guestName,
+    message:
+      channel === "whatsapp"
+        ? `${admin.name} sent an event reminder via WhatsApp to "${guest.guestName}".`
+        : `${admin.name} sent an event reminder via Message to "${guest.guestName}".`,
+  });
+  await logGuestCommunication({
+    eventId,
+    guestId: guest.id,
+    userId: admin.id,
+    actorName: admin.name,
+    channel: channel === "whatsapp" ? "whatsapp" : "imessage",
+    actionKey: "event_reminder_sent",
+    label:
+      channel === "whatsapp"
+        ? "Event reminder sent via WhatsApp"
+        : "Event reminder sent via Message / iMessage",
     success: true,
   });
   revalidatePath(`/admin/events/${eventId}`);

@@ -12,10 +12,18 @@ class GuestsListScreen extends ConsumerStatefulWidget {
     super.key,
     required this.eventId,
     required this.eventTitle,
+    this.initialStatusFilter = 'all',
+    this.initialReadiness = 'all',
+    this.initialFollowup = false,
+    this.initialDuplicate = 'all',
   });
 
   final String eventId;
   final String eventTitle;
+  final String initialStatusFilter;
+  final String initialReadiness;
+  final bool initialFollowup;
+  final String initialDuplicate;
 
   @override
   ConsumerState<GuestsListScreen> createState() => _GuestsListScreenState();
@@ -24,11 +32,20 @@ class GuestsListScreen extends ConsumerStatefulWidget {
 class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
   final _searchCtrl = TextEditingController();
   String _query = '';
-  String _statusFilter = 'all';
-  String _readiness = 'all';
-  bool _followup = false;
+  late String _statusFilter;
+  late String _readiness;
+  late bool _followup;
   String _duplicate = 'all';
   String _sort = 'name_asc';
+
+  @override
+  void initState() {
+    super.initState();
+    _statusFilter = widget.initialStatusFilter;
+    _readiness = widget.initialReadiness;
+    _followup = widget.initialFollowup;
+    _duplicate = widget.initialDuplicate;
+  }
 
   static const _statusFilters = [
     ('all', 'All'),
@@ -261,35 +278,39 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                   backgroundColor: AppColors.surfaceCard,
                   onRefresh: () async => ref.invalidate(guestsListProvider(_params)),
                   child: ListView.separated(
-                    padding: EdgeInsets.fromLTRB(12, 12, 12, 80 + bottomInset),
+                    padding: EdgeInsets.fromLTRB(10, 8, 10, 80 + bottomInset),
                     itemCount: guests.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, __) => const SizedBox(height: 5),
                     itemBuilder: (context, i) {
                       final guest = guests[i];
                       final service = ref.read(guestsServiceProvider);
-                      return GuestTile(
+                      return GuestCompactRow(
                         guest: guest,
-                        eventId: widget.eventId,
-                        onMarkInvited: (channel) => service.markInvited(widget.eventId, guest.id, channel: channel),
-                        onMarkUninvited: () => service.markUninvited(widget.eventId, guest.id),
-                        onRecordRsvp: (attending, {count}) => service.recordRsvp(
-                          widget.eventId,
-                          guest.id,
-                          attending: attending,
-                          attendingCount: count,
+                        onTap: () => showGuestDetailSheet(
+                          context,
+                          guest: guest,
+                          eventId: widget.eventId,
+                          onMarkInvited: (channel) => service.markInvited(widget.eventId, guest.id, channel: channel),
+                          onMarkUninvited: () => service.markUninvited(widget.eventId, guest.id),
+                          onRecordRsvp: (attending, {count}) => service.recordRsvp(
+                            widget.eventId,
+                            guest.id,
+                            attending: attending,
+                            attendingCount: count,
+                          ),
+                          onDelete: () => service.deleteGuest(widget.eventId, guest.id),
+                          onGetCommsHistory: () => service.getCommunicationHistory(widget.eventId, guest.id),
+                          onEdit: () async {
+                            final updated = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => GuestEditScreen(eventId: widget.eventId, guest: guest),
+                              ),
+                            );
+                            if (updated == true) ref.invalidate(guestsListProvider(_params));
+                          },
+                          onRefresh: () => ref.invalidate(guestsListProvider(_params)),
                         ),
-                        onDelete: () => service.deleteGuest(widget.eventId, guest.id),
-                        onGetCommsHistory: () => service.getCommunicationHistory(widget.eventId, guest.id),
-                        onEdit: () async {
-                          final updated = await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => GuestEditScreen(eventId: widget.eventId, guest: guest),
-                            ),
-                          );
-                          if (updated == true) ref.invalidate(guestsListProvider(_params));
-                        },
-                        onRefresh: () => ref.invalidate(guestsListProvider(_params)),
                       );
                     },
                   ),

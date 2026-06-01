@@ -173,7 +173,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  const [commLogsForHints, commTotalLogs, commDistinctGuests, commWeekLogs] = await Promise.all([
+  const [commLogsForHints, commTotalLogs, commDistinctGuests, commWeekLogs, eventReminderLogs] = await Promise.all([
     prisma.guestCommunicationLog.findMany({
       where: { eventId: event.id },
       orderBy: { createdAt: "desc" },
@@ -188,7 +188,13 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     prisma.guestCommunicationLog.count({
       where: { eventId: event.id, createdAt: { gte: weekAgo } },
     }),
+    prisma.guestCommunicationLog.findMany({
+      where: { eventId: event.id, actionKey: "event_reminder_sent" },
+      select: { guestId: true },
+      distinct: ["guestId"],
+    }),
   ]);
+  const eventReminderSentGuestIds: string[] = eventReminderLogs.map((r) => r.guestId);
   const communicationLastByGuest: Record<string, { channel: string; at: string }> = {};
   for (const row of commLogsForHints) {
     if (communicationLastByGuest[row.guestId]) continue;
@@ -699,6 +705,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             siteUrl={getPublicSiteUrl()}
             inviteCardEvent={inviteCardEvent}
             communicationLastByGuest={communicationLastByGuest}
+            hasItinerary={Array.isArray(event.itinerary) && (event.itinerary as unknown[]).length > 0}
+            eventReminderSentGuestIds={eventReminderSentGuestIds}
           />
         </CollapsibleSection>
 

@@ -45,9 +45,11 @@ import {
 } from "@/lib/phone";
 import {
   buildGuestWhatsAppInviteMessage,
+  buildGuestEventReminderMessage,
   getSmsInviteUrlForGuest,
   getWhatsAppInviteUrlForGuest,
 } from "@/lib/whatsapp";
+import { markGuestEventReminderSentAction } from "@/app/admin/events/actions";
 import { CommunicationPreviewModal } from "@/components/admin/communication-preview-modal";
 import { GuestCommunicationHistoryModal } from "@/components/admin/guest-communication-history-modal";
 import { GuestInviteCardPreviewModal } from "@/components/admin/guest-invite-card-preview-modal";
@@ -125,6 +127,10 @@ type Props = {
   inviteCardEvent: InviteCardEventInput;
   /** Latest communication log per guest (from server) for subtle table hints */
   communicationLastByGuest?: Record<string, { channel: string; at: string }>;
+  /** Whether this event has any itinerary items — affects wording of the reminder message */
+  hasItinerary?: boolean;
+  /** Guest IDs who have already been sent an event reminder (from communication log) */
+  eventReminderSentGuestIds?: string[];
 };
 
 function guestPrimaryStatus(g: GuestPanelGuest): "attending" | "declined" | "invited" | "not_invited" {
@@ -322,6 +328,7 @@ function buildGuestRowBundle(
   eventCoupleNames: string | null | undefined,
   inviteMessageIntro: string | null | undefined,
   inviteMessageLineOverride: string | null | undefined,
+  hasItinerary: boolean,
 ) {
   const link = guestRsvpUrl(siteUrl, guest.token);
   const inviteMessage = buildGuestWhatsAppInviteMessage({
@@ -334,16 +341,27 @@ function buildGuestRowBundle(
     customIntroLine: inviteMessageIntro,
     customLineOverride: inviteMessageLineOverride,
   });
-  const whatsappDirectUrl = getWhatsAppInviteUrlForGuest(
-    guest.phone,
-    inviteMessage,
-    guest.phoneCountryCode,
-  );
-  const messageDirectUrl = getSmsInviteUrlForGuest(guest.phone, inviteMessage, guest.phoneCountryCode);
+
+  const reminderMessage = buildGuestEventReminderMessage({
+    guestId: guest.id,
+    greeting: guest.greeting,
+    guestName: guest.guestName,
+    eventTitle,
+    coupleNames: eventCoupleNames,
+    rsvpLink: link,
+    hasItinerary,
+  });
+
   const st = guestPrimaryStatus(guest);
+  // Attending guests get the reminder message; everyone else gets the invite message.
+  const activeMessage = st === "attending" ? reminderMessage : inviteMessage;
+
+  const whatsappDirectUrl = getWhatsAppInviteUrlForGuest(guest.phone, activeMessage, guest.phoneCountryCode);
+  const messageDirectUrl = getSmsInviteUrlForGuest(guest.phone, activeMessage, guest.phoneCountryCode);
+
   const readiness = getGuestReadiness(guest);
   const statusText = statusLabelWithCount(guest);
-  return { link, inviteMessage, whatsappDirectUrl, messageDirectUrl, st, readiness, statusText };
+  return { link, inviteMessage, reminderMessage, whatsappDirectUrl, messageDirectUrl, st, readiness, statusText };
 }
 
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -412,6 +430,8 @@ export function EventGuestsPanel({
   siteUrl,
   inviteCardEvent,
   communicationLastByGuest = {},
+  hasItinerary = false,
+  eventReminderSentGuestIds = [],
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -443,6 +463,12 @@ export function EventGuestsPanel({
   const [ownershipPendingGuestId, setOwnershipPendingGuestId] = useState<string | null>(null);
   const [emailSentGuestId, setEmailSentGuestId] = useState<string | null>(null);
   const [messageSentGuestId, setMessageSentGuestId] = useState<string | null>(null);
+  const [reminderSentGuestIds, setReminderSentGuestIds] = useState<Set<string>>(new Set());
+  // Merge server-side reminder history with optimistic local state
+  const reminderSentSet = useMemo(
+    () => new Set([...eventReminderSentGuestIds, ...reminderSentGuestIds]),
+    [eventReminderSentGuestIds, reminderSentGuestIds],
+  );
   const [bulkEmailStatus, setBulkEmailStatus] = useState<string | null>(null);
   const [sendInvitesOpen, setSendInvitesOpen] = useState(false);
   const [sendInvitesNonce, setSendInvitesNonce] = useState(0);
@@ -769,9 +795,10 @@ export function EventGuestsPanel({
           eventCoupleNames,
           inviteMessageIntro,
           inviteMessageLineOverride,
+          hasItinerary,
         ),
       })),
-    [filtered, siteUrl, eventTitle, eventCoupleNames, inviteMessageIntro, inviteMessageLineOverride],
+    [filtered, siteUrl, eventTitle, eventCoupleNames, inviteMessageIntro, inviteMessageLineOverride, hasItinerary],
   );
 
   const activeFilterCount = useMemo(() => {
@@ -2056,6 +2083,9 @@ export function EventGuestsPanel({
                               Reminder {formatDate(guest.lastReminderAt)}
                             </p>
                           ) : null}
+                          {st === "attending" && reminderSentSet.has(guest.id) ? (
+                            <p className="text-[10px] font-medium text-emerald-600">Reminder sent</p>
+                          ) : null}
                           {guestEffectiveExcludedTotal(guest) > 0 && guest.excludeReason ? (
                             <p className="text-[10px] text-zinc-500">Reason: {guest.excludeReason}</p>
                           ) : null}
@@ -2158,9 +2188,17 @@ export function EventGuestsPanel({
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-[#128C7E]/25 bg-[#128C7E]/10 text-[#128C7E]"
-                              aria-label="WhatsApp"
+                              aria-label={st === "attending" ? "Send event reminder via WhatsApp" : "WhatsApp"}
+                              title={st === "attending" ? "Send event reminder via WhatsApp" : undefined}
                               onClick={() => {
-                                void triggerGuestSendAction(eventId, guest.id, "whatsapp");
+                                if (st === "attending") {
+                                  void markGuestEventReminderSentAction(eventId, guest.id, "whatsapp").then(() => {
+                                    setReminderSentGuestIds((prev) => new Set(prev).add(guest.id));
+                                    router.refresh();
+                                  });
+                                } else {
+                                  void triggerGuestSendAction(eventId, guest.id, "whatsapp");
+                                }
                               }}
                             >
                               <WhatsAppIcon className="h-[18px] w-[18px]" />
@@ -2172,13 +2210,22 @@ export function EventGuestsPanel({
                                   ? "border-blue-300 bg-blue-100 text-blue-700"
                                   : "border-sky-300/45 bg-sky-50 text-sky-700"
                               }`}
-                              aria-label={messageSentGuestId === guest.id ? "Message sent" : "Message"}
+                              aria-label={messageSentGuestId === guest.id ? "Message sent" : st === "attending" ? "Send event reminder via Message / iMessage" : "Message"}
+                              title={st === "attending" ? "Send event reminder via Message / iMessage" : undefined}
                               onClick={() => {
                                 setMessageSentGuestId(guest.id);
-                                void triggerGuestSendAction(eventId, guest.id, "imessage").then(() => {
-                                  router.refresh();
-                                  setTimeout(() => setMessageSentGuestId(null), 2000);
-                                });
+                                if (st === "attending") {
+                                  void markGuestEventReminderSentAction(eventId, guest.id, "imessage").then(() => {
+                                    setReminderSentGuestIds((prev) => new Set(prev).add(guest.id));
+                                    router.refresh();
+                                    setTimeout(() => setMessageSentGuestId(null), 2000);
+                                  });
+                                } else {
+                                  void triggerGuestSendAction(eventId, guest.id, "imessage").then(() => {
+                                    router.refresh();
+                                    setTimeout(() => setMessageSentGuestId(null), 2000);
+                                  });
+                                }
                               }}
                             >
                               {messageSentGuestId === guest.id ? (
@@ -2505,6 +2552,14 @@ export function EventGuestsPanel({
                               Reminder {formatDate(guest.lastReminderAt)}
                             </span>
                           ) : null}
+                          {st === "attending" && reminderSentSet.has(guest.id) ? (
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                              <svg className="h-2.5 w-2.5" viewBox="0 0 12 12" fill="none" aria-hidden>
+                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              Reminder Sent
+                            </span>
+                          ) : null}
                           {guestEffectiveExcludedTotal(guest) > 0 && guest.excludeReason ? (
                             <span className="mt-1 block text-[10px] text-zinc-500">Reason: {guest.excludeReason}</span>
                           ) : null}
@@ -2812,14 +2867,23 @@ export function EventGuestsPanel({
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#128C7E]/25 bg-[#128C7E]/10 text-[#128C7E] transition hover:bg-[#128C7E]/16 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
-                                  aria-label="Send via WhatsApp"
+                                  aria-label={st === "attending" ? "Send event reminder via WhatsApp" : "Send via WhatsApp"}
                                   title={
-                                    guest.phone?.trim()
-                                      ? "Opens WhatsApp directly to this guest with the invite prefilled"
-                                      : "Opens WhatsApp with the invite prefilled (choose recipient)"
+                                    st === "attending"
+                                      ? "Send event reminder via WhatsApp"
+                                      : guest.phone?.trim()
+                                        ? "Opens WhatsApp directly to this guest with the invite prefilled"
+                                        : "Opens WhatsApp with the invite prefilled (choose recipient)"
                                   }
                                   onClick={() => {
-                                    void triggerGuestSendAction(eventId, guest.id, "whatsapp");
+                                    if (st === "attending") {
+                                      void markGuestEventReminderSentAction(eventId, guest.id, "whatsapp").then(() => {
+                                        setReminderSentGuestIds((prev) => new Set(prev).add(guest.id));
+                                        router.refresh();
+                                      });
+                                    } else {
+                                      void triggerGuestSendAction(eventId, guest.id, "whatsapp");
+                                    }
                                   }}
                                 >
                                   <WhatsAppIcon className="h-[18px] w-[18px]" />
@@ -2831,20 +2895,30 @@ export function EventGuestsPanel({
                                       ? "border-blue-300 bg-blue-100 text-blue-700"
                                       : "border-sky-300/45 bg-sky-50 text-sky-700 hover:bg-sky-100"
                                   }`}
-                                  aria-label={messageSentGuestId === guest.id ? "Message sent" : "Send via Message / iMessage"}
+                                  aria-label={messageSentGuestId === guest.id ? "Message sent" : st === "attending" ? "Send event reminder via Message / iMessage" : "Send via Message / iMessage"}
                                   title={
-                                    messageSentGuestId === guest.id
-                                      ? "Message sent"
-                                      : guest.phone?.trim()
-                                        ? "Opens Message / iMessage directly to this guest with the invite prefilled"
-                                        : "Opens Message / iMessage compose with the invite prefilled (choose recipient)"
+                                    st === "attending"
+                                      ? "Send event reminder via Message / iMessage"
+                                      : messageSentGuestId === guest.id
+                                        ? "Message sent"
+                                        : guest.phone?.trim()
+                                          ? "Opens Message / iMessage directly to this guest with the invite prefilled"
+                                          : "Opens Message / iMessage compose with the invite prefilled (choose recipient)"
                                   }
                                   onClick={() => {
                                     setMessageSentGuestId(guest.id);
-                                    void triggerGuestSendAction(eventId, guest.id, "imessage").then(() => {
-                                      router.refresh();
-                                      setTimeout(() => setMessageSentGuestId(null), 2000);
-                                    });
+                                    if (st === "attending") {
+                                      void markGuestEventReminderSentAction(eventId, guest.id, "imessage").then(() => {
+                                        setReminderSentGuestIds((prev) => new Set(prev).add(guest.id));
+                                        router.refresh();
+                                        setTimeout(() => setMessageSentGuestId(null), 2000);
+                                      });
+                                    } else {
+                                      void triggerGuestSendAction(eventId, guest.id, "imessage").then(() => {
+                                        router.refresh();
+                                        setTimeout(() => setMessageSentGuestId(null), 2000);
+                                      });
+                                    }
                                   }}
                                 >
                                   {messageSentGuestId === guest.id ? (

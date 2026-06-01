@@ -182,41 +182,103 @@ class _EventDetailBody extends ConsumerWidget {
                   label: 'Responded',
                   value: '${s.totalResponded}',
                   sub: '${s.responseRate}% rate',
+                  color: AppColors.responded,
+                  colorBg: AppColors.respondedBg,
                   progress: s.responseRate / 100,
+                  onTap: s.totalResponded > 0
+                      ? () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => GuestsListScreen(
+                              eventId: eventId,
+                              eventTitle: ev.displayName,
+                              initialReadiness: 'responded',
+                            ),
+                          ))
+                      : null,
                 ),
                 StatCard(
                   label: 'Attending',
                   value: '${s.attendingFamilies}',
                   color: AppColors.attending,
+                  colorBg: AppColors.attendingBg,
                   progress: s.totalFamilies > 0 ? s.attendingFamilies / s.totalFamilies : 0,
+                  onTap: s.attendingFamilies > 0
+                      ? () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => GuestsListScreen(
+                              eventId: eventId,
+                              eventTitle: ev.displayName,
+                              initialStatusFilter: 'attending',
+                            ),
+                          ))
+                      : null,
                 ),
                 StatCard(
                   label: 'Declined',
                   value: '${s.declinedFamilies}',
                   color: AppColors.declined,
+                  colorBg: AppColors.declinedBg,
                   progress: s.totalFamilies > 0 ? s.declinedFamilies / s.totalFamilies : 0,
+                  onTap: s.declinedFamilies > 0
+                      ? () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => GuestsListScreen(
+                              eventId: eventId,
+                              eventTitle: ev.displayName,
+                              initialStatusFilter: 'declined',
+                            ),
+                          ))
+                      : null,
                 ),
                 StatCard(
                   label: 'Confirmed',
                   value: '${s.confirmedAttendees}',
                   sub: 'headcount',
                   color: AppColors.brandAccent,
+                  colorBg: AppColors.confirmedBg,
                   progress: s.totalMaxInvited > 0
                       ? (s.confirmedAttendees / s.totalMaxInvited).clamp(0.0, 1.0)
                       : 0,
+                  onTap: s.attendingFamilies > 0
+                      ? () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => GuestsListScreen(
+                              eventId: eventId,
+                              eventTitle: ev.displayName,
+                              initialStatusFilter: 'attending',
+                            ),
+                          ))
+                      : null,
                 ),
                 StatCard(
                   label: 'Invited',
                   value: '${s.invitedFamilies}',
+                  color: AppColors.invited,
+                  colorBg: AppColors.invitedBg,
                   progress: s.totalFamilies > 0 ? s.invitedFamilies / s.totalFamilies : 0,
+                  onTap: s.invitedFamilies > 0
+                      ? () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => GuestsListScreen(
+                              eventId: eventId,
+                              eventTitle: ev.displayName,
+                              initialReadiness: 'already_invited',
+                            ),
+                          ))
+                      : null,
                 ),
                 StatCard(
                   label: 'Awaiting',
                   value: '${s.awaitingRsvpCount}',
                   color: AppColors.pending,
+                  colorBg: AppColors.pendingBg,
                   progress: s.invitedFamilies > 0
                       ? (s.awaitingRsvpCount / s.invitedFamilies).clamp(0.0, 1.0)
                       : 0,
+                  onTap: s.awaitingRsvpCount > 0
+                      ? () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => GuestsListScreen(
+                              eventId: eventId,
+                              eventTitle: ev.displayName,
+                              initialStatusFilter: 'pending',
+                            ),
+                          ))
+                      : null,
                 ),
               ]),
             ),
@@ -291,7 +353,7 @@ class _EventDetailBody extends ConsumerWidget {
               error: (_, __) => const SizedBox.shrink(),
               data: (sec) => Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                child: _SectionsColumn(sec: sec),
+                child: _SectionsColumn(sec: sec, eventId: eventId, eventTitle: ev.displayName),
               ),
             ),
           ),
@@ -613,8 +675,35 @@ class _QuickAction extends StatelessWidget {
 // ── Sections ───────────────────────────────────────────────────────
 
 class _SectionsColumn extends StatelessWidget {
-  const _SectionsColumn({required this.sec});
+  const _SectionsColumn({
+    required this.sec,
+    required this.eventId,
+    required this.eventTitle,
+  });
   final EventSections sec;
+  final String eventId;
+  final String eventTitle;
+
+  void _go(BuildContext context, {
+    String status = 'all',
+    String readiness = 'all',
+    bool followup = false,
+    String duplicate = 'all',
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GuestsListScreen(
+          eventId: eventId,
+          eventTitle: eventTitle,
+          initialStatusFilter: status,
+          initialReadiness: readiness,
+          initialFollowup: followup,
+          initialDuplicate: duplicate,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -626,6 +715,8 @@ class _SectionsColumn extends StatelessWidget {
           _DeadlineAlert(status: dl.status, deadline: dl.deadline),
           const SizedBox(height: 20),
         ],
+
+        // ── Follow-up ──
         const Text('FOLLOW-UP', style: AppTextStyles.sectionLabel),
         const SizedBox(height: 8),
         _SectionCard(
@@ -634,25 +725,64 @@ class _SectionsColumn extends StatelessWidget {
             label: 'Invited, awaiting RSVP',
             value: '${sec.followUp.awaitingRsvp}',
             color: AppColors.pending,
+            onTap: sec.followUp.awaitingRsvp > 0
+                ? () => _go(context, status: 'pending')
+                : null,
           ),
         ),
         const SizedBox(height: 20),
+
+        // ── Readiness ──
         const Text('READINESS', style: AppTextStyles.sectionLabel),
         const SizedBox(height: 8),
         _SectionCard(
           child: Column(
             children: [
-              SectionStatRow(icon: Icons.send_rounded, label: 'Ready to send', value: '${sec.readiness.readyToSend}', color: AppColors.success),
+              SectionStatRow(
+                icon: Icons.send_rounded,
+                label: 'Ready to send',
+                value: '${sec.readiness.readyToSend}',
+                color: AppColors.success,
+                onTap: sec.readiness.readyToSend > 0
+                    ? () => _go(context, readiness: 'ready')
+                    : null,
+              ),
               const _Hairline(),
-              SectionStatRow(icon: Icons.person_off_outlined, label: 'Missing contact', value: '${sec.readiness.missingContact}', color: AppColors.warning),
+              SectionStatRow(
+                icon: Icons.person_off_outlined,
+                label: 'Missing contact',
+                value: '${sec.readiness.missingContact}',
+                color: AppColors.warning,
+                onTap: sec.readiness.missingContact > 0
+                    ? () => _go(context, readiness: 'missing_contact')
+                    : null,
+              ),
               const _Hairline(),
-              SectionStatRow(icon: Icons.mark_email_read_outlined, label: 'Already invited', value: '${sec.readiness.alreadyInvited}', color: AppColors.invited),
+              SectionStatRow(
+                icon: Icons.mark_email_read_outlined,
+                label: 'Already invited',
+                value: '${sec.readiness.alreadyInvited}',
+                color: AppColors.invited,
+                onTap: sec.readiness.alreadyInvited > 0
+                    ? () => _go(context, readiness: 'already_invited')
+                    : null,
+              ),
               const _Hairline(),
-              SectionStatRow(icon: Icons.check_circle_outline_rounded, label: 'Responded', value: '${sec.readiness.responded}', color: AppColors.attending),
+              SectionStatRow(
+                icon: Icons.check_circle_outline_rounded,
+                label: 'Responded',
+                value: '${sec.readiness.responded}',
+                color: AppColors.attending,
+                onTap: sec.readiness.responded > 0
+                    ? () => _go(context, readiness: 'responded')
+                    : null,
+              ),
             ],
           ),
         ),
         const SizedBox(height: 20),
+
+        // ── List Hygiene ──
         const Text('LIST HYGIENE', style: AppTextStyles.sectionLabel),
         const SizedBox(height: 8),
         _SectionCard(
@@ -662,27 +792,51 @@ class _SectionsColumn extends StatelessWidget {
                 icon: Icons.copy_all_rounded,
                 label: 'Possible duplicates',
                 value: '${sec.listHygiene.possibleDuplicates}',
-                color: sec.listHygiene.possibleDuplicates > 0 ? AppColors.warning : AppColors.attending,
+                color: sec.listHygiene.possibleDuplicates > 0
+                    ? AppColors.warning
+                    : AppColors.attending,
+                onTap: sec.listHygiene.possibleDuplicates > 0
+                    ? () => _go(context, duplicate: 'has_duplicates')
+                    : null,
               ),
               const _Hairline(),
               SectionStatRow(
                 icon: Icons.contact_phone_outlined,
                 label: 'Missing contact',
                 value: '${sec.listHygiene.missingContact}',
-                color: sec.listHygiene.missingContact > 0 ? AppColors.warning : AppColors.attending,
+                color: sec.listHygiene.missingContact > 0
+                    ? AppColors.warning
+                    : AppColors.attending,
+                onTap: sec.listHygiene.missingContact > 0
+                    ? () => _go(context, readiness: 'missing_contact')
+                    : null,
               ),
               const _Hairline(),
-              SectionStatRow(icon: Icons.check_rounded, label: 'Send-ready', value: '${sec.listHygiene.sendReady}', color: AppColors.attending),
+              SectionStatRow(
+                icon: Icons.check_rounded,
+                label: 'Send-ready',
+                value: '${sec.listHygiene.sendReady}',
+                color: AppColors.attending,
+                onTap: sec.listHygiene.sendReady > 0
+                    ? () => _go(context, readiness: 'ready')
+                    : null,
+              ),
             ],
           ),
         ),
         const SizedBox(height: 20),
+
+        // ── Communications ──
         const Text('COMMUNICATIONS', style: AppTextStyles.sectionLabel),
         const SizedBox(height: 8),
         _SectionCard(
           child: Column(
             children: [
-              SectionStatRow(icon: Icons.history_rounded, label: 'Total logs', value: '${sec.communications.totalLogs}'),
+              SectionStatRow(
+                icon: Icons.history_rounded,
+                label: 'Total logs',
+                value: '${sec.communications.totalLogs}',
+              ),
               const _Hairline(),
               SectionStatRow(
                 icon: Icons.trending_up_rounded,

@@ -384,7 +384,10 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
 
   const itinerary: ItineraryItem[] = Array.isArray(ev.itinerary)
     ? (ev.itinerary as ItineraryItem[]).filter(
-        (x) => x && typeof x.time === "string" && typeof x.title === "string",
+        (x) =>
+          x &&
+          typeof x.title === "string" &&
+          (typeof x.startTime === "string" || typeof x.time === "string"),
       )
     : [];
 

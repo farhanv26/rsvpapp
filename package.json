@@ -14,11 +14,13 @@
     "db:seed": "prisma db seed"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@prisma/client": "^6.19.3",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.0",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.2",
+    "lucide-react": "^1.17.0",
     "next": "16.2.3",
     "papaparse": "^5.5.3",
     "prisma": "^6.19.3",

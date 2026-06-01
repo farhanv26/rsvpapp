@@ -1,75 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Modern navy + gold palette — premium event admin aesthetic.
+/// Warm cream + gold palette — matches the web admin's #F8F4EC / #3F2F1F / #B28944 system.
 class AppColors {
   // Surfaces
-  static const background = Color(0xFFF5F6FB);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceCard = Color(0xFFFFFFFF);
-  static const surfaceElevated = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFF0F1F8);
-  static const surfaceHighlight = Color(0xFFE6E9F5);
+  static const background = Color(0xFFF8F4EC);
+  static const surface = Color(0xFFFFFDF9);
+  static const surfaceCard = Color(0xFFFFFDF9);
+  static const surfaceElevated = Color(0xFFFFFDF9);
+  static const surfaceMuted = Color(0xFFF5EFE3);
+  static const surfaceHighlight = Color(0xFFEAE0CF);
 
   // Borders
-  static const border = Color(0xFFE2E5F0);
-  static const borderLight = Color(0xFFEBEDF6);
-  static const borderStrong = Color(0xFFC5CADF);
+  static const border = Color(0xFFE7DCCB);
+  static const borderLight = Color(0xFFEDE5D5);
+  static const borderStrong = Color(0xFFD0BEA0);
 
   // Text
-  static const textPrimary = Color(0xFF1A1F3C);
-  static const textSecondary = Color(0xFF6B7194);
-  static const textMuted = Color(0xFF9B9FC0);
-  static const textInverse = Color(0xFFFFFFFF);
-  static const textOnAccent = Color(0xFF1A1F3C);
+  static const textPrimary = Color(0xFF1D1B18);
+  static const textSecondary = Color(0xFF6B5840);
+  static const textMuted = Color(0xFF9B8B72);
+  static const textInverse = Color(0xFFFFFDF9);
+  static const textOnAccent = Color(0xFF1D1B18);
 
-  // Brand (navy)
-  static const brandDeep = Color(0xFF1A1F3C);
-  static const brandMid = Color(0xFF2E3561);
+  // Brand (warm brown)
+  static const brandDeep = Color(0xFF3F2F1F);
+  static const brandMid = Color(0xFF5D4430);
 
-  // Accent (gold)
-  static const brandAccent = Color(0xFFF5A623);
-  static const brandAccentBright = Color(0xFFF8B93D);
-  static const brandAccentLight = Color(0xFFFFF8ED);
+  // Accent (warm gold)
+  static const brandAccent = Color(0xFFB28944);
+  static const brandAccentBright = Color(0xFFC9A050);
+  static const brandAccentLight = Color(0xFFF9F3E8);
+  // Explicit stat-card bg for confirmed/gold — amber-100, clearly visible on cream
+  static const confirmedBg = Color(0xFFFEF3C7);
 
-  // Status — Attending
+  // Status — Attending (emerald)
   static const attending = Color(0xFF059669);
-  static const attendingBg = Color(0xFFD1FAE5);
+  static const attendingBg = Color(0xFFECFDF5);
   static const attendingText = Color(0xFF059669);
 
-  // Status — Declined
-  static const declined = Color(0xFFDC2626);
-  static const declinedBg = Color(0xFFFEE2E2);
-  static const declinedText = Color(0xFFDC2626);
+  // Status — Declined (rose)
+  static const declined = Color(0xFFE11D48);
+  static const declinedBg = Color(0xFFFFE4E6);
+  static const declinedText = Color(0xFFE11D48);
 
-  // Status — Pending
+  // Status — Pending (amber)
   static const pending = Color(0xFFD97706);
   static const pendingBg = Color(0xFFFEF3C7);
   static const pendingText = Color(0xFFD97706);
 
-  // Status — Invited
-  static const invited = Color(0xFF3B82F6);
-  static const invitedBg = Color(0xFFEFF6FF);
-  static const invitedText = Color(0xFF3B82F6);
+  // Status — Invited (sky)
+  static const invited = Color(0xFF0284C7);
+  static const invitedBg = Color(0xFFE0F2FE);
+  static const invitedText = Color(0xFF0284C7);
 
-  // Status — Not invited
-  static const notInvited = Color(0xFF9B9FC0);
-  static const notInvitedBg = Color(0xFFF5F6FB);
+  // Status — Responded (indigo)
+  static const responded = Color(0xFF6366F1);
+  static const respondedBg = Color(0xFFEEF2FF);
+
+  // Status — Not invited (zinc)
+  static const notInvited = Color(0xFF71717A);
+  static const notInvitedBg = Color(0xFFF4F4F5);
 
   // Semantic
-  static const danger = Color(0xFFDC2626);
-  static const dangerBg = Color(0xFFFEE2E2);
+  static const danger = Color(0xFFE11D48);
+  static const dangerBg = Color(0xFFFFE4E6);
   static const warning = Color(0xFFD97706);
   static const warningBg = Color(0xFFFEF3C7);
   static const success = Color(0xFF059669);
-  static const successBg = Color(0xFFD1FAE5);
+  static const successBg = Color(0xFFECFDF5);
 }
 
 class AppTextStyles {
   static const sectionLabel = TextStyle(
     fontSize: 10,
     fontWeight: FontWeight.w700,
-    letterSpacing: 1.4,
+    letterSpacing: 1.5,
     color: AppColors.textMuted,
     height: 1.0,
   );
@@ -77,7 +83,7 @@ class AppTextStyles {
   static const headlineDisplay = TextStyle(
     fontSize: 30,
     fontWeight: FontWeight.w700,
-    letterSpacing: -0.8,
+    letterSpacing: -0.5,
     color: AppColors.textPrimary,
     height: 1.1,
   );
@@ -85,21 +91,21 @@ class AppTextStyles {
   static const titleLarge = TextStyle(
     fontSize: 22,
     fontWeight: FontWeight.w700,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
     color: AppColors.textPrimary,
   );
 
   static const titleMedium = TextStyle(
     fontSize: 17,
     fontWeight: FontWeight.w600,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
     color: AppColors.textPrimary,
   );
 
   static const titleSmall = TextStyle(
     fontSize: 15,
     fontWeight: FontWeight.w600,
-    letterSpacing: -0.2,
+    letterSpacing: -0.1,
     color: AppColors.textPrimary,
   );
 
@@ -114,7 +120,7 @@ class AppTextStyles {
     fontSize: 13,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
-    height: 1.4,
+    height: 1.45,
   );
 
   static const labelSmall = TextStyle(
@@ -135,7 +141,7 @@ class AppTextStyles {
   static const statLabel = TextStyle(
     fontSize: 10,
     fontWeight: FontWeight.w600,
-    letterSpacing: 0.6,
+    letterSpacing: 0.7,
     color: AppColors.textMuted,
     height: 1.2,
   );
@@ -167,30 +173,30 @@ class AppRadius {
 class AppShadows {
   static List<BoxShadow> get card => [
         BoxShadow(
-          color: AppColors.brandDeep.withValues(alpha: 0.05),
+          color: AppColors.brandDeep.withValues(alpha: 0.06),
           offset: const Offset(0, 1),
           blurRadius: 8,
         ),
         BoxShadow(
           color: AppColors.brandDeep.withValues(alpha: 0.03),
-          offset: const Offset(0, 4),
-          blurRadius: 16,
+          offset: const Offset(0, 3),
+          blurRadius: 12,
           spreadRadius: -2,
         ),
       ];
 
   static List<BoxShadow> get cardLift => [
         BoxShadow(
-          color: AppColors.brandDeep.withValues(alpha: 0.08),
+          color: AppColors.brandDeep.withValues(alpha: 0.10),
           offset: const Offset(0, 4),
           blurRadius: 24,
-          spreadRadius: -4,
+          spreadRadius: -6,
         ),
       ];
 
   static List<BoxShadow> get button => [
         BoxShadow(
-          color: AppColors.brandAccent.withValues(alpha: 0.3),
+          color: AppColors.brandAccent.withValues(alpha: 0.35),
           offset: const Offset(0, 4),
           blurRadius: 16,
           spreadRadius: -4,
@@ -199,7 +205,7 @@ class AppShadows {
 
   static List<BoxShadow> get bottomNav => [
         BoxShadow(
-          color: AppColors.brandDeep.withValues(alpha: 0.06),
+          color: AppColors.brandDeep.withValues(alpha: 0.07),
           offset: const Offset(0, -1),
           blurRadius: 0,
         ),
@@ -281,7 +287,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceElevated,
+        fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -305,7 +311,8 @@ class AppTheme {
         ),
         hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 15),
         labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-        floatingLabelStyle: const TextStyle(color: AppColors.brandDeep, fontSize: 13, fontWeight: FontWeight.w500),
+        floatingLabelStyle: const TextStyle(
+            color: AppColors.brandDeep, fontSize: 13, fontWeight: FontWeight.w500),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -315,16 +322,17 @@ class AppTheme {
           shadowColor: Colors.transparent,
           minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: -0.2),
+          textStyle: const TextStyle(
+              fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: -0.1),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.textPrimary,
-          side: const BorderSide(color: AppColors.borderStrong),
+          foregroundColor: AppColors.textSecondary,
+          side: const BorderSide(color: AppColors.border),
           minimumSize: const Size(double.infinity, 46),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          backgroundColor: AppColors.surfaceElevated,
+          backgroundColor: AppColors.surface,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -346,16 +354,20 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceMuted,
         selectedColor: AppColors.brandAccentLight,
-        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
-        secondaryLabelStyle: const TextStyle(color: AppColors.brandDeep, fontSize: 12, fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(
+            color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+        secondaryLabelStyle: const TextStyle(
+            color: AppColors.brandDeep, fontSize: 12, fontWeight: FontWeight.w600),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         side: const BorderSide(color: AppColors.border),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.brandDeep,
-        contentTextStyle: const TextStyle(color: AppColors.textInverse, fontSize: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+        contentTextStyle:
+            const TextStyle(color: AppColors.textInverse, fontSize: 14),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
         behavior: SnackBarBehavior.floating,
         elevation: 0,
       ),
@@ -368,7 +380,7 @@ class AppTheme {
         elevation: 0,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.surfaceElevated,
+        backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(

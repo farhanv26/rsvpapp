@@ -8,32 +8,43 @@ class StatCard extends StatelessWidget {
     required this.value,
     this.sub,
     this.color,
+    this.colorBg,
     this.icon,
     this.progress,
+    this.onTap,
   });
 
   final String label;
   final String value;
   final String? sub;
   final Color? color;
+  final Color? colorBg;
   final IconData? icon;
   final double? progress;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final valueColor = color ?? AppColors.textPrimary;
-    final accentBg = color != null ? color!.withValues(alpha: 0.07) : AppColors.surfaceCard;
+    // Use explicit bg colour when provided, otherwise derive a light tint.
+    // 0.13 alpha is intentionally stronger than before for visibility on cream.
+    final accentBg = colorBg ?? (color != null
+        ? color!.withValues(alpha: 0.13)
+        : AppColors.surfaceMuted);
+    final tappable = onTap != null;
 
-    return Container(
+    final card = Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: tappable && color != null ? color!.withValues(alpha: 0.3) : AppColors.border,
+        ),
         boxShadow: AppShadows.card,
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: Container(
@@ -70,12 +81,29 @@ class StatCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress!.clamp(0.0, 1.0),
                 backgroundColor: valueColor.withValues(alpha: 0.1),
-                valueColor: AlwaysStoppedAnimation(valueColor.withValues(alpha: 0.55)),
+                valueColor: AlwaysStoppedAnimation(valueColor.withValues(alpha: 0.6)),
               ),
             )
           else
-            const SizedBox(height: 1),
+            SizedBox(
+              height: tappable ? 3 : 1,
+              child: tappable
+                  ? Container(color: valueColor.withValues(alpha: 0.18))
+                  : null,
+            ),
         ],
+      ),
+    );
+
+    if (!tappable) return card;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: card,
       ),
     );
   }
@@ -128,18 +156,22 @@ class SectionStatRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.color,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final Color? color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = color ?? AppColors.textSecondary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+    final tappable = onTap != null;
+
+    final row = Padding(
+      padding: EdgeInsets.symmetric(vertical: tappable ? 9 : 10),
       child: Row(
         children: [
           Container(
@@ -162,7 +194,22 @@ class SectionStatRow extends StatelessWidget {
             value,
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c),
           ),
+          if (tappable) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 15, color: c.withValues(alpha: 0.5)),
+          ],
         ],
+      ),
+    );
+
+    if (!tappable) return row;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: row,
       ),
     );
   }

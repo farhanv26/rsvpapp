@@ -118,6 +118,41 @@ You can respond here:
 ${input.rsvpLink}`;
 }
 
+function getReminderEventRef(eventTitle: string, coupleNames?: string | null) {
+  const couple = coupleNames?.trim();
+  return couple ? `${couple}'s ${eventTitle}` : `our ${eventTitle}`;
+}
+
+const REMINDER_BODY_VARIANTS = [
+  (ref: string) => `Just a reminder that ${ref} is coming up soon. We are so looking forward to celebrating with you.`,
+  (ref: string) => `${ref} is just around the corner and we cannot wait to see you there.`,
+  (ref: string) => `We wanted to remind you that ${ref} is coming up. It means so much to have you joining us.`,
+  (ref: string) => `A quick reminder — ${ref} is approaching and we are truly looking forward to celebrating with you.`,
+  (ref: string) => `${ref} is almost here! We are so glad you will be with us on this special day.`,
+  (ref: string) => `Just a heads up that ${ref} is coming up soon. We look forward to celebrating this moment together with you.`,
+  (ref: string) => `We are counting down to ${ref} and we cannot wait to share this special occasion with you.`,
+] as const;
+
+export function buildGuestEventReminderMessage(
+  input: GuestWhatsAppMessageInput & { hasItinerary?: boolean },
+) {
+  const greeting = input.greeting?.trim() || "Assalamu Alaikum";
+  const seed = input.guestId?.trim() || input.guestName;
+  const bodyFn = REMINDER_BODY_VARIANTS[hashString(seed) % REMINDER_BODY_VARIANTS.length];
+  const body = bodyFn(getReminderEventRef(input.eventTitle, input.coupleNames));
+
+  const linkPrompt = input.hasItinerary
+    ? `View your invite for the full itinerary, countdown, and event details:`
+    : `View your invite for the countdown and event details:`;
+
+  return `${greeting} ${input.guestName},
+
+${body}
+
+${linkPrompt}
+${input.rsvpLink}`;
+}
+
 export function getWhatsAppShareUrl(message: string) {
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }

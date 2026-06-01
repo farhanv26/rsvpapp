@@ -6,6 +6,520 @@ import '../../../core/models/event_sections.dart';
 import '../../../core/models/guest.dart' show Guest, GuestDuplicateStrength, GuestStatus;
 import '../../../shared/theme/app_theme.dart';
 
+// ── Compact row for list display ───────────────────────────────────
+
+class GuestCompactRow extends StatelessWidget {
+  const GuestCompactRow({super.key, required this.guest, required this.onTap});
+  final Guest guest;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final (sc, sb) = _statusPair(guest.status);
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            children: [
+              Container(width: 4, color: sc),
+              const SizedBox(width: 12),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: sb, borderRadius: BorderRadius.circular(10)),
+                child: Center(
+                  child: Text(
+                    guest.guestName.isNotEmpty ? guest.guestName[0].toUpperCase() : '?',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: sc),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      guest.guestName,
+                      style: AppTextStyles.titleSmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      _subtitle(),
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _badge(sc, sb),
+              const SizedBox(width: 6),
+              const Icon(Icons.chevron_right_rounded, size: 15, color: AppColors.textMuted),
+              const SizedBox(width: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _subtitle() {
+    final parts = <String>[];
+    // Show breakdown when we have mixed categories, otherwise total
+    final hasBreakdown = (guest.menCount > 0 ? 1 : 0) +
+            (guest.womenCount > 0 ? 1 : 0) +
+            (guest.kidsCount > 0 ? 1 : 0) >
+        1;
+    if (hasBreakdown) {
+      if (guest.menCount > 0) parts.add('${guest.menCount}M');
+      if (guest.womenCount > 0) parts.add('${guest.womenCount}W');
+      if (guest.kidsCount > 0) parts.add('${guest.kidsCount}K');
+    } else if (guest.totalCount > 1) {
+      parts.add('${guest.totalCount} people');
+    }
+    if (guest.group?.isNotEmpty == true) parts.add(guest.group!);
+    if (parts.isNotEmpty) return parts.join(' · ');
+    return guest.phone ?? guest.email ?? '';
+  }
+
+  Widget _badge(Color fg, Color bg) {
+    final label = switch (guest.status) {
+      GuestStatus.attending =>
+        guest.attendingCount != null ? 'Attending · ${guest.attendingCount}' : 'Attending',
+      GuestStatus.declined => 'Declined',
+      GuestStatus.pending => 'Awaiting',
+      GuestStatus.notInvited => 'Not invited',
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: fg.withValues(alpha: 0.2)),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
+    );
+  }
+
+  (Color, Color) _statusPair(GuestStatus s) => switch (s) {
+    GuestStatus.attending => (AppColors.attending, AppColors.attendingBg),
+    GuestStatus.declined => (AppColors.declined, AppColors.declinedBg),
+    GuestStatus.pending => (AppColors.pending, AppColors.pendingBg),
+    GuestStatus.notInvited => (AppColors.notInvited, AppColors.notInvitedBg),
+  };
+}
+
+// ── Guest detail sheet ─────────────────────────────────────────────
+
+void showGuestDetailSheet(
+  BuildContext context, {
+  required Guest guest,
+  required String eventId,
+  Future<void> Function(String channel)? onMarkInvited,
+  Future<void> Function()? onMarkUninvited,
+  Future<void> Function(bool attending, {int? count})? onRecordRsvp,
+  Future<void> Function()? onDelete,
+  Future<List<CommunicationLog>> Function()? onGetCommsHistory,
+  VoidCallback? onEdit,
+  VoidCallback? onRefresh,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) {
+      final maxH = MediaQuery.sizeOf(ctx).height * 0.88;
+      final bottomInset = MediaQuery.paddingOf(ctx).bottom;
+      return Container(
+        constraints: BoxConstraints(maxHeight: maxH),
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(padding: EdgeInsets.only(top: 12), child: _SheetHandle()),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
+                child: _GuestDetailSheetContent(
+                  guest: guest,
+                  eventId: eventId,
+                  onMarkInvited: onMarkInvited,
+                  onMarkUninvited: onMarkUninvited,
+                  onRecordRsvp: onRecordRsvp,
+                  onDelete: onDelete,
+                  onGetCommsHistory: onGetCommsHistory,
+                  onEdit: onEdit,
+                  onRefresh: onRefresh,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _GuestDetailSheetContent extends StatelessWidget {
+  const _GuestDetailSheetContent({
+    required this.guest,
+    required this.eventId,
+    this.onMarkInvited,
+    this.onMarkUninvited,
+    this.onRecordRsvp,
+    this.onDelete,
+    this.onGetCommsHistory,
+    this.onEdit,
+    this.onRefresh,
+  });
+
+  final Guest guest;
+  final String eventId;
+  final Future<void> Function(String channel)? onMarkInvited;
+  final Future<void> Function()? onMarkUninvited;
+  final Future<void> Function(bool attending, {int? count})? onRecordRsvp;
+  final Future<void> Function()? onDelete;
+  final Future<List<CommunicationLog>> Function()? onGetCommsHistory;
+  final VoidCallback? onEdit;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = guest.fullPhoneDigits;
+    final hasPhone = phone.isNotEmpty;
+    final hasResponded = guest.respondedAt != null;
+    final (sc, sb) = _statusPair(guest.status);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Header ──
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(color: sb, borderRadius: BorderRadius.circular(14)),
+              child: Center(
+                child: Text(
+                  guest.guestName.isNotEmpty ? guest.guestName[0].toUpperCase() : '?',
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: sc),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(guest.guestName, style: AppTextStyles.titleMedium),
+                  const SizedBox(height: 5),
+                  _StatusBadge(status: guest.status, attendingCount: guest.attendingCount),
+                  if (guest.invitedAt != null) ...[
+                    const SizedBox(height: 4),
+                    _InviteStateBadge(invited: true, responded: guest.respondedAt != null),
+                  ],
+                ],
+              ),
+            ),
+            _MoreMenu(
+              guest: guest,
+              onEdit: onEdit != null ? () { Navigator.pop(context); onEdit!(); } : null,
+              onDelete: onDelete,
+              onMarkUninvited: guest.invitedAt != null ? onMarkUninvited : null,
+              onCommsHistory: onGetCommsHistory,
+              onRefresh: onRefresh,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+
+        // ── Party size ──
+        _CountSummaryRow(guest: guest),
+        const SizedBox(height: 16),
+
+        // ── Contact ──
+        if (guest.phone != null || guest.email != null) ...[
+          _SheetInfoRow(
+            icon: Icons.contact_phone_outlined,
+            child: Wrap(
+              spacing: 14,
+              runSpacing: 6,
+              children: [
+                if (guest.phone != null)
+                  GestureDetector(
+                    onTap: () => _copy(context, guest.phone!),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.phone_outlined, size: 13, color: AppColors.textMuted),
+                      const SizedBox(width: 4),
+                      Text(guest.phone!, style: const TextStyle(fontSize: 13.5, color: AppColors.textPrimary)),
+                    ]),
+                  ),
+                if (guest.email != null)
+                  GestureDetector(
+                    onTap: () => _copy(context, guest.email!),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.email_outlined, size: 13, color: AppColors.textMuted),
+                      const SizedBox(width: 4),
+                      Text(guest.email!, style: const TextStyle(fontSize: 13.5, color: AppColors.textPrimary)),
+                    ]),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── Group / Table ──
+        if (guest.group != null || guest.tableName != null) ...[
+          _SheetInfoRow(
+            icon: Icons.label_outline_rounded,
+            child: Wrap(spacing: 12, children: [
+              if (guest.group != null)
+                Text(guest.group!, style: const TextStyle(fontSize: 13.5, color: AppColors.textPrimary)),
+              if (guest.tableName != null)
+                Text('Table ${guest.tableName}',
+                    style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary)),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── Invite history ──
+        if (guest.invitedAt != null) ...[
+          _SheetInfoRow(
+            icon: Icons.send_rounded,
+            child: Text(
+              'Invited ${DateFormat('d MMM yyyy').format(guest.invitedAt!)} via ${guest.inviteChannelLastUsed ?? 'manual'}'
+              '${guest.inviteCount > 1 ? ' · ${guest.inviteCount}×' : ''}',
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── Host message ──
+        if (guest.hostMessage?.isNotEmpty == true) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.brandAccentLight,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(color: AppColors.brandAccent.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.format_quote_rounded, size: 13, color: AppColors.brandAccent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(guest.hostMessage!,
+                      style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.45)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── Notes ──
+        if (guest.notes?.isNotEmpty == true) ...[
+          _SheetInfoRow(
+            icon: Icons.notes_rounded,
+            child: Text(guest.notes!,
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── Duplicate / Exclude ──
+        if (guest.duplicateStrength != GuestDuplicateStrength.none || guest.excludeFromTotals) ...[
+          Wrap(spacing: 6, children: [
+            if (guest.duplicateStrength != GuestDuplicateStrength.none)
+              _DuplicateBadge(strength: guest.duplicateStrength),
+            if (guest.excludeFromTotals) _ExcludedBadge(reason: guest.excludeReason),
+          ]),
+          const SizedBox(height: 10),
+        ],
+
+        const SizedBox(height: 8),
+        const Divider(color: AppColors.borderLight, height: 1),
+        const SizedBox(height: 16),
+
+        // ── Quick contact actions ──
+        if (hasPhone)
+          Row(
+            children: [
+              Expanded(
+                child: _IconAction(
+                  icon: Icons.chat_rounded,
+                  label: 'WhatsApp',
+                  color: const Color(0xFF128C7E),
+                  onTap: () { Navigator.pop(context); _openWhatsApp(phone, guest.greeting); },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _IconAction(
+                  icon: Icons.message_rounded,
+                  label: 'SMS',
+                  color: AppColors.invited,
+                  onTap: () { Navigator.pop(context); _openSms(phone); },
+                ),
+              ),
+            ],
+          ),
+
+        if (hasPhone) const SizedBox(height: 10),
+
+        if (guest.invitedAt == null && onMarkInvited != null) ...[
+          _IconAction(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Mark as invited',
+            color: AppColors.brandMid,
+            onTap: () => _showMarkInvitedSheet(context),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── RSVP ──
+        if (onRecordRsvp != null)
+          FilledButton.icon(
+            onPressed: () => _showRsvpSheet(context),
+            icon: Icon(hasResponded ? Icons.edit_rounded : Icons.edit_note_rounded, size: 18),
+            label: Text(hasResponded ? 'Update RSVP Response' : 'Record RSVP'),
+            style: FilledButton.styleFrom(
+              backgroundColor: hasResponded ? AppColors.brandMid : AppColors.brandDeep,
+              foregroundColor: AppColors.textInverse,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+            ),
+          ),
+
+        const SizedBox(height: 10),
+
+        if (onEdit != null)
+          OutlinedButton.icon(
+            onPressed: () { Navigator.pop(context); onEdit!(); },
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Edit guest details'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 44),
+              foregroundColor: AppColors.textSecondary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  (Color, Color) _statusPair(GuestStatus s) => switch (s) {
+    GuestStatus.attending => (AppColors.attending, AppColors.attendingBg),
+    GuestStatus.declined => (AppColors.declined, AppColors.declinedBg),
+    GuestStatus.pending => (AppColors.pending, AppColors.pendingBg),
+    GuestStatus.notInvited => (AppColors.notInvited, AppColors.notInvitedBg),
+  };
+
+  void _copy(BuildContext context, String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Copied: $text'), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  void _openWhatsApp(String digits, String greeting) {
+    final msg = Uri.encodeComponent('$greeting,');
+    launchUrl(Uri.parse('https://wa.me/$digits?text=$msg'), mode: LaunchMode.externalApplication);
+  }
+
+  void _openSms(String digits) {
+    launchUrl(Uri.parse('sms:$digits'), mode: LaunchMode.externalApplication);
+  }
+
+  void _showMarkInvitedSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SheetHandle(),
+              Text('Mark "${guest.guestName}" as invited', style: AppTextStyles.titleSmall),
+              const SizedBox(height: 4),
+              const Text('Select how you reached them',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              _ChannelTile(ctx: ctx, icon: Icons.chat_rounded, label: 'WhatsApp', channel: 'whatsapp', color: const Color(0xFF25D366), onMarkInvited: onMarkInvited, onRefresh: onRefresh),
+              _ChannelTile(ctx: ctx, icon: Icons.message_rounded, label: 'iMessage / SMS', channel: 'imessage', color: AppColors.invited, onMarkInvited: onMarkInvited, onRefresh: onRefresh),
+              _ChannelTile(ctx: ctx, icon: Icons.email_outlined, label: 'Email', channel: 'email', color: AppColors.brandAccent, onMarkInvited: onMarkInvited, onRefresh: onRefresh),
+              _ChannelTile(ctx: ctx, icon: Icons.person_rounded, label: 'In person / manual', channel: 'manual', color: AppColors.textSecondary, onMarkInvited: onMarkInvited, onRefresh: onRefresh),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRsvpSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+      ),
+      builder: (ctx) => _RsvpSheet(guest: guest, onRecordRsvp: onRecordRsvp, onRefresh: onRefresh),
+    );
+  }
+}
+
+class _SheetInfoRow extends StatelessWidget {
+  const _SheetInfoRow({required this.icon, required this.child});
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Icon(icon, size: 14, color: AppColors.textMuted),
+      ),
+      const SizedBox(width: 9),
+      Expanded(child: child),
+    ],
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+
 class GuestTile extends StatelessWidget {
   const GuestTile({
     super.key,
@@ -752,13 +1266,14 @@ class _RsvpSheet extends StatefulWidget {
 }
 
 class _RsvpSheetState extends State<_RsvpSheet> {
-  bool _attending = true;
+  late bool _attending;
   late int _count;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
+    _attending = widget.guest.attending ?? true;
     _count = widget.guest.attendingCount ?? widget.guest.totalCount.clamp(1, widget.guest.maxGuests);
   }
 
@@ -771,7 +1286,10 @@ class _RsvpSheetState extends State<_RsvpSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _SheetHandle(),
-          const Text('Record RSVP', style: AppTextStyles.titleSmall),
+          Text(
+            widget.guest.respondedAt != null ? 'Update RSVP' : 'Record RSVP',
+            style: AppTextStyles.titleSmall,
+          ),
           const SizedBox(height: 2),
           Text(widget.guest.guestName, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 20),
@@ -832,7 +1350,10 @@ class _RsvpSheetState extends State<_RsvpSheet> {
                 child: Center(
                   child: _saving
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textInverse))
-                      : const Text('Save RSVP', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textInverse)),
+                      : Text(
+                          widget.guest.respondedAt != null ? 'Update RSVP' : 'Save RSVP',
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textInverse),
+                        ),
                 ),
               ),
             ),

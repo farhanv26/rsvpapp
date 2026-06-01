@@ -62,7 +62,10 @@ export default async function EditEventPage({ params }: Props) {
 
   const itineraryItems: ItineraryItem[] = Array.isArray(event.itinerary)
     ? (event.itinerary as ItineraryItem[]).filter(
-        (x) => x && typeof x.time === "string" && typeof x.title === "string",
+        (x) =>
+          x &&
+          typeof x.title === "string" &&
+          (typeof x.startTime === "string" || typeof x.time === "string"),
       )
     : [];
 
