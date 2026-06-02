@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../models/activity.dart';
 import '../models/event.dart';
+// ignore: unused_import
+export '../models/event.dart' show ItineraryItem;
 
 final eventsServiceProvider = Provider<EventsService>((ref) => EventsService(ref.watch(apiClientProvider)));
 
@@ -84,6 +86,62 @@ class EventsService {
       }).timeout(_requestTimeout);
     } on TimeoutException {
       throw const ApiException('Create event request timed out. Try again.');
+    } on DioException catch (e) {
+      throw mapDioError(e);
+    }
+  }
+
+  Future<EventDetailInfo> updateEvent(
+    String eventId, {
+    String? title,
+    String? coupleNames,
+    String? eventSubtitle,
+    String? venue,
+    String? description,
+    String? eventTime,
+    DateTime? eventDate,
+    bool clearEventDate = false,
+    DateTime? rsvpDeadline,
+    bool clearRsvpDeadline = false,
+    List<ItineraryItem>? itinerary,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (title != null) body['title'] = title;
+      if (coupleNames != null) body['coupleNames'] = coupleNames;
+      if (eventSubtitle != null) body['eventSubtitle'] = eventSubtitle;
+      if (venue != null) body['venue'] = venue;
+      if (description != null) body['description'] = description;
+      if (eventTime != null) body['eventTime'] = eventTime;
+      if (clearEventDate) {
+        body['eventDate'] = null;
+      } else if (eventDate != null) {
+        body['eventDate'] = eventDate.toIso8601String();
+      }
+      if (clearRsvpDeadline) {
+        body['rsvpDeadline'] = null;
+      } else if (rsvpDeadline != null) {
+        body['rsvpDeadline'] = rsvpDeadline.toIso8601String();
+      }
+      if (itinerary != null) body['itinerary'] = itinerary.map((i) => i.toJson()).toList();
+
+      final res = await _client.put<Map<String, dynamic>>(
+        '/events/$eventId',
+        data: body,
+      ).timeout(_requestTimeout);
+      return EventDetailInfo.fromJson(res.data!['event'] as Map<String, dynamic>);
+    } on TimeoutException {
+      throw const ApiException('Update event request timed out. Try again.');
+    } on DioException catch (e) {
+      throw mapDioError(e);
+    }
+  }
+
+  Future<void> deleteEvent(String eventId) async {
+    try {
+      await _client.delete<void>('/events/$eventId').timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const ApiException('Delete event request timed out. Try again.');
     } on DioException catch (e) {
       throw mapDioError(e);
     }

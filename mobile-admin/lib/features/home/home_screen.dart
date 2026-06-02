@@ -5,8 +5,10 @@ import '../../core/config/server_config.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/notifications_service.dart';
 import '../../shared/theme/app_theme.dart';
+import '../events/deleted_events_screen.dart';
 import '../events/events_list_screen.dart';
 import '../notifications/notifications_screen.dart';
+import '../users/users_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -18,10 +20,16 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tab = 0;
 
-  void _goToNotifications() => setState(() => _tab = 1);
+  void _goToNotifications() {
+    final user = ref.read(currentUserProvider);
+    final notifIndex = user?.isSuperAdmin == true ? 2 : 1;
+    setState(() => _tab = notifIndex);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider);
+    final isSuperAdmin = user?.isSuperAdmin == true;
     final unread = ref.watch(notificationsProvider).valueOrNull?.unreadCount ?? 0;
 
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -31,15 +39,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       systemNavigationBarIconBrightness: Brightness.dark,
     ));
 
+    // Build tab screens — super admins get Users tab between Events and Notifications
+    final screens = [
+      EventsListScreen(onNotificationsTap: _goToNotifications),
+      if (isSuperAdmin) const UsersScreen(),
+      const NotificationsScreen(),
+      _AccountTab(isSuperAdmin: isSuperAdmin),
+    ];
+
+    final destinations = [
+      const NavigationDestination(
+        icon: Icon(Icons.event_note_outlined),
+        selectedIcon: Icon(Icons.event_note_rounded),
+        label: 'Events',
+      ),
+      if (isSuperAdmin)
+        const NavigationDestination(
+          icon: Icon(Icons.people_outline_rounded),
+          selectedIcon: Icon(Icons.people_rounded),
+          label: 'Users',
+        ),
+      NavigationDestination(
+        icon: unread > 0
+            ? Badge(
+                backgroundColor: AppColors.declined,
+                label: Text(
+                  unread > 9 ? '9+' : '$unread',
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700),
+                ),
+                child: const Icon(Icons.notifications_outlined),
+              )
+            : const Icon(Icons.notifications_outlined),
+        selectedIcon: const Icon(Icons.notifications_rounded),
+        label: 'Alerts',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.person_outline_rounded),
+        selectedIcon: Icon(Icons.person_rounded),
+        label: 'Account',
+      ),
+    ];
+
+    // Clamp tab index if super-admin status changes
+    final safeTab = _tab.clamp(0, screens.length - 1);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: IndexedStack(
-        index: _tab,
-        children: [
-          EventsListScreen(onNotificationsTap: _goToNotifications),
-          const NotificationsScreen(),
-          const _AccountTab(),
-        ],
+        index: safeTab,
+        children: screens,
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
@@ -49,34 +97,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: SafeArea(
           top: false,
           child: NavigationBar(
-            selectedIndex: _tab,
+            selectedIndex: safeTab,
             onDestinationSelected: (i) => setState(() => _tab = i),
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.event_note_outlined),
-                selectedIcon: Icon(Icons.event_note_rounded),
-                label: 'Events',
-              ),
-              NavigationDestination(
-                icon: unread > 0
-                    ? Badge(
-                        backgroundColor: AppColors.declined,
-                        label: Text(
-                          unread > 9 ? '9+' : '$unread',
-                          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700),
-                        ),
-                        child: const Icon(Icons.notifications_outlined),
-                      )
-                    : const Icon(Icons.notifications_outlined),
-                selectedIcon: const Icon(Icons.notifications_rounded),
-                label: 'Notifications',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: 'Account',
-              ),
-            ],
+            destinations: destinations,
           ),
         ),
       ),
@@ -87,7 +110,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 // ── Account tab ────────────────────────────────────────────────────
 
 class _AccountTab extends ConsumerWidget {
-  const _AccountTab();
+  const _AccountTab({required this.isSuperAdmin});
+  final bool isSuperAdmin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -111,7 +135,7 @@ class _AccountTab extends ConsumerWidget {
                     const Text('Account', style: AppTextStyles.titleLarge),
                     const SizedBox(height: 24),
 
-                    // User card
+                    // ── User card ──
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -136,11 +160,7 @@ class _AccountTab extends ConsumerWidget {
                             child: Center(
                               child: Text(
                                 initial,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textOnAccent,
-                                ),
+                                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textOnAccent),
                               ),
                             ),
                           ),
@@ -161,12 +181,7 @@ class _AccountTab extends ConsumerWidget {
                                     ),
                                     child: Text(
                                       _formatRole(role),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.brandAccent,
-                                        letterSpacing: 0.3,
-                                      ),
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.brandAccent, letterSpacing: 0.3),
                                     ),
                                   ),
                               ],
@@ -177,10 +192,28 @@ class _AccountTab extends ConsumerWidget {
                     ),
 
                     const SizedBox(height: 24),
+
+                    // ── Admin tools (super admin only) ──
+                    if (isSuperAdmin) ...[
+                      const Text('ADMIN TOOLS', style: AppTextStyles.sectionLabel),
+                      const SizedBox(height: 10),
+                      _ActionCard(
+                        icon: Icons.delete_sweep_outlined,
+                        iconColor: AppColors.warning,
+                        iconBg: AppColors.warningBg,
+                        title: 'Deleted Events',
+                        subtitle: 'Restore soft-deleted events',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const DeletedEventsScreen()),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // ── Server config ──
                     const Text('SERVER', style: AppTextStyles.sectionLabel),
                     const SizedBox(height: 10),
-
-                    // Server config card
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -195,12 +228,8 @@ class _AccountTab extends ConsumerWidget {
                           Row(
                             children: [
                               Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceMuted,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
+                                width: 36, height: 36,
+                                decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(10)),
                                 child: const Icon(Icons.dns_outlined, size: 18, color: AppColors.textSecondary),
                               ),
                               const SizedBox(width: 12),
@@ -212,11 +241,7 @@ class _AccountTab extends ConsumerWidget {
                                     const SizedBox(height: 2),
                                     Text(
                                       serverUrl.isNotEmpty ? serverUrl : 'Not configured',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textMuted,
-                                        fontFamily: 'monospace',
-                                      ),
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontFamily: 'monospace'),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -244,53 +269,18 @@ class _AccountTab extends ConsumerWidget {
                     ),
 
                     const SizedBox(height: 24),
+
+                    // ── Session ──
                     const Text('SESSION', style: AppTextStyles.sectionLabel),
                     const SizedBox(height: 10),
-
-                    // Sign out button
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                        border: Border.all(color: AppColors.border),
-                        boxShadow: AppShadows.card,
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                        child: InkWell(
-                          onTap: () => _confirmLogout(context, ref),
-                          borderRadius: BorderRadius.circular(AppRadius.lg),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.dangerBg,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(Icons.logout_rounded, size: 18, color: AppColors.danger),
-                                ),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: Text(
-                                    'Sign out',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
-                                      color: AppColors.danger,
-                                    ),
-                                  ),
-                                ),
-                                const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                    _ActionCard(
+                      icon: Icons.logout_rounded,
+                      iconColor: AppColors.danger,
+                      iconBg: AppColors.dangerBg,
+                      title: 'Sign out',
+                      subtitle: 'Return to login screen',
+                      titleColor: AppColors.danger,
+                      onTap: () => _confirmLogout(context, ref),
                     ),
 
                     const SizedBox(height: 48),
@@ -304,9 +294,7 @@ class _AccountTab extends ConsumerWidget {
     );
   }
 
-  String _formatRole(String role) {
-    return role.replaceAll('_', ' ').toUpperCase();
-  }
+  String _formatRole(String role) => role.replaceAll('_', ' ').toUpperCase();
 
   void _showServerConfig(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
@@ -315,12 +303,8 @@ class _AccountTab extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (_) => _ServerConfigSheet(
         currentUrl: ref.read(serverUrlProvider),
-        onSave: (url) async {
-          await ref.read(serverUrlProvider.notifier).setUrl(url);
-        },
-        onReset: () async {
-          await ref.read(serverUrlProvider.notifier).reset();
-        },
+        onSave: (url) async => ref.read(serverUrlProvider.notifier).setUrl(url),
+        onReset: () async => ref.read(serverUrlProvider.notifier).reset(),
       ),
     );
   }
@@ -332,10 +316,7 @@ class _AccountTab extends ConsumerWidget {
         title: const Text('Sign out?'),
         content: const Text('You will return to the login screen.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
@@ -348,14 +329,75 @@ class _AccountTab extends ConsumerWidget {
   }
 }
 
+// ── Reusable action card ───────────────────────────────────────────
+
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    required this.icon,
+    required this.iconColor,
+    required this.iconBg,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.titleColor,
+  });
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBg;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Color? titleColor;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.border),
+          boxShadow: AppShadows.card,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon, size: 18, color: iconColor),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: titleColor ?? AppColors.textPrimary),
+                        ),
+                        Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: titleColor ?? AppColors.textMuted),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
 // ── Server config bottom sheet ─────────────────────────────────────
 
 class _ServerConfigSheet extends ConsumerStatefulWidget {
-  const _ServerConfigSheet({
-    required this.currentUrl,
-    required this.onSave,
-    required this.onReset,
-  });
+  const _ServerConfigSheet({required this.currentUrl, required this.onSave, required this.onReset});
   final String currentUrl;
   final Future<void> Function(String) onSave;
   final Future<void> Function() onReset;
@@ -376,10 +418,7 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
   }
 
   @override
-  void dispose() {
-    _urlCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _urlCtrl.dispose(); super.dispose(); }
 
   Future<void> _reset() async {
     setState(() => _saving = true);
@@ -389,18 +428,9 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
 
   Future<void> _save() async {
     final url = _urlCtrl.text.trim();
-    if (url.isEmpty) {
-      setState(() => _error = 'Enter a URL.');
-      return;
-    }
-    if (!url.startsWith('http')) {
-      setState(() => _error = 'Must start with http:// or https://');
-      return;
-    }
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+    if (url.isEmpty) { setState(() => _error = 'Enter a URL.'); return; }
+    if (!url.startsWith('http')) { setState(() => _error = 'Must start with http:// or https://'); return; }
+    setState(() { _saving = true; _error = null; });
     try {
       await widget.onSave(url);
       if (mounted) Navigator.pop(context);
@@ -426,8 +456,7 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
         children: [
           Center(
             child: Container(
-              width: 36,
-              height: 4,
+              width: 36, height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
             ),
@@ -435,7 +464,7 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
           const Text('Server Configuration', style: AppTextStyles.titleSmall),
           const SizedBox(height: 6),
           const Text(
-            'Point to your RSVP server. If you enter only a domain/IP, the app auto-appends /admin/api/mobile.\n• Simulator: http://localhost:3000\n• Physical device: use your Mac\'s local IP instead of localhost',
+            'Point to your RSVP server.\n• Simulator: http://localhost:3000\n• Physical device: use your Mac\'s local IP',
             style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.5),
           ),
           const SizedBox(height: 16),
@@ -456,12 +485,7 @@ class _ServerConfigSheetState extends ConsumerState<_ServerConfigSheet> {
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _saving ? null : _reset,
-                  child: const Text('Reset'),
-                ),
-              ),
+              Expanded(child: OutlinedButton(onPressed: _saving ? null : _reset, child: const Text('Reset'))),
               const SizedBox(width: 10),
               Expanded(
                 flex: 2,

@@ -215,6 +215,38 @@ class GuestsService {
     }
   }
 
+  Future<int> bulkMarkInvited(
+    String eventId,
+    List<String> guestIds, {
+    String channel = 'manual',
+  }) async {
+    try {
+      final res = await _client.post<Map<String, dynamic>>(
+        '/events/$eventId/guests/bulk',
+        data: {'action': 'mark_invited', 'guestIds': guestIds, 'channel': channel},
+      ).timeout(_requestTimeout);
+      return (res.data!['affected'] as num).toInt();
+    } on TimeoutException {
+      throw const ApiException('Bulk invite timed out. Try again.');
+    } on DioException catch (e) {
+      throw mapDioError(e);
+    }
+  }
+
+  Future<int> bulkDelete(String eventId, List<String> guestIds) async {
+    try {
+      final res = await _client.post<Map<String, dynamic>>(
+        '/events/$eventId/guests/bulk',
+        data: {'action': 'delete', 'guestIds': guestIds},
+      ).timeout(_requestTimeout);
+      return (res.data!['affected'] as num).toInt();
+    } on TimeoutException {
+      throw const ApiException('Bulk delete timed out. Try again.');
+    } on DioException catch (e) {
+      throw mapDioError(e);
+    }
+  }
+
   Future<List<CommunicationLog>> getCommunicationHistory(
     String eventId,
     String guestId,

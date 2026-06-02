@@ -111,10 +111,10 @@ class _EventsBody extends ConsumerWidget {
           ),
           SliverToBoxAdapter(child: _SummaryStrip(events: events)),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
             sliver: SliverList.separated(
               itemCount: events.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
               itemBuilder: (context, i) => EventCard(
                 event: events[i],
                 onTap: () => Navigator.push(
@@ -154,7 +154,7 @@ class _Header extends ConsumerWidget {
               children: [
                 Text(
                   user != null ? 'Hi, ${(user.name as String).split(' ').first}' : 'Events',
-                  style: AppTextStyles.titleLarge,
+                  style: AppTextStyles.displaySerif,
                 ),
                 const SizedBox(height: 2),
                 Text(

@@ -5,11 +5,19 @@ class Event {
     required this.slug,
     this.coupleNames,
     this.eventDate,
+    this.rsvpDeadline,
+    this.eventTime,
     this.venue,
     required this.theme,
     this.imagePath,
     required this.createdAt,
     required this.guestCount,
+    required this.familyCount,
+    required this.totalHeadcount,
+    required this.responded,
+    required this.attendingFamilies,
+    required this.confirmedAttendees,
+    required this.pendingFamilies,
   });
 
   factory Event.fromJson(Map<String, dynamic> json) => Event(
@@ -18,11 +26,19 @@ class Event {
         slug: json['slug'] as String,
         coupleNames: json['coupleNames'] as String?,
         eventDate: json['eventDate'] != null ? DateTime.parse(json['eventDate'] as String) : null,
+        rsvpDeadline: json['rsvpDeadline'] != null ? DateTime.parse(json['rsvpDeadline'] as String) : null,
+        eventTime: json['eventTime'] as String?,
         venue: json['venue'] as String?,
         theme: json['theme'] as String,
         imagePath: json['imagePath'] as String?,
         createdAt: DateTime.parse(json['createdAt'] as String),
-        guestCount: (json['guestCount'] as num).toInt(),
+        guestCount: (json['guestCount'] as num? ?? 0).toInt(),
+        familyCount: (json['familyCount'] as num? ?? json['guestCount'] as num? ?? 0).toInt(),
+        totalHeadcount: (json['totalHeadcount'] as num? ?? 0).toInt(),
+        responded: (json['responded'] as num? ?? 0).toInt(),
+        attendingFamilies: (json['attendingFamilies'] as num? ?? 0).toInt(),
+        confirmedAttendees: (json['confirmedAttendees'] as num? ?? 0).toInt(),
+        pendingFamilies: (json['pendingFamilies'] as num? ?? 0).toInt(),
       );
 
   final String id;
@@ -30,13 +46,23 @@ class Event {
   final String slug;
   final String? coupleNames;
   final DateTime? eventDate;
+  final DateTime? rsvpDeadline;
+  final String? eventTime;
   final String? venue;
   final String theme;
   final String? imagePath;
   final DateTime createdAt;
-  final int guestCount;
+  // Guest counts
+  final int guestCount;       // raw record count (= familyCount)
+  final int familyCount;      // families (same as guestCount, explicitly labelled)
+  final int totalHeadcount;   // sum of all people across all family records
+  final int responded;        // families that submitted an RSVP
+  final int attendingFamilies;
+  final int confirmedAttendees; // headcount of attending guests
+  final int pendingFamilies;    // invited but not yet responded
 
   String get displayName => coupleNames?.isNotEmpty == true ? coupleNames! : title;
+  int get responseRate => familyCount > 0 ? ((responded / familyCount) * 100).round() : 0;
 }
 
 class EventStats {
@@ -104,6 +130,48 @@ class EventDetail {
   final EventStats stats;
 }
 
+class ItineraryItem {
+  const ItineraryItem({
+    this.startTime,
+    this.time,
+    this.endTime,
+    required this.title,
+    this.icon,
+    this.description,
+  });
+
+  factory ItineraryItem.fromJson(Map<String, dynamic> json) => ItineraryItem(
+        startTime: json['startTime'] as String?,
+        time: json['time'] as String?,
+        endTime: json['endTime'] as String?,
+        title: json['title'] as String? ?? '',
+        icon: json['icon'] as String?,
+        description: json['description'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        if (startTime != null) 'startTime': startTime,
+        if (time != null) 'time': time,
+        if (endTime != null) 'endTime': endTime,
+        'title': title,
+        if (icon != null) 'icon': icon,
+        if (description != null) 'description': description,
+      };
+
+  final String? startTime;
+  final String? time;
+  final String? endTime;
+  final String title;
+  final String? icon;
+  final String? description;
+
+  String get displayTime {
+    final start = startTime ?? time ?? '';
+    if (start.isEmpty) return '';
+    return endTime != null ? '$start – $endTime' : start;
+  }
+}
+
 class EventDetailInfo {
   const EventDetailInfo({
     required this.id,
@@ -118,6 +186,7 @@ class EventDetailInfo {
     required this.theme,
     this.description,
     this.imagePath,
+    required this.itinerary,
     required this.createdAt,
   });
 
@@ -134,6 +203,10 @@ class EventDetailInfo {
         theme: json['theme'] as String,
         description: json['description'] as String?,
         imagePath: json['imagePath'] as String?,
+        itinerary: (json['itinerary'] as List<dynamic>? ?? [])
+            .where((e) => e is Map)
+            .map((e) => ItineraryItem.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
 
@@ -149,6 +222,7 @@ class EventDetailInfo {
   final String theme;
   final String? description;
   final String? imagePath;
+  final List<ItineraryItem> itinerary;
   final DateTime createdAt;
 
   String get displayName => coupleNames?.isNotEmpty == true ? coupleNames! : title;

@@ -32,28 +32,67 @@ export async function GET(req: NextRequest) {
           slug: true,
           coupleNames: true,
           eventDate: true,
+          rsvpDeadline: true,
+          eventTime: true,
           venue: true,
           theme: true,
           imagePath: true,
           createdAt: true,
-          _count: { select: { guests: { where: { deletedAt: null } } } },
+          guests: {
+            where: { deletedAt: null },
+            select: {
+              attending: true,
+              attendingCount: true,
+              maxGuests: true,
+              menCount: true,
+              womenCount: true,
+              kidsCount: true,
+              respondedAt: true,
+              invitedAt: true,
+              excludedGuestCount: true,
+              excludedMenCount: true,
+              excludedWomenCount: true,
+              excludedKidsCount: true,
+            },
+          },
         },
       })
     );
 
     return Response.json({
-      events: events.map((e) => ({
-        id: e.id,
-        title: e.title,
-        slug: e.slug,
-        coupleNames: e.coupleNames,
-        eventDate: e.eventDate?.toISOString() ?? null,
-        venue: e.venue,
-        theme: e.theme,
-        imagePath: e.imagePath ?? null,
-        createdAt: e.createdAt.toISOString(),
-        guestCount: e._count.guests,
-      })),
+      events: events.map((e) => {
+        const guests = e.guests ?? [];
+        const familyCount = guests.length;
+        const responded = guests.filter((g) => g.respondedAt != null).length;
+        const attendingFamilies = guests.filter((g) => g.attending === true).length;
+        const confirmedAttendees = guests.reduce((s, g) => s + (g.attendingCount ?? 0), 0);
+        const pendingFamilies = guests.filter((g) => g.invitedAt != null && g.respondedAt == null).length;
+        const totalHeadcount = guests.reduce((s, g) => {
+          const raw = (g.menCount ?? 0) + (g.womenCount ?? 0) + (g.kidsCount ?? 0);
+          return s + (raw > 0 ? raw : (g.maxGuests ?? 0));
+        }, 0);
+        return {
+          id: e.id,
+          title: e.title,
+          slug: e.slug,
+          coupleNames: e.coupleNames,
+          eventDate: e.eventDate?.toISOString() ?? null,
+          rsvpDeadline: e.rsvpDeadline?.toISOString() ?? null,
+          eventTime: e.eventTime,
+          venue: e.venue,
+          theme: e.theme,
+          imagePath: e.imagePath ?? null,
+          createdAt: e.createdAt.toISOString(),
+          // Counts
+          guestCount: familyCount,
+          familyCount,
+          totalHeadcount,
+          responded,
+          attendingFamilies,
+          confirmedAttendees,
+          pendingFamilies,
+        };
+      }),
     });
   } catch (err) {
     console.error("[mobile/events GET]", err);

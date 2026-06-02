@@ -9,9 +9,10 @@ import '../../../shared/theme/app_theme.dart';
 // ── Compact row for list display ───────────────────────────────────
 
 class GuestCompactRow extends StatelessWidget {
-  const GuestCompactRow({super.key, required this.guest, required this.onTap});
+  const GuestCompactRow({super.key, required this.guest, required this.onTap, this.onLongPress});
   final Guest guest;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +22,7 @@ class GuestCompactRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
           height: 64,

@@ -7,6 +7,7 @@ import {
   notFoundResponse,
 } from "@/lib/mobile-api-auth";
 import { prisma, withReconnect } from "@/lib/prisma";
+import { logAuditActivity } from "@/lib/audit-log";
 
 /** GET /admin/api/mobile/events/[eventId] — event detail with computed stats. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
       theme: true,
       description: true,
       imagePath: true,
+      itinerary: true,
       ownerUserId: true,
       createdAt: true,
       guests: {
@@ -121,6 +123,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
       theme: event.theme,
       description: event.description,
       imagePath: event.imagePath,
+      itinerary: Array.isArray(event.itinerary) ? event.itinerary : [],
       createdAt: event.createdAt.toISOString(),
     },
     stats: {
@@ -144,5 +147,118 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
   } catch (err) {
     console.error("[event-detail] Error:", err);
     return Response.json({ error: "Failed to load event" }, { status: 500 });
+  }
+}
+
+/** PUT /admin/api/mobile/events/[eventId] — update event fields. */
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+  try {
+    const user = await getMobileAdminUser(req);
+    if (!user) return unauthorizedResponse();
+
+    const { eventId } = await params;
+
+    const event = await withReconnect(() =>
+      prisma.event.findFirst({
+        where: { id: eventId, deletedAt: null },
+        select: { id: true, title: true, ownerUserId: true },
+      })
+    );
+    if (!event) return notFoundResponse("Event not found");
+    if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+
+    let body: Record<string, unknown> = {};
+    try { body = await req.json(); } catch {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const data: Record<string, unknown> = {};
+    if (typeof body.title === "string" && body.title.trim()) data.title = body.title.trim();
+    if (typeof body.coupleNames === "string") data.coupleNames = body.coupleNames.trim() || null;
+    if (typeof body.eventSubtitle === "string") data.eventSubtitle = body.eventSubtitle.trim() || null;
+    if (typeof body.venue === "string") data.venue = body.venue.trim() || null;
+    if (typeof body.description === "string") data.description = body.description.trim() || null;
+    if (typeof body.eventTime === "string") data.eventTime = body.eventTime.trim() || null;
+    if (body.eventDate === null) { data.eventDate = null; }
+    else if (typeof body.eventDate === "string") { data.eventDate = new Date(body.eventDate); }
+    if (body.rsvpDeadline === null) { data.rsvpDeadline = null; }
+    else if (typeof body.rsvpDeadline === "string") { data.rsvpDeadline = new Date(body.rsvpDeadline); }
+    if (Array.isArray(body.itinerary)) data.itinerary = body.itinerary;
+
+    if (Object.keys(data).length === 0) {
+      return Response.json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    const updated = await prisma.event.update({
+      where: { id: eventId },
+      data,
+      select: {
+        id: true, title: true, slug: true, coupleNames: true, eventSubtitle: true,
+        eventDate: true, rsvpDeadline: true, eventTime: true, venue: true, description: true,
+        imagePath: true, itinerary: true, createdAt: true, theme: true,
+      },
+    });
+
+    await logAuditActivity({
+      eventId,
+      userId: user.id,
+      userName: user.name,
+      actionType: "event_updated",
+      entityType: "Event",
+      entityId: eventId,
+      entityName: event.title,
+      message: `${user.name} updated event "${event.title}" (mobile).`,
+      metadata: { changes: Object.keys(data) },
+    });
+
+    return Response.json({
+      event: {
+        ...updated,
+        eventDate: updated.eventDate?.toISOString() ?? null,
+        rsvpDeadline: updated.rsvpDeadline?.toISOString() ?? null,
+        itinerary: Array.isArray(updated.itinerary) ? updated.itinerary : [],
+        createdAt: updated.createdAt.toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error("[mobile/event PUT]", err);
+    return Response.json({ error: "Failed to update event" }, { status: 500 });
+  }
+}
+
+/** DELETE /admin/api/mobile/events/[eventId] — soft-delete event. */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+  try {
+    const user = await getMobileAdminUser(req);
+    if (!user) return unauthorizedResponse();
+
+    const { eventId } = await params;
+
+    const event = await withReconnect(() =>
+      prisma.event.findFirst({
+        where: { id: eventId, deletedAt: null },
+        select: { id: true, title: true, ownerUserId: true },
+      })
+    );
+    if (!event) return notFoundResponse("Event not found");
+    if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+
+    await prisma.event.update({ where: { id: eventId }, data: { deletedAt: new Date() } });
+
+    await logAuditActivity({
+      eventId,
+      userId: user.id,
+      userName: user.name,
+      actionType: "event_deleted",
+      entityType: "Event",
+      entityId: eventId,
+      entityName: event.title,
+      message: `${user.name} deleted event "${event.title}" (mobile).`,
+    });
+
+    return Response.json({ ok: true });
+  } catch (err) {
+    console.error("[mobile/event DELETE]", err);
+    return Response.json({ error: "Failed to delete event" }, { status: 500 });
   }
 }

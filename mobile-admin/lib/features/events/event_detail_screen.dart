@@ -14,6 +14,7 @@ import '../../shared/utils/resolve_image_url.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../guests/guests_list_screen.dart';
 import 'activity_screen.dart';
+import 'edit_event_screen.dart';
 import 'widgets/stat_card.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
@@ -56,6 +57,48 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     ref.invalidate(eventSectionsProvider(widget.eventId));
   }
 
+  Future<void> _openEdit(BuildContext context, EventDetailInfo ev) async {
+    final updated = await Navigator.push<EventDetailInfo>(
+      context,
+      MaterialPageRoute(builder: (_) => EditEventScreen(event: ev)),
+    );
+    if (updated != null) _refresh();
+  }
+
+  Future<void> _confirmDelete(BuildContext context, EventDetailInfo ev) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete event?'),
+        content: Text('Are you sure you want to delete "${ev.displayName}"? This cannot be undone from the mobile app.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(eventsServiceProvider).deleteEvent(widget.eventId);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Event deleted')),
+        );
+        Navigator.pop(context, 'deleted');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(userFacingErrorMessage(e))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(eventDetailProvider(widget.eventId));
@@ -75,11 +118,44 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             d.event.displayName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.titleMedium,
+            style: AppTextStyles.displaySerif.copyWith(fontSize: 17),
           ),
           orElse: () => const Text('Event', style: AppTextStyles.titleMedium),
         ),
         actions: [
+          detailAsync.maybeWhen(
+            data: (d) => IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              tooltip: 'Edit event',
+              onPressed: () => _openEdit(context, d.event),
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+          detailAsync.maybeWhen(
+            data: (d) => PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded, size: 20),
+              color: AppColors.surfaceElevated,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
+                      SizedBox(width: 12),
+                      Text('Delete event', style: TextStyle(fontSize: 14, color: AppColors.danger)),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (v) { if (v == 'delete') _confirmDelete(context, d.event); },
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded, size: 20),
             tooltip: 'Refresh',
@@ -337,6 +413,15 @@ class _EventDetailBody extends ConsumerWidget {
             ),
           ),
 
+            // Itinerary
+          if (ev.itinerary.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: _ItinerarySection(items: ev.itinerary),
+              ),
+            ),
+
           // Sections
           SliverToBoxAdapter(
             child: sectionsAsync.when(
@@ -418,7 +503,7 @@ class _HeroCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textSecondary),
+                style: AppTextStyles.displaySerif.copyWith(fontSize: 15, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -924,6 +1009,128 @@ class _DeadlineAlert extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Itinerary section ──────────────────────────────────────────────
+
+class _ItinerarySection extends StatelessWidget {
+  const _ItinerarySection({required this.items});
+  final List<ItineraryItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ITINERARY', style: AppTextStyles.sectionLabel),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppColors.border),
+            boxShadow: AppShadows.card,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: AppColors.brandAccent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.schedule_rounded, size: 15, color: AppColors.brandAccent),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text('Event Timeline', style: AppTextStyles.titleSmall),
+                    const Spacer(),
+                    Text(
+                      '${items.length} item${items.length == 1 ? '' : 's'}',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.borderLight),
+              ...items.asMap().entries.map((entry) {
+                final i = entry.key;
+                final item = entry.value;
+                return Column(
+                  children: [
+                    _ItineraryRow(item: item),
+                    if (i < items.length - 1)
+                      const Divider(height: 1, color: AppColors.borderLight, indent: 58),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ItineraryRow extends StatelessWidget {
+  const _ItineraryRow({required this.item});
+  final ItineraryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.brandAccent.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.calendar_today_outlined, size: 15, color: AppColors.brandAccent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                ),
+                if (item.description != null && item.description!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    item.description!,
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.35),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (item.displayTime.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: item.displayTime.split(' – ').map((t) => Text(
+                t,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.brandAccent),
+              )).toList(),
+            ),
+          ],
         ],
       ),
     );

@@ -38,6 +38,76 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
   String _duplicate = 'all';
   String _sort = 'name_asc';
 
+  // Bulk selection
+  bool _selectionMode = false;
+  final Set<String> _selectedIds = {};
+
+  void _enterSelectionMode(String firstId) => setState(() {
+        _selectionMode = true;
+        _selectedIds
+          ..clear()
+          ..add(firstId);
+      });
+
+  void _exitSelectionMode() => setState(() {
+        _selectionMode = false;
+        _selectedIds.clear();
+      });
+
+  void _toggleId(String id) => setState(() {
+        if (_selectedIds.contains(id)) {
+          _selectedIds.remove(id);
+        } else {
+          _selectedIds.add(id);
+        }
+      });
+
+  void _selectAll(List<String> ids) => setState(() => _selectedIds.addAll(ids));
+
+  Future<void> _bulkMarkInvited(BuildContext context, String channel) async {
+    final ids = _selectedIds.toList();
+    try {
+      final n = await ref.read(guestsServiceProvider).bulkMarkInvited(widget.eventId, ids, channel: channel);
+      _exitSelectionMode();
+      ref.invalidate(guestsListProvider(_params));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$n guests marked as invited.')));
+      }
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(userFacingErrorMessage(e))));
+    }
+  }
+
+  Future<void> _bulkDelete(BuildContext context) async {
+    final ids = _selectedIds.toList();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete guests?'),
+        content: Text('Permanently remove ${ids.length} selected guest${ids.length == 1 ? '' : 's'}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      final n = await ref.read(guestsServiceProvider).bulkDelete(widget.eventId, ids);
+      _exitSelectionMode();
+      ref.invalidate(guestsListProvider(_params));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$n guests deleted.')));
+      }
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(userFacingErrorMessage(e))));
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -116,109 +186,145 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
   Widget build(BuildContext context) {
     final guestsAsync = ref.watch(guestsListProvider(_params));
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final allIds = guestsAsync.valueOrNull?.map((g) => g.id).toList() ?? [];
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.eventTitle, style: AppTextStyles.titleMedium),
-            const Text(
-              'Guest list',
-              style: TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w400),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_outlined, size: 21),
-            tooltip: 'Add guest',
-            onPressed: () async {
-              final added = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => GuestEditScreen(eventId: widget.eventId, guest: null),
-                ),
-              );
-              if (added == true) ref.invalidate(guestsListProvider(_params));
-            },
-          ),
-          Stack(
-            alignment: Alignment.topRight,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.tune_rounded, size: 21),
-                tooltip: 'Filters & sort',
-                onPressed: _openFilterSheet,
+      appBar: _selectionMode
+          ? AppBar(
+              backgroundColor: AppColors.background,
+              leading: IconButton(
+                icon: const Icon(Icons.close_rounded),
+                onPressed: _exitSelectionMode,
               ),
-              if (_hasActiveFilters)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: AppColors.brandAccent,
-                      shape: BoxShape.circle,
-                    ),
+              title: Text(
+                _selectedIds.isEmpty
+                    ? 'Select guests'
+                    : '${_selectedIds.length} selected',
+                style: AppTextStyles.titleMedium,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: allIds.isEmpty
+                      ? null
+                      : () => _selectedIds.length == allIds.length
+                          ? setState(() => _selectedIds.clear())
+                          : _selectAll(allIds),
+                  child: Text(
+                    _selectedIds.length == allIds.length ? 'Deselect all' : 'Select all',
+                    style: const TextStyle(color: AppColors.brandAccent, fontWeight: FontWeight.w600),
                   ),
                 ),
-            ],
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(96),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: TextField(
-                  controller: _searchCtrl,
-                  onChanged: (v) => setState(() => _query = v.trim()),
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Search name, phone, or email…',
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textMuted),
-                    suffixIcon: _query.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, size: 18),
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              setState(() => _query = '');
-                            },
-                          )
-                        : null,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    isDense: true,
+              ],
+            )
+          : AppBar(
+              backgroundColor: AppColors.background,
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.eventTitle, style: AppTextStyles.titleMedium),
+                  const Text(
+                    'Guest list',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w400),
                   ),
-                ),
+                ],
               ),
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  children: _statusFilters.map((f) {
-                    final selected = _statusFilter == f.$1;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: _StatusChip(
-                        label: f.$2,
-                        selected: selected,
-                        onTap: () => setState(() => _statusFilter = f.$1),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.person_add_outlined, size: 21),
+                  tooltip: 'Add guest',
+                  onPressed: () async {
+                    final added = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GuestEditScreen(eventId: widget.eventId, guest: null),
                       ),
                     );
-                  }).toList(),
+                    if (added == true) ref.invalidate(guestsListProvider(_params));
+                  },
+                ),
+                Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.tune_rounded, size: 21),
+                      tooltip: 'Filters & sort',
+                      onPressed: _openFilterSheet,
+                    ),
+                    if (_hasActiveFilters)
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: AppColors.brandAccent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(96),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: (v) => setState(() => _query = v.trim()),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Search name, phone, or email…',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textMuted),
+                          suffixIcon: _query.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded, size: 18),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _query = '');
+                                  },
+                                )
+                              : null,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        children: _statusFilters.map((f) {
+                          final selected = _statusFilter == f.$1;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: _StatusChip(
+                              label: f.$2,
+                              selected: selected,
+                              onTap: () => setState(() => _statusFilter = f.$1),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
+      // ── Bulk action bar ──
+      bottomSheet: _selectionMode && _selectedIds.isNotEmpty
+          ? _BulkActionBar(
+              count: _selectedIds.length,
+              onMarkInvited: (channel) => _bulkMarkInvited(context, channel),
+              onDelete: () => _bulkDelete(context),
+            )
+          : null,
       body: guestsAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.brandAccent, strokeWidth: 2),
@@ -259,15 +365,23 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                   children: [
                     Text(
                       '${guests.length} shown',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                     ),
                     _SummaryPill(color: AppColors.attending, label: '$attending attending'),
                     _SummaryPill(color: AppColors.declined, label: '$declined declined'),
                     if (pending > 0) _SummaryPill(color: AppColors.pending, label: '$pending awaiting'),
+                    if (!_selectionMode)
+                      GestureDetector(
+                        onTap: () => guests.isNotEmpty ? _enterSelectionMode(guests.first.id) : null,
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.checklist_rounded, size: 12, color: AppColors.textMuted),
+                            SizedBox(width: 3),
+                            Text('Select', style: TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -278,14 +392,54 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
                   backgroundColor: AppColors.surfaceCard,
                   onRefresh: () async => ref.invalidate(guestsListProvider(_params)),
                   child: ListView.separated(
-                    padding: EdgeInsets.fromLTRB(10, 8, 10, 80 + bottomInset),
+                    padding: EdgeInsets.fromLTRB(10, 8, 10, (_selectionMode ? 100 : 80) + bottomInset),
                     itemCount: guests.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 5),
                     itemBuilder: (context, i) {
                       final guest = guests[i];
+                      final isSelected = _selectedIds.contains(guest.id);
                       final service = ref.read(guestsServiceProvider);
+
+                      if (_selectionMode) {
+                        return GestureDetector(
+                          onTap: () => _toggleId(guest.id),
+                          child: Stack(
+                            children: [
+                              Opacity(
+                                opacity: isSelected ? 1.0 : 0.65,
+                                child: GuestCompactRow(guest: guest, onTap: () => _toggleId(guest.id)),
+                              ),
+                              Positioned(
+                                right: 12,
+                                top: 0,
+                                bottom: 0,
+                                child: Center(
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
+                                    width: 22,
+                                    height: 22,
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? AppColors.brandDeep : AppColors.surfaceCard,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isSelected ? AppColors.brandDeep : AppColors.border,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: isSelected
+                                        ? const Icon(Icons.check_rounded, size: 13, color: AppColors.textInverse)
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
                       return GuestCompactRow(
                         guest: guest,
+                        onLongPress: () => _enterSelectionMode(guest.id),
                         onTap: () => showGuestDetailSheet(
                           context,
                           guest: guest,
@@ -322,6 +476,145 @@ class _GuestsListScreenState extends ConsumerState<GuestsListScreen> {
       ),
     );
   }
+}
+
+// ── Bulk action bar ────────────────────────────────────────────────
+
+class _BulkActionBar extends StatelessWidget {
+  const _BulkActionBar({
+    required this.count,
+    required this.onMarkInvited,
+    required this.onDelete,
+  });
+  final int count;
+  final void Function(String channel) onMarkInvited;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
+      decoration: const BoxDecoration(
+        color: AppColors.brandDeep,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$count guest${count == 1 ? '' : 's'} selected',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textInverse),
+                ),
+                const Text(
+                  'Choose a bulk action',
+                  style: TextStyle(fontSize: 11, color: AppColors.textInverse, fontWeight: FontWeight.w400),
+                ),
+              ],
+            ),
+          ),
+          _BulkBtn(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Mark invited',
+            color: AppColors.attending,
+            onTap: () => _showChannelPicker(context),
+          ),
+          const SizedBox(width: 8),
+          _BulkBtn(
+            icon: Icons.delete_outline_rounded,
+            label: 'Delete',
+            color: AppColors.danger,
+            onTap: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChannelPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36, height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const Text('Mark invited via…', style: AppTextStyles.titleSmall),
+              const SizedBox(height: 4),
+              const Text('How did you reach them?', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              ...[
+                (Icons.chat_rounded, 'WhatsApp', 'whatsapp', const Color(0xFF25D366)),
+                (Icons.message_rounded, 'iMessage / SMS', 'imessage', AppColors.invited),
+                (Icons.email_outlined, 'Email', 'email', AppColors.brandAccent),
+                (Icons.person_rounded, 'In person / manual', 'manual', AppColors.textSecondary),
+              ].map((t) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: t.$4.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: t.$4.withValues(alpha: 0.2)),
+                  ),
+                  child: Icon(t.$1, color: t.$4, size: 18),
+                ),
+                title: Text(t.$2, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 18),
+                onTap: () { Navigator.pop(ctx); onMarkInvited(t.$3); },
+              )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BulkBtn extends StatelessWidget {
+  const _BulkBtn({required this.icon, required this.label, required this.color, required this.onTap});
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(height: 3),
+              Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+            ],
+          ),
+        ),
+      );
 }
 
 // ── Summary pill ───────────────────────────────────────────────────

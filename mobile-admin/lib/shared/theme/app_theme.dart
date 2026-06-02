@@ -75,9 +75,19 @@ class AppTextStyles {
   static const sectionLabel = TextStyle(
     fontSize: 10,
     fontWeight: FontWeight.w700,
-    letterSpacing: 1.5,
+    letterSpacing: 1.6,
     color: AppColors.textMuted,
     height: 1.0,
+  );
+
+  /// Georgia serif — matches the web's `font-display-serif` headline style.
+  static const displaySerif = TextStyle(
+    fontFamily: 'Georgia',
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.3,
+    color: AppColors.textPrimary,
+    height: 1.15,
   );
 
   static const headlineDisplay = TextStyle(
