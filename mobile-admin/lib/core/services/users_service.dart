@@ -34,14 +34,12 @@ class UsersService {
 
   Future<ManagedUser> createUser({
     required String name,
-    required String email,
     required String password,
     required String role,
   }) async {
     try {
       final res = await _client.post<Map<String, dynamic>>('/users', data: {
         'name': name,
-        'email': email,
         'password': password,
         'role': role,
       }).timeout(_timeout);

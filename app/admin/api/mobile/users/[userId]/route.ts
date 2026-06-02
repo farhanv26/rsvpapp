@@ -22,7 +22,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const target = await withReconnect(() =>
     prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
-      select: { id: true, name: true, email: true, role: true, active: true },
+      select: { id: true, name: true, role: true, active: true },
     })
   );
   if (!target) return notFoundResponse("User not found");
@@ -47,7 +47,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const updated = await prisma.user.update({
       where: { id: userId },
       data,
-      select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+      select: { id: true, name: true, role: true, active: true, createdAt: true },
     });
 
     const changes = Object.keys(data).join(", ");

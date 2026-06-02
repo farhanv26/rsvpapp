@@ -172,11 +172,6 @@ class _UserCard extends StatelessWidget {
                       const _Pill('You', AppColors.brandAccent, AppColors.brandAccentLight),
                   ],
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  user.email,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
@@ -342,7 +337,6 @@ class _CreateUserSheet extends ConsumerStatefulWidget {
 class _CreateUserSheetState extends ConsumerState<_CreateUserSheet> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   String _role = 'event_creator';
   bool _saving = false;
@@ -351,7 +345,6 @@ class _CreateUserSheetState extends ConsumerState<_CreateUserSheet> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
   }
@@ -362,7 +355,6 @@ class _CreateUserSheetState extends ConsumerState<_CreateUserSheet> {
     try {
       await ref.read(usersServiceProvider).createUser(
         name: _nameCtrl.text.trim(),
-        email: _emailCtrl.text.trim().toLowerCase(),
         password: _passCtrl.text.trim(),
         role: _role,
       );
@@ -416,17 +408,6 @@ class _CreateUserSheetState extends ConsumerState<_CreateUserSheet> {
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Full name *', prefixIcon: Icon(Icons.person_outline_rounded, size: 20)),
               validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-            ),
-            const SizedBox(height: 10),
-            TextFormField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email *', prefixIcon: Icon(Icons.email_outlined, size: 20)),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Required';
-                if (!v.contains('@')) return 'Enter a valid email';
-                return null;
-              },
             ),
             const SizedBox(height: 10),
             TextFormField(
