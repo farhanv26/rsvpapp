@@ -137,6 +137,19 @@ class EventsService {
     }
   }
 
+  Future<String> getPreviewUrl(String eventId) async {
+    try {
+      final res = await _client
+          .get<Map<String, dynamic>>('/events/$eventId/preview-url')
+          .timeout(_requestTimeout);
+      return res.data!['previewUrl'] as String;
+    } on TimeoutException {
+      throw const ApiException('Preview request timed out. Try again.');
+    } on DioException catch (e) {
+      throw mapDioError(e);
+    }
+  }
+
   Future<void> deleteEvent(String eventId) async {
     try {
       await _client.delete<void>('/events/$eventId').timeout(_requestTimeout);

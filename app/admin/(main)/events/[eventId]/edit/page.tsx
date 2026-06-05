@@ -6,6 +6,7 @@ import { EventFontStyleField } from "@/components/admin/event-font-style-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 import { EventItineraryFields } from "@/components/admin/event-itinerary-fields";
 import { SafeEventImage } from "@/components/safe-event-image";
+import { RsvpPreviewModal } from "@/components/admin/rsvp-preview-modal";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { getSafeImageSrc } from "@/lib/utils";
@@ -83,10 +84,15 @@ export default async function EditEventPage({ params }: Props) {
           </svg>
           Event dashboard
         </Link>
-        <h1 className="headline-display mt-3">Edit event</h1>
-        <p className="mt-1.5 text-sm text-zinc-500">
-          Changes save immediately and update the guest invite page.
-        </p>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="headline-display">Edit event</h1>
+            <p className="mt-1.5 text-sm text-zinc-500">
+              Changes save immediately and update the guest invite page.
+            </p>
+          </div>
+          <RsvpPreviewModal eventId={event.id} />
+        </div>
       </div>
 
       <form action={updateEventAction} className="space-y-5">

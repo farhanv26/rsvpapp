@@ -12,6 +12,7 @@ import { EventSectionNav } from "@/components/admin/event-section-nav";
 import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { EventDashboardScrollReset } from "@/components/admin/event-dashboard-scroll-reset";
 import { ScrollToGuestsControl } from "@/components/admin/scroll-to-guests-control";
+import { RsvpPreviewModal } from "@/components/admin/rsvp-preview-modal";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { countInvitedAwaitingRsvp } from "@/lib/guest-followup";
@@ -436,6 +437,10 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                 >
                   Host summary
                 </Link>
+                <RsvpPreviewModal
+                  eventId={event.id}
+                  triggerClassName="btn-secondary shrink-0 lg:w-full lg:justify-center"
+                />
                 <EventRsvpShare
                   eventTitle={event.title}
                   eventCoupleNames={event.coupleNames}

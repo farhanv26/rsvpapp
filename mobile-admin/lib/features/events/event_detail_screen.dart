@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/api/api_client.dart';
 import '../../core/models/event.dart';
 import '../../core/models/event_sections.dart';
@@ -408,6 +409,8 @@ class _EventDetailBody extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  _PreviewRsvpButton(eventId: eventId),
                 ],
               ),
             ),
@@ -443,6 +446,77 @@ class _EventDetailBody extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Preview RSVP button ────────────────────────────────────────────
+
+class _PreviewRsvpButton extends ConsumerStatefulWidget {
+  const _PreviewRsvpButton({required this.eventId});
+  final String eventId;
+
+  @override
+  ConsumerState<_PreviewRsvpButton> createState() => _PreviewRsvpButtonState();
+}
+
+class _PreviewRsvpButtonState extends ConsumerState<_PreviewRsvpButton> {
+  bool _loading = false;
+
+  Future<void> _open() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final url = await ref.read(eventsServiceProvider).getPreviewUrl(widget.eventId);
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userFacingErrorMessage(e)),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _loading ? null : _open,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.border),
+          color: AppColors.surfaceCard,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_loading)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 1.8, color: AppColors.brandAccent),
+              )
+            else
+              const Icon(Icons.visibility_outlined, size: 18, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Text(
+              _loading ? 'Opening preview…' : 'Preview RSVP',
+              style: AppTextStyles.bodySmall.copyWith(
+                fontWeight: FontWeight.w600,
+                color: _loading ? AppColors.textSecondary : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
