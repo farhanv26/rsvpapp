@@ -11,7 +11,6 @@ import { normalizeGuestNameKey } from "@/lib/csv-guests";
 import { EventSectionNav } from "@/components/admin/event-section-nav";
 import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { EventDashboardScrollReset } from "@/components/admin/event-dashboard-scroll-reset";
-import { ScrollToGuestsControl } from "@/components/admin/scroll-to-guests-control";
 import { RsvpPreviewModal } from "@/components/admin/rsvp-preview-modal";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -174,28 +173,28 @@ export default async function EventDashboardPage({ params, searchParams }: Props
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  const [commLogsForHints, commTotalLogs, commDistinctGuests, commWeekLogs, eventReminderLogs] = await Promise.all([
-    prisma.guestCommunicationLog.findMany({
-      where: { eventId: event.id },
-      orderBy: { createdAt: "desc" },
-      take: 8000,
-      select: { guestId: true, channel: true, createdAt: true },
-    }),
-    prisma.guestCommunicationLog.count({ where: { eventId: event.id } }),
-    prisma.guestCommunicationLog.groupBy({
-      by: ["guestId"],
-      where: { eventId: event.id },
-    }),
-    prisma.guestCommunicationLog.count({
-      where: { eventId: event.id, createdAt: { gte: weekAgo } },
-    }),
-    prisma.guestCommunicationLog.findMany({
-      where: { eventId: event.id, actionKey: "event_reminder_sent" },
-      select: { guestId: true },
-      distinct: ["guestId"],
-    }),
-  ]);
-  const eventReminderSentGuestIds: string[] = eventReminderLogs.map((r) => r.guestId);
+
+  // Sequential queries to stay within the connection pool limit.
+  // One findMany (with actionKey) covers hints, distinct-guest count, week count, and reminder IDs.
+  // A separate count gives the accurate total without holding a second concurrent connection.
+  const commLogsForHints = await prisma.guestCommunicationLog.findMany({
+    where: { eventId: event.id },
+    orderBy: { createdAt: "desc" },
+    take: 8000,
+    select: { guestId: true, channel: true, createdAt: true, actionKey: true },
+  });
+  const commTotalLogs = await prisma.guestCommunicationLog.count({ where: { eventId: event.id } });
+
+  const commDistinctGuestIds = new Set(commLogsForHints.map((l) => l.guestId));
+  const commWeekLogs = commLogsForHints.filter((l) => l.createdAt >= weekAgo).length;
+  const eventReminderSentGuestIds = [
+    ...new Set(
+      commLogsForHints
+        .filter((l) => (l as unknown as { actionKey?: string | null }).actionKey === "event_reminder_sent")
+        .map((l) => l.guestId),
+    ),
+  ];
+
   const communicationLastByGuest: Record<string, { channel: string; at: string }> = {};
   for (const row of commLogsForHints) {
     if (communicationLastByGuest[row.guestId]) continue;
@@ -206,8 +205,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   }
   const communicationStats = {
     totalLogs: commTotalLogs,
-    guestsWithLogs: commDistinctGuests.length,
-    guestsWithNoLogs: Math.max(0, totalFamilies - commDistinctGuests.length),
+    guestsWithLogs: commDistinctGuestIds.size,
+    guestsWithNoLogs: Math.max(0, totalFamilies - commDistinctGuestIds.size),
     weekLogs: commWeekLogs,
   };
 
@@ -424,23 +423,22 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             <div className="flex shrink-0 flex-col border-t border-[#e7dccb] p-5 lg:w-56 lg:border-l lg:border-t-0 lg:p-6">
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-400">Actions</p>
               <div className="flex flex-wrap gap-2 lg:flex-col">
-                <ScrollToGuestsControl className="lg:w-full lg:justify-center" />
                 <Link
                   href={`/admin/events/${event.id}/edit`}
                   className="btn-secondary shrink-0 lg:w-full lg:justify-center"
                 >
                   Edit event
                 </Link>
+                <RsvpPreviewModal
+                  eventId={event.id}
+                  triggerClassName="btn-secondary shrink-0 lg:w-full lg:justify-center"
+                />
                 <Link
                   href={`/admin/events/${event.id}/report`}
                   className="btn-secondary shrink-0 lg:w-full lg:justify-center"
                 >
                   Host summary
                 </Link>
-                <RsvpPreviewModal
-                  eventId={event.id}
-                  triggerClassName="btn-secondary shrink-0 lg:w-full lg:justify-center"
-                />
                 <EventRsvpShare
                   eventTitle={event.title}
                   eventCoupleNames={event.coupleNames}

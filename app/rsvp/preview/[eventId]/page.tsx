@@ -1,16 +1,20 @@
 import { RsvpForm } from "@/components/rsvp-form";
 import { EventImageLightbox } from "@/components/event-image-lightbox";
+import { EnvelopeReveal } from "@/components/envelope-reveal";
 import { CountdownTimer } from "@/components/countdown-timer";
+import { VenueMapButton } from "@/components/venue-map-button";
+import { CalendarModal } from "@/components/calendar-modal";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { ItineraryTimeline } from "@/components/itinerary-timeline";
 import type { ItineraryItem } from "@/components/itinerary-timeline";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
 import { readAdminSessionToken } from "@/lib/admin-session";
 import { resolveInviteCardImage } from "@/lib/invite-card-resolution";
-import { formatDateTime, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
+import { getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 const script = "font-[family-name:var(--font-wedding-script),cursive]";
 const serif = "font-[family-name:var(--font-wedding-serif),Georgia,serif]";
@@ -19,6 +23,46 @@ type Props = {
   params: Promise<{ eventId: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function buildCalendarPayload(input: {
+  eventTitle: string;
+  eventSubtitle: string | null;
+  description: string | null;
+  eventDate: Date | null;
+  eventTime: string | null;
+  venue: string | null;
+}) {
+  if (!input.eventDate) return null;
+  const [hStr, mStr] = (input.eventTime ?? "18:00").split(":");
+  const hour = Number(hStr);
+  const minute = Number(mStr);
+  const start = new Date(input.eventDate);
+  if (Number.isFinite(hour)) start.setHours(hour);
+  if (Number.isFinite(minute)) start.setMinutes(minute);
+  start.setSeconds(0, 0);
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  const toGCal = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const summary = input.eventSubtitle?.trim() || input.eventTitle;
+  const details = [input.description?.trim(), input.venue ? `Venue: ${input.venue}` : ""].filter(Boolean).join("\n");
+  const googleUrl =
+    "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+    `&text=${encodeURIComponent(summary)}` +
+    `&dates=${toGCal(start)}/${toGCal(end)}` +
+    `&details=${encodeURIComponent(details)}` +
+    `&location=${encodeURIComponent(input.venue ?? "")}`;
+  const ics = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//RSVP App//EN",
+    "BEGIN:VEVENT",
+    `UID:rsvp-${start.getTime()}@rsvpapp`,
+    `DTSTAMP:${toGCal(new Date())}`,
+    `DTSTART:${toGCal(start)}`, `DTEND:${toGCal(end)}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${details.replace(/\n/g, "\\n")}`,
+    `LOCATION:${(input.venue ?? "").replace(/\n/g, " ")}`,
+    "END:VEVENT", "END:VCALENDAR",
+  ].join("\r\n");
+  return { googleUrl, icsDataUrl: `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}` };
+}
 
 function formatEventTime(raw: string | null) {
   if (!raw) return null;
@@ -179,6 +223,15 @@ export default async function RsvpPreviewPage({ params, searchParams }: Props) {
       })()
     : null;
 
+  const calendarPayload = buildCalendarPayload({
+    eventTitle: event.title,
+    eventSubtitle: event.eventSubtitle,
+    description: event.description,
+    eventDate: event.eventDate,
+    eventTime: event.eventTime,
+    venue: event.venue,
+  });
+
   const itinerary: ItineraryItem[] = Array.isArray(event.itinerary)
     ? (event.itinerary as ItineraryItem[]).filter(
         (x) =>
@@ -188,26 +241,9 @@ export default async function RsvpPreviewPage({ params, searchParams }: Props) {
       )
     : [];
 
-  return (
+  const invitationContent = (
     <main className="flex min-h-dvh flex-col justify-center px-4 py-8 sm:px-6">
-      {/* Preview banner */}
-      <div className="fixed inset-x-0 top-0 z-50 border-b border-amber-200/90 bg-amber-50/95 px-4 py-3 text-center shadow-sm backdrop-blur-sm">
-        <p className="text-sm font-medium text-amber-950">
-          Admin Preview — RSVP actions are disabled
-          <span className="mx-2 text-amber-800/80">·</span>
-          <Link
-            href={`/admin/events/${event.id}`}
-            className="font-medium text-amber-900 underline decoration-amber-700/50 underline-offset-2 hover:text-amber-950"
-          >
-            Back to event
-          </Link>
-        </p>
-        <p className="mt-1 text-xs text-amber-900/85">
-          Showing the invitation as a guest would see it. Guest name and capacity are placeholders.
-        </p>
-      </div>
-
-      <div className="mx-auto w-full max-w-xl space-y-5 pt-[4.5rem]">
+      <div className="mx-auto w-full max-w-xl space-y-5">
 
         {/* ── 1. Hero: image + names + dear guest ── */}
         <ScrollReveal>
@@ -322,7 +358,39 @@ export default async function RsvpPreviewPage({ params, searchParams }: Props) {
           </ScrollReveal>
         ) : null}
 
+        {/* ── 7. Map — always visible in preview (shown to attending guests in the real page) ── */}
+        {event.venue ? (
+          <ScrollReveal delay={40}>
+            <div className="space-y-1">
+              <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700/80">
+                Visible after guest confirms attendance
+              </p>
+              <VenueMapButton venue={event.venue} />
+            </div>
+          </ScrollReveal>
+        ) : null}
+
+        {/* ── 8. Calendar — always visible in preview ── */}
+        {calendarPayload ? (
+          <ScrollReveal delay={60}>
+            <div className="space-y-1 pb-2">
+              <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700/80">
+                Visible after guest confirms attendance
+              </p>
+              <div className="text-center">
+                <CalendarModal icsDataUrl={calendarPayload.icsDataUrl} googleUrl={calendarPayload.googleUrl} />
+              </div>
+            </div>
+          </ScrollReveal>
+        ) : null}
+
       </div>
     </main>
+  );
+
+  return (
+    <EnvelopeReveal guestName="Your Guest">
+      {invitationContent}
+    </EnvelopeReveal>
   );
 }

@@ -84,18 +84,18 @@ export default async function EditEventPage({ params }: Props) {
           </svg>
           Event dashboard
         </Link>
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="headline-display">Edit event</h1>
             <p className="mt-1.5 text-sm text-zinc-500">
               Changes save immediately and update the guest invite page.
             </p>
           </div>
-          <RsvpPreviewModal eventId={event.id} />
+          <RsvpPreviewModal eventId={event.id} formId="event-edit-form" />
         </div>
       </div>
 
-      <form action={updateEventAction} className="space-y-5">
+      <form id="event-edit-form" action={updateEventAction} className="space-y-5">
         <input type="hidden" name="eventId" value={event.id} />
 
         {/* ── 1. Identity ── */}
