@@ -7,9 +7,9 @@ type Props = {
   initialItems?: ItineraryItem[];
 };
 
-function ItemIconPreview({ name }: { name?: string }) {
-  if (!name) return null;
-  const Icon = ITINERARY_ICONS[name];
+function ItemIconPreview({ name, title }: { name?: string; title?: string }) {
+  const resolvedName = (name && name !== "CalendarDays") ? name : undefined;
+  const Icon = resolvedName ? ITINERARY_ICONS[resolvedName] : undefined;
   if (!Icon) return null;
   return (
     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#b28944]/10 text-[#b28944]">
@@ -46,10 +46,10 @@ export function EventItineraryFields({ initialItems = [] }: Props) {
     });
   }
 
-  // On mount, fetch icons for any existing items that don't have one yet
+  // On mount, fetch icons for items without one or stuck on the CalendarDays fallback
   useEffect(() => {
     items.forEach((item, i) => {
-      if (item.title.trim() && !item.icon) {
+      if (item.title.trim() && (!item.icon || item.icon === "CalendarDays")) {
         fetchIcon(i, item.title);
       }
     });

@@ -133,24 +133,53 @@ const REMINDER_BODY_VARIANTS = [
   (ref: string) => `We are counting down to ${ref} and we cannot wait to share this special occasion with you.`,
 ] as const;
 
+function formatTo12h(time: string): string {
+  if (/[ap]m/i.test(time)) return time;
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return time;
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const period = hours >= 12 ? "PM" : "AM";
+  if (hours === 0) hours = 12;
+  else if (hours > 12) hours -= 12;
+  return `${hours}:${minutes} ${period}`;
+}
+
 export function buildGuestEventReminderMessage(
-  input: GuestWhatsAppMessageInput & { hasItinerary?: boolean },
+  input: GuestWhatsAppMessageInput & { hasItinerary?: boolean; venue?: string | null; eventTime?: string | null },
 ) {
   const greeting = input.greeting?.trim() || "Assalamu Alaikum";
   const seed = input.guestId?.trim() || input.guestName;
   const bodyFn = REMINDER_BODY_VARIANTS[hashString(seed) % REMINDER_BODY_VARIANTS.length];
   const body = bodyFn(getReminderEventRef(input.eventTitle, input.coupleNames));
 
+  const venue = input.venue?.trim();
+  const eventTime = input.eventTime?.trim();
+  const logisticsLine = venue && eventTime
+    ? `The event will take place at ${venue}. Please be sure to arrive by ${formatTo12h(eventTime)}.`
+    : venue
+      ? `The event will take place at ${venue}.`
+      : eventTime
+        ? `Please be sure to arrive by ${formatTo12h(eventTime)}.`
+        : null;
+
   const linkPrompt = input.hasItinerary
-    ? `View your invite for the full itinerary, countdown, and event details:`
-    : `View your invite for the countdown and event details:`;
+    ? `Your invite page has the full schedule, countdown timer, and all event details:`
+    : `Your invite page has the countdown timer and all event details:`;
 
-  return `${greeting} ${input.guestName},
+  const lines = [
+    `${greeting} ${input.guestName},`,
+    "",
+    body,
+  ];
 
-${body}
+  if (logisticsLine) {
+    lines.push("", logisticsLine);
+  }
 
-${linkPrompt}
-${input.rsvpLink}`;
+  lines.push("", linkPrompt, input.rsvpLink);
+
+  return lines.join("\n");
 }
 
 export function getWhatsAppShareUrl(message: string) {

@@ -131,6 +131,8 @@ type Props = {
   hasItinerary?: boolean;
   /** Guest IDs who have already been sent an event reminder (from communication log) */
   eventReminderSentGuestIds?: string[];
+  eventVenue?: string | null;
+  eventTime?: string | null;
 };
 
 function guestPrimaryStatus(g: GuestPanelGuest): "attending" | "declined" | "invited" | "not_invited" {
@@ -329,6 +331,8 @@ function buildGuestRowBundle(
   inviteMessageIntro: string | null | undefined,
   inviteMessageLineOverride: string | null | undefined,
   hasItinerary: boolean,
+  eventVenue?: string | null,
+  eventTime?: string | null,
 ) {
   const link = guestRsvpUrl(siteUrl, guest.token);
   const inviteMessage = buildGuestWhatsAppInviteMessage({
@@ -350,6 +354,8 @@ function buildGuestRowBundle(
     coupleNames: eventCoupleNames,
     rsvpLink: link,
     hasItinerary,
+    venue: eventVenue,
+    eventTime,
   });
 
   const st = guestPrimaryStatus(guest);
@@ -432,6 +438,8 @@ export function EventGuestsPanel({
   communicationLastByGuest = {},
   hasItinerary = false,
   eventReminderSentGuestIds = [],
+  eventVenue,
+  eventTime,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -796,9 +804,11 @@ export function EventGuestsPanel({
           inviteMessageIntro,
           inviteMessageLineOverride,
           hasItinerary,
+          eventVenue,
+          eventTime,
         ),
       })),
-    [filtered, siteUrl, eventTitle, eventCoupleNames, inviteMessageIntro, inviteMessageLineOverride, hasItinerary],
+    [filtered, siteUrl, eventTitle, eventCoupleNames, inviteMessageIntro, inviteMessageLineOverride, hasItinerary, eventVenue, eventTime],
   );
 
   const activeFilterCount = useMemo(() => {

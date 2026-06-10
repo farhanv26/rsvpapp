@@ -73,16 +73,18 @@ function getDisplayTime(item: ItineraryItem): string {
 }
 
 const KEYWORD_MAP: Array<[RegExp, string]> = [
+  [/baraat|barat/i, "PartyPopper"],
+  [/haldi|mehndi|mehendi/i, "Flower2"],
   [/ring|gem|jewel|diamond|engagement/i, "Gem"],
   [/nikkah|nikah|aqd|ceremony|vow|wedding/i, "Heart"],
   [/dance|dj\b|band|entertainment|performance/i, "Music"],
-  [/dinner|lunch|breakfast|food|meal|dining|buffet|eat/i, "Utensils"],
+  [/dinner|lunch|breakfast|food|meal|dining|buffet|eat|biryani/i, "Utensils"],
   [/photo|photograph|camera|picture|portrait/i, "Camera"],
   [/cake|dessert|sweet|cutting/i, "Cake"],
-  [/cocktail|drink|bar|wine|champagne|toast|alcohol/i, "Wine"],
+  [/cocktail|drink|\bbar\b|wine|champagne|toast|alcohol/i, "Wine"],
   [/speech|mc\b|microphone|address/i, "Mic2"],
   [/firework|confetti|sparkle/i, "Sparkles"],
-  [/flower|floral|bouquet/i, "Flower2"],
+  [/flower|floral|bouquet|haldi/i, "Flower2"],
   [/video|film|cinema/i, "Video"],
   [/reception|party|celebration/i, "PartyPopper"],
   [/coffee|brunch|tea/i, "Coffee"],
@@ -94,7 +96,7 @@ const KEYWORD_MAP: Array<[RegExp, string]> = [
   [/star|highlight|special/i, "Star"],
   [/family|group|gathering/i, "Users"],
   [/night|evening|dusk/i, "Moon"],
-  [/outdoor|garden|park/i, "Sun"],
+  [/outdoor|garden|park|lawn/i, "Sun"],
   [/crown|vip/i, "Crown"],
 ];
 
@@ -106,7 +108,8 @@ function guessIconFromTitle(title: string): string {
 }
 
 function ItemIcon({ name, title }: { name?: string; title: string }) {
-  const resolved = (name && ITINERARY_ICONS[name]) ? name : guessIconFromTitle(title);
+  // Treat "CalendarDays" as unset — fall through to keyword matching so stored fallbacks get real icons
+  const resolved = (name && name !== "CalendarDays" && ITINERARY_ICONS[name]) ? name : guessIconFromTitle(title);
   const Icon = ITINERARY_ICONS[resolved] ?? CalendarDays;
   return <Icon size={15} strokeWidth={1.6} aria-hidden />;
 }

@@ -19,6 +19,7 @@ import { countDuplicateClusters, countGuestsInDuplicateClusters } from "@/lib/gu
 import { summarizeReadinessGuestCounts } from "@/lib/guest-readiness";
 import { getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 import type { InviteCardEventInput } from "@/lib/invite-card-resolution";
+import { ItineraryTimeline, type ItineraryItem } from "@/components/itinerary-timeline";
 
 type Props = {
   params: Promise<{ eventId: string }>;
@@ -468,6 +469,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
         <EventSectionNav
           items={[
             { id: "dashboard-overview", label: "Overview" },
+            { id: "dashboard-itinerary", label: "Itinerary" },
             { id: "dashboard-stats", label: "Stats" },
             { id: "dashboard-tools", label: "Invite tools" },
             { id: "event-guests", label: "Guests" },
@@ -511,6 +513,21 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             ) : null}
           </div>
         </CollapsibleSection>
+
+        {/* ── Itinerary ── */}
+        {Array.isArray(event.itinerary) && (event.itinerary as unknown[]).length > 0 ? (
+          <CollapsibleSection
+            id="dashboard-itinerary"
+            title="Itinerary"
+            storageKey={`${sectionStoragePrefix}:itinerary`}
+            className="scroll-mt-24"
+            defaultOpen={false}
+          >
+            <div className="app-card p-5 sm:p-6">
+              <ItineraryTimeline items={event.itinerary as ItineraryItem[]} />
+            </div>
+          </CollapsibleSection>
+        ) : null}
 
         {/* ── Stats ── */}
         <CollapsibleSection
@@ -710,6 +727,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             communicationLastByGuest={communicationLastByGuest}
             hasItinerary={Array.isArray(event.itinerary) && (event.itinerary as unknown[]).length > 0}
             eventReminderSentGuestIds={eventReminderSentGuestIds}
+            eventVenue={event.venue}
+            eventTime={event.eventTime}
           />
         </CollapsibleSection>
 
