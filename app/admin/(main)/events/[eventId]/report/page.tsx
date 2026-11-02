@@ -2,6 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { EventReportPrintButton } from "@/components/admin/event-report-print-button";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
+import { getEventAccess } from "@/lib/wedding-access";
+import { countedBreakdown } from "@/lib/attendance";
+import { getGuestListPermission } from "@/lib/guest-allocation";
+import { guestScopeWhere } from "@/lib/guest-permissions";
 import { buildDuplicateStrengthMap, type DuplicateStrength } from "@/lib/guest-duplicates";
 import { countInvitedAwaitingRsvp } from "@/lib/guest-followup";
 import { getGuestReadiness, type GuestReadinessInput } from "@/lib/guest-readiness";
@@ -137,12 +141,17 @@ export default async function EventReportPage({ params }: Props) {
   const admin = await requireCurrentAdminUser();
   const { eventId } = await params;
 
-  const event = await prisma.event.findFirst({
+  const access = await getEventAccess(admin, eventId);
+  if (access.status === "forbidden") {
+    redirect("/admin/events");
+  }
+  const reportScope = access.status === "ok" ? guestScopeWhere(await getGuestListPermission(admin, eventId)) : {};
+  const event = access.status !== "ok" ? null : await prisma.event.findFirst({
     where: { id: eventId, deletedAt: null },
     include: {
       owner: { select: { name: true } },
       guests: {
-        where: { deletedAt: null },
+        where: { deletedAt: null, ...reportScope },
         orderBy: { guestName: "asc" },
       },
     },
@@ -156,16 +165,12 @@ export default async function EventReportPage({ params }: Props) {
     );
   }
 
-  if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
-    redirect("/admin/events");
-  }
-
   const guests = event.guests;
-  const countedGuests = guests.filter((g) => !g.excludeFromTotals);
+  const countedGuests = guests.filter((g) => countedBreakdown(g).total > 0);
   const generatedAt = new Date();
 
   const totalFamilies = guests.length;
-  const totalMaximumInvited = countedGuests.reduce((s, g) => s + g.maxGuests, 0);
+  const totalMaximumInvited = countedGuests.reduce((s, g) => s + countedBreakdown(g).total, 0);
   const invitedFamilies = countedGuests.filter((g) => g.invitedAt).length;
   const totalResponded = countedGuests.filter((g) => g.respondedAt).length;
   const attendingFamilies = countedGuests.filter((g) => g.attending === true);

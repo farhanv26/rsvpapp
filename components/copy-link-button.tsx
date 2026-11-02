@@ -29,7 +29,7 @@ export function CopyLinkButton({ value }: CopyLinkButtonProps) {
           : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
       }`}
     >
-      {copied ? "Copied!" : "Copy link"}
+      {copied ? "Copied" : "Copy link"}
     </button>
   );
 }

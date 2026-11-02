@@ -4,6 +4,8 @@ import { RsvpForm } from "@/components/rsvp-form";
 
 const submitRsvpActionMock = vi.fn();
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }) }));
+
 vi.mock("@/app/rsvp/[token]/actions", () => ({
   submitRsvpAction: (formData: FormData) => submitRsvpActionMock(formData),
 }));
@@ -20,17 +22,17 @@ describe("Phase 2 - RSVP form flow", () => {
     render(<RsvpForm token="abc" maxGuests={3} isLocked={false} />);
 
     expect(screen.getByText("0")).toBeInTheDocument();
-    const submit = screen.getByRole("button", { name: "Review RSVP" });
+    const submit = screen.getByRole("button", { name: "Continue" });
     expect(submit).toBeDisabled();
-    expect(screen.getByText("Select how many guests will attend")).toBeInTheDocument();
-    expect(screen.getByText("Your invitation allows up to 3 guests")).toBeInTheDocument();
+    expect(screen.getByText("Tap + to choose")).toBeInTheDocument();
+    expect(screen.getByText("Your invitation is for up to 3 people")).toBeInTheDocument();
   });
 
   it("enables submit for accept after attendee count becomes valid", () => {
     render(<RsvpForm token="abc" maxGuests={3} isLocked={false} />);
 
     fireEvent.click(screen.getAllByLabelText("Increase guest count")[0]);
-    const submit = screen.getByRole("button", { name: "Review RSVP" });
+    const submit = screen.getByRole("button", { name: "Continue" });
     expect(submit).not.toBeDisabled();
   });
 
@@ -39,13 +41,13 @@ describe("Phase 2 - RSVP form flow", () => {
 
     render(<RsvpForm token="tok-1" maxGuests={2} isLocked={false} />);
     fireEvent.click(screen.getAllByLabelText("Increase guest count")[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Review RSVP" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
-      screen.getByText("You are confirming your presence with 1 guest(s)."),
+      screen.getByText("1 person is coming."),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send reply" }));
 
     await waitFor(() => expect(submitRsvpActionMock).toHaveBeenCalledTimes(1));
     const formData = submitRsvpActionMock.mock.calls[0][0] as FormData;
@@ -58,13 +60,13 @@ describe("Phase 2 - RSVP form flow", () => {
     submitRsvpActionMock.mockResolvedValueOnce(undefined);
     render(<RsvpForm token="tok-2" maxGuests={4} isLocked={false} />);
 
-    fireEvent.click(screen.getAllByRole("radio", { name: /decline/i })[0]);
-    const submit = screen.getByRole("button", { name: "Review RSVP" });
+    fireEvent.click(screen.getAllByRole("radio", { name: /can't make it/i })[0]);
+    const submit = screen.getByRole("button", { name: "Continue" });
     expect(submit).not.toBeDisabled();
     fireEvent.click(submit);
 
-    expect(screen.getByText("You are declining the invitation.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(screen.getByText("You can't make it this time.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send reply" }));
 
     await waitFor(() => expect(submitRsvpActionMock).toHaveBeenCalledTimes(1));
     const formData = submitRsvpActionMock.mock.calls[0][0] as FormData;
@@ -74,10 +76,10 @@ describe("Phase 2 - RSVP form flow", () => {
   it("cancel in modal preserves current selection and does not submit", () => {
     render(<RsvpForm token="tok-3" maxGuests={3} isLocked={false} />);
     fireEvent.click(screen.getAllByLabelText("Increase guest count")[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Review RSVP" }));
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Go back" }));
 
-    expect(screen.queryByText("Confirm RSVP")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(submitRsvpActionMock).not.toHaveBeenCalled();
     expect(screen.getByText("1")).toBeInTheDocument();
   });

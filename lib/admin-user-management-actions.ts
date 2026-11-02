@@ -59,6 +59,38 @@ async function countOtherActiveSuperAdmins(excludeUserId: string) {
   });
 }
 
+/**
+ * Wedding events are shared through membership, so the creator field (ownerUserId) no longer
+ * decides access. Only legacy events that are not in a wedding still belong to one account.
+ */
+const legacyOwnedEvents = (userId: string) => ({ ownerUserId: userId, deletedAt: null, weddingId: null });
+
+/** Weddings where this user is the only owner who can still sign in. */
+export async function weddingsWhereSoleOwner(userId: string): Promise<{ id: string; name: string }[]> {
+  const owned = await prisma.weddingMembership.findMany({
+    where: { userId, role: "owner" },
+    select: {
+      wedding: {
+        select: {
+          id: true,
+          name: true,
+          memberships: {
+            where: { role: "owner", userId: { not: userId }, user: { active: true, deletedAt: null } },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+  return owned.filter((m) => m.wedding.memberships.length === 0).map((m) => ({ id: m.wedding.id, name: m.wedding.name }));
+}
+
+function soleOwnerError(userName: string, weddings: { name: string }[]): string {
+  const names = weddings.map((w) => `"${w.name}"`).join(", ");
+  return `${userName} is the only owner of ${names}. Make another member an owner from that wedding's members list first.`;
+}
+
 export type UserManageResult = { ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function createUserAction(
@@ -246,8 +278,8 @@ export async function transferEventsAction(
   if (!from?.active || !to?.active) {
     return { ok: false, error: "Both users must be active." };
   }
-  await prisma.event.updateMany({
-    where: { ownerUserId: fromUserId, deletedAt: null },
+  const moved = await prisma.event.updateMany({
+    where: legacyOwnedEvents(fromUserId),
     data: { ownerUserId: toUserId },
   });
   await logAuditActivity({
@@ -257,8 +289,8 @@ export async function transferEventsAction(
     entityType: "Event",
     entityId: fromUserId,
     entityName: "Ownership transfer",
-    message: `${admin.name} transferred all events from "${from.name}" to "${to.name}".`,
-    metadata: { fromUserId, toUserId, fromName: from.name, toName: to.name },
+    message: `${admin.name} moved ${moved.count} unassigned event(s) from "${from.name}" to "${to.name}". Wedding access was not changed.`,
+    metadata: { fromUserId, toUserId, fromName: from.name, toName: to.name, movedLegacyEvents: moved.count },
   });
   await notifyUsers({
     userIds: [admin.id, to.id],
@@ -292,7 +324,7 @@ export async function deactivateUserAction(
 
   const target = await prisma.user.findFirst({
     where: { id: userId, deletedAt: null },
-    include: { _count: { select: { events: { where: { deletedAt: null } } } } },
+    include: { _count: { select: { events: { where: { deletedAt: null, weddingId: null } } } } },
   });
   if (!target || !target.active) {
     return { ok: false, error: "User not found or already inactive." };
@@ -300,6 +332,10 @@ export async function deactivateUserAction(
 
   if (target.role === "super_admin" && (await countOtherActiveSuperAdmins(userId)) < 1) {
     return { ok: false, error: "Cannot deactivate the only active super admin." };
+  }
+  const soleOwnerOf = await weddingsWhereSoleOwner(userId);
+  if (soleOwnerOf.length > 0) {
+    return { ok: false, error: soleOwnerError(target.name, soleOwnerOf) };
   }
 
   const eventCount = target._count.events;
@@ -321,7 +357,7 @@ export async function deactivateUserAction(
     }
     await prisma.$transaction([
       prisma.event.updateMany({
-        where: { ownerUserId: userId, deletedAt: null },
+        where: legacyOwnedEvents(userId),
         data: { ownerUserId: transferToUserId },
       }),
       prisma.user.update({ where: { id: userId }, data: { active: false } }),
@@ -378,10 +414,14 @@ export async function deleteUserAction(
 
   const target = await prisma.user.findFirst({
     where: { id: userId, deletedAt: null },
-    include: { _count: { select: { events: { where: { deletedAt: null } } } } },
+    include: { _count: { select: { events: { where: { deletedAt: null, weddingId: null } } } } },
   });
   if (!target) {
     return { ok: false, error: "User not found." };
+  }
+  const soleOwnerOf = await weddingsWhereSoleOwner(userId);
+  if (soleOwnerOf.length > 0) {
+    return { ok: false, error: soleOwnerError(target.name, soleOwnerOf) };
   }
   const allowSuperAdminDelete = String(formData.get("allowSuperAdminDelete") || "") === "1";
   if (target.role === "super_admin" && !allowSuperAdminDelete) {
@@ -401,7 +441,7 @@ export async function deleteUserAction(
   const now = new Date();
   await prisma.$transaction([
     prisma.event.updateMany({
-      where: { ownerUserId: userId, deletedAt: null },
+      where: legacyOwnedEvents(userId),
       data: { deletedAt: now },
     }),
     prisma.user.update({
@@ -455,7 +495,7 @@ export async function restoreUserAction(
   const { userId } = parsed.data;
   const user = await prisma.user.findFirst({
     where: { id: userId, deletedAt: { not: null } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, deletedAt: true },
   });
   if (!user) {
     return { ok: false, error: "No archived user found to restore." };
@@ -475,8 +515,9 @@ export async function restoreUserAction(
       where: { id: userId },
       data: { deletedAt: null, active: true },
     }),
+    // Only events trashed together with this account (same timestamp); never events someone else deleted.
     prisma.event.updateMany({
-      where: { ownerUserId: userId },
+      where: { ownerUserId: userId, weddingId: null, deletedAt: user.deletedAt },
       data: { deletedAt: null },
     }),
   ]);

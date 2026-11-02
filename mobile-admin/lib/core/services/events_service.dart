@@ -22,6 +22,25 @@ final eventActivityProvider = FutureProvider.autoDispose.family<List<ActivityIte
   return ref.watch(eventsServiceProvider).getActivity(eventId);
 });
 
+/// A wedding workspace the signed-in user can add events to.
+class WeddingOption {
+  const WeddingOption({required this.id, required this.name, this.role});
+
+  final String id;
+  final String name;
+  final String? role;
+
+  factory WeddingOption.fromJson(Map<String, dynamic> json) => WeddingOption(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? 'Wedding',
+        role: json['role'] as String?,
+      );
+}
+
+final weddingOptionsProvider = FutureProvider.autoDispose<List<WeddingOption>>((ref) async {
+  return ref.watch(eventsServiceProvider).listWeddings();
+});
+
 class EventsService {
   const EventsService(this._client);
 
@@ -69,8 +88,21 @@ class EventsService {
     }
   }
 
+  Future<List<WeddingOption>> listWeddings() async {
+    try {
+      final res = await _client.get<Map<String, dynamic>>('/weddings').timeout(_requestTimeout);
+      final list = res.data!['weddings'] as List<dynamic>? ?? const [];
+      return list.map((e) => WeddingOption.fromJson(e as Map<String, dynamic>)).toList();
+    } on TimeoutException {
+      throw const ApiException('Request timed out. Check your connection.');
+    } on DioException catch (e) {
+      throw mapDioError(e);
+    }
+  }
+
   Future<void> createEvent({
     required String title,
+    String? weddingId,
     String? coupleNames,
     String? venue,
     DateTime? eventDate,
@@ -79,6 +111,7 @@ class EventsService {
     try {
       await _client.post<Map<String, dynamic>>('/events', data: {
         'title': title,
+        if (weddingId != null) 'weddingId': weddingId,
         if (coupleNames != null) 'coupleNames': coupleNames,
         if (venue != null) 'venue': venue,
         if (eventDate != null) 'eventDate': eventDate.toIso8601String(),

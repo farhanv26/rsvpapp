@@ -19,6 +19,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
   final _venueCtrl = TextEditingController();
   DateTime? _eventDate;
   DateTime? _rsvpDeadline;
+  String? _weddingId;
   bool _saving = false;
   String? _error;
 
@@ -39,6 +40,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
     try {
       await ref.read(eventsServiceProvider).createEvent(
             title: _titleCtrl.text.trim(),
+            weddingId: _weddingId,
             coupleNames: _coupleNamesCtrl.text.trim().isEmpty ? null : _coupleNamesCtrl.text.trim(),
             venue: _venueCtrl.text.trim().isEmpty ? null : _venueCtrl.text.trim(),
             eventDate: _eventDate,
@@ -147,6 +149,41 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
 
               const _SectionLabel('Event details'),
               const SizedBox(height: 10),
+
+              ref.watch(weddingOptionsProvider).when(
+                    loading: () => const LinearProgressIndicator(minHeight: 2),
+                    error: (e, _) => Text(
+                      'Could not load your weddings. ${userFacingErrorMessage(e)}',
+                      style: const TextStyle(color: AppColors.danger, fontSize: 13),
+                    ),
+                    data: (weddings) {
+                      if (weddings.isEmpty) {
+                        return const Text(
+                          'Create a wedding on the web first, then add events to it here.',
+                          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                        );
+                      }
+                      final selected = _weddingId ?? (weddings.length == 1 ? weddings.first.id : null);
+                      if (_weddingId == null && selected != null) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && _weddingId == null) setState(() => _weddingId = selected);
+                        });
+                      }
+                      return DropdownButtonFormField<String>(
+                        initialValue: selected,
+                        decoration: const InputDecoration(
+                          labelText: 'Wedding *',
+                          prefixIcon: Icon(Icons.favorite_border_rounded, size: 20),
+                        ),
+                        items: [
+                          for (final w in weddings) DropdownMenuItem(value: w.id, child: Text(w.name)),
+                        ],
+                        onChanged: _saving ? null : (v) => setState(() => _weddingId = v),
+                        validator: (v) => v == null ? 'Choose a wedding' : null,
+                      );
+                    },
+                  ),
+              const SizedBox(height: 12),
 
               TextFormField(
                 controller: _titleCtrl,

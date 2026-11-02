@@ -1,13 +1,13 @@
 import type { NextRequest } from "next/server";
 import {
+  authorizeMobileEvent,
   getMobileAdminUser,
-  isMobileSuperAdmin,
-  unauthorizedResponse,
-  forbiddenResponse,
   notFoundResponse,
+  unauthorizedResponse,
 } from "@/lib/mobile-api-auth";
 import { prisma, withReconnect } from "@/lib/prisma";
 import { buildDuplicateClusters } from "@/lib/guest-duplicates";
+import { countedBreakdown } from "@/lib/attendance";
 
 type Params = { params: Promise<{ eventId: string }> };
 
@@ -28,11 +28,13 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const { eventId } = await params;
 
+  const authz = await authorizeMobileEvent(user, eventId);
+  if (authz.error) return authz.error;
+
   const event = await withReconnect(() => prisma.event.findFirst({
     where: { id: eventId, deletedAt: null },
     select: {
       id: true,
-      ownerUserId: true,
       rsvpDeadline: true,
       guests: {
         where: { deletedAt: null },
@@ -46,6 +48,7 @@ export async function GET(req: NextRequest, { params }: Params) {
           respondedAt: true,
           attending: true,
           excludeFromTotals: true,
+          excludeReason: true,
           excludedGuestCount: true,
           excludedMenCount: true,
           excludedWomenCount: true,
@@ -60,22 +63,9 @@ export async function GET(req: NextRequest, { params }: Params) {
     },
   }));
   if (!event) return notFoundResponse("Event not found");
-  if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
 
   const guests = event.guests;
-  const guestCountedTotal = (g: (typeof guests)[0]) => {
-    const excMen = g.excludedMenCount ?? 0;
-    const excWomen = g.excludedWomenCount ?? 0;
-    const excKids = g.excludedKidsCount ?? 0;
-    const catSum = excMen + excWomen + excKids;
-    const rawMen = g.menCount ?? 0;
-    const rawWomen = g.womenCount ?? 0;
-    const rawKids = g.kidsCount ?? 0;
-    const rawTotal = rawMen + rawWomen + rawKids > 0 ? rawMen + rawWomen + rawKids : g.maxGuests;
-    if (catSum > 0) return Math.max(rawMen - excMen, 0) + Math.max(rawWomen - excWomen, 0) + Math.max(rawKids - excKids, 0);
-    return Math.max(rawTotal - (g.excludedGuestCount ?? 0), 0);
-  };
-  const counted = guests.filter((g) => guestCountedTotal(g) > 0);
+  const counted = guests.filter((g) => countedBreakdown(g).total > 0);
 
   // Follow-up
   const awaitingRsvp = counted.filter((g) => g.invitedAt && !g.respondedAt).length;

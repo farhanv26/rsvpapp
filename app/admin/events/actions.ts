@@ -4,15 +4,24 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
-import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
+import { requireCurrentAdminUser } from "@/lib/admin-auth";
+import { getEventAccess, getWeddingAccess } from "@/lib/wedding-access";
+import {
+  assertAllocationFits,
+  assertNoDuplicateHousehold,
+  getGuestListPermission,
+  newGuestOwnership,
+  requireOrganizer,
+} from "@/lib/guest-allocation";
+import { guestScopeWhere, invitationPlaces } from "@/lib/guest-permissions";
 import { dispatchEventCommunication } from "@/lib/communications";
 import { generateSecureToken } from "@/lib/security";
 import { logGuestCommunication } from "@/lib/guest-communication-log";
 import { buildGuestInviteCommunicationParts, buildGuestInviteEmailLines } from "@/lib/guest-invite-communication";
 import { notifyEventOwner, notifyUser } from "@/lib/notifications";
 import { buildGuestRsvpAbsoluteUrl, getSafeImageSrc } from "@/lib/utils";
-import { eventSchema, guestSchema } from "@/lib/validation";
-import { sendEventOwnerNotificationEmail } from "@/lib/rsvp-email";
+import { eventSchema, guestFieldErrorFrom, guestSchema } from "@/lib/validation";
+import { isGuestEmailConfigured, sendGuestEmail } from "@/lib/rsvp-email";
 import {
   buildGuestInviteMessageParts,
   buildGuestRsvpReminderMessage,
@@ -20,7 +29,11 @@ import {
   normalizePhoneForWhatsAppGuestRecord,
 } from "@/lib/whatsapp";
 import { DEFAULT_PHONE_COUNTRY } from "@/lib/phone";
-import { resolveSharedGuestState } from "@/lib/shared-guests";
+import {
+  getSharedGuestScope,
+  resolveSharedGuestState,
+  sanitizeCountOwnerEventId,
+} from "@/lib/shared-guests";
 
 function parseGuestPhoneFromForm(formData: FormData): { phone: string | null; phoneCountryCode: string | null } {
   const national = String(formData.get("phone") ?? "").replace(/\D/g, "");
@@ -67,7 +80,16 @@ function parsePerCategoryExclusionFromForm(
 
 function parseItineraryField(
   formData: FormData,
-): { startTime?: string; time?: string; endTime?: string; title: string; icon?: string; description?: string | null }[] | null {
+): {
+  startTime?: string;
+  time?: string;
+  endTime?: string;
+  title: string;
+  icon?: string;
+  description?: string | null;
+  visibility: "guests" | "private";
+  privateNotes: string | null;
+}[] | null {
   const raw = formData.get("itinerary");
   if (!raw || typeof raw !== "string") return null;
   try {
@@ -88,6 +110,8 @@ function parseItineraryField(
         title: String(x.title).trim(),
         icon: x.icon ? String(x.icon).trim() : undefined,
         description: x.description ? String(x.description).trim() : null,
+        visibility: x.visibility === "private" ? ("private" as const) : ("guests" as const),
+        privateNotes: x.privateNotes ? String(x.privateNotes).trim().slice(0, 500) : null,
       }))
       .filter((x) => (x.startTime || x.time) && x.title);
   } catch {
@@ -152,26 +176,33 @@ async function createUniqueSlug(baseTitle: string, eventId?: string) {
   }
 }
 
-async function ensureEventAccess(eventId: string, mode: "view" | "manage" = "manage") {
+async function ensureEventAccess(
+  eventId: string,
+  mode: "view" | "manage" = "manage",
+  options: { organizerOnly?: boolean } = {},
+) {
   const admin = await requireCurrentAdminUser();
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, deletedAt: null },
-    select: { id: true, ownerUserId: true },
-  });
-  if (!event) {
+  const access = await getEventAccess(admin, eventId);
+  if (access.status === "not_found") {
     throw new Error("Event not found.");
   }
-  if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
+  if (access.status === "forbidden") {
     if (mode === "view") {
       redirect("/admin/events");
     }
     throw new Error("You are not allowed to manage this event.");
   }
-  return { admin, event };
+  const perm = await getGuestListPermission(admin, eventId);
+  if (options.organizerOnly) requireOrganizer(perm);
+  return { admin, event: access.event, perm, guestScope: guestScopeWhere(perm) };
 }
 
 export async function createEventAction(formData: FormData) {
   const admin = await requireCurrentAdminUser();
+  const weddingAccess = await getWeddingAccess(admin, String(formData.get("weddingId") || "").trim());
+  if (weddingAccess.status !== "ok") {
+    throw new Error("Choose a wedding workspace you belong to before creating an event.");
+  }
   const parsed = eventSchema.safeParse({
     title: formData.get("title"),
     theme: formData.get("theme") || "modern",
@@ -207,6 +238,7 @@ export async function createEventAction(formData: FormData) {
     data: {
       title: parsed.data.title,
       ownerUserId: admin.id,
+      weddingId: weddingAccess.wedding.id,
       theme: parsed.data.theme,
       description: parsed.data.description || null,
       slug,
@@ -262,7 +294,7 @@ export async function updateEventAction(formData: FormData) {
     throw new Error("Event id is missing.");
   }
 
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin } = await ensureEventAccess(eventId, "manage", { organizerOnly: true });
   const parsed = eventSchema.safeParse({
     title: formData.get("title"),
     theme: formData.get("theme") || "modern",
@@ -359,7 +391,7 @@ export async function deleteEventAction(formData: FormData) {
   }
 
   try {
-    const { admin, event: existing } = await ensureEventAccess(eventId, "manage");
+    const { admin, event: existing } = await ensureEventAccess(eventId, "manage", { organizerOnly: true });
 
     if (!existing) {
       return { ok: false, error: "This event no longer exists." };
@@ -421,7 +453,7 @@ export async function createGuestAction(formData: FormData) {
     throw new Error("Event id is missing.");
   }
 
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, perm } = await ensureEventAccess(eventId, "manage");
   const greetingPreset = String(formData.get("greetingPreset") || "").trim();
   const greetingCustom = String(formData.get("greetingCustom") || "").trim();
   const greetingValue = greetingCustom || greetingPreset || String(formData.get("greeting") || "").trim() || undefined;
@@ -442,7 +474,7 @@ export async function createGuestAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Invalid guest details.");
+    throw guestFieldErrorFrom(parsed.error.issues);
   }
 
   const sharedState = await resolveSharedGuestState(prisma, {
@@ -459,10 +491,19 @@ export async function createGuestAction(formData: FormData) {
   const autoExcludedWomenCount = sharedState.shouldExcludeFromTotals ? parsed.data.womenCount : 0;
   const autoExcludedKidsCount = sharedState.shouldExcludeFromTotals ? parsed.data.kidsCount : 0;
 
-  const createdGuest = await prisma.guest.create({
+  const ownership = newGuestOwnership(perm);
+  await assertNoDuplicateHousehold(prisma, perm, eventId, sharedState.sharedGuestKey);
+
+  const createdGuest = await prisma.$transaction(async (tx) => {
+    if (ownership.allocationId) {
+      await assertAllocationFits(tx, ownership.allocationId, guestTotal);
+    }
+    return tx.guest.create({
     // Keep maxGuests in sync for backward-compatible RSVP logic.
     data: {
       eventId,
+      managedByUserId: ownership.managedByUserId,
+      allocationId: ownership.allocationId,
       guestName: parsed.data.guestName,
       greeting: parsed.data.greeting?.trim() || "Assalamu Alaikum",
       menCount: parsed.data.menCount,
@@ -486,6 +527,7 @@ export async function createGuestAction(formData: FormData) {
       countOwnerEventId: sharedState.countOwnerEventId,
       token: generateSecureToken(),
     },
+    });
   });
 
   await logAuditActivity({
@@ -553,7 +595,7 @@ export async function updateGuestAction(formData: FormData) {
     throw new Error("Missing event or guest id.");
   }
 
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const greetingPreset = String(formData.get("greetingPreset") || "").trim();
   const greetingCustom = String(formData.get("greetingCustom") || "").trim();
   const greetingValue = greetingCustom || greetingPreset || String(formData.get("greeting") || "").trim() || undefined;
@@ -574,25 +616,30 @@ export async function updateGuestAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Invalid guest details.");
+    throw guestFieldErrorFrom(parsed.error.issues);
   }
 
   const existing = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
-    select: { id: true, guestName: true, maxGuests: true, menCount: true, womenCount: true, kidsCount: true },
+    where: { id: guestId, eventId, deletedAt: null, ...guestScope },
+    select: { id: true, guestName: true, maxGuests: true, menCount: true, womenCount: true, kidsCount: true, allocationId: true },
   });
   if (!existing) {
     throw new Error("Guest not found for this event.");
   }
 
-  const sharedState = await resolveSharedGuestState(prisma, {
-    eventId,
-    guestId,
-    guestName: parsed.data.guestName,
-    phone: parsed.data.phone ?? null,
-    phoneCountryCode: parsed.data.phoneCountryCode ?? null,
-    email: parsed.data.email?.trim() || null,
-  });
+  const sharedScope = await getSharedGuestScope(prisma, eventId);
+  const sharedState = await resolveSharedGuestState(
+    prisma,
+    {
+      eventId,
+      guestId,
+      guestName: parsed.data.guestName,
+      phone: parsed.data.phone ?? null,
+      phoneCountryCode: parsed.data.phoneCountryCode ?? null,
+      email: parsed.data.email?.trim() || null,
+    },
+    sharedScope,
+  );
   const guestTotal = parsed.data.menCount + parsed.data.womenCount + parsed.data.kidsCount;
   const formExclusion = parsePerCategoryExclusionFromForm(
     formData,
@@ -609,12 +656,20 @@ export async function updateGuestAction(formData: FormData) {
   const finalExcludeReason = finalExcludedGuestCount > 0
     ? (sharedState.shouldExcludeFromTotals ? sharedState.defaultExcludeReason : formExclusion.excludeReason)
     : null;
-  const nextCountOwnerEventIdRaw = String(formData.get("countOwnerEventId") ?? "").trim();
+  const nextCountOwnerEventIdRaw = await sanitizeCountOwnerEventId(
+    prisma,
+    sharedScope,
+    String(formData.get("countOwnerEventId") ?? ""),
+  );
   const nextCountOwnerEventId = finalExcludeFromTotals
     ? nextCountOwnerEventIdRaw || sharedState.countOwnerEventId || null
     : eventId;
 
-  const updatedGuest = await prisma.guest.update({
+  const updatedGuest = await prisma.$transaction(async (tx) => {
+    if (existing.allocationId) {
+      await assertAllocationFits(tx, existing.allocationId, guestTotal, [guestId]);
+    }
+    return tx.guest.update({
     where: { id: guestId },
     data: {
       guestName: parsed.data.guestName,
@@ -639,6 +694,7 @@ export async function updateGuestAction(formData: FormData) {
       excludeReason: finalExcludeReason,
       countOwnerEventId: nextCountOwnerEventId,
     },
+    });
   });
 
   await logAuditActivity({
@@ -707,9 +763,9 @@ export async function deleteGuestAction(formData: FormData) {
     throw new Error("Missing event or guest id.");
   }
 
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const existing = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
+    where: { id: guestId, eventId, deletedAt: null, ...guestScope },
     select: { id: true, guestName: true, maxGuests: true },
   });
   if (!existing) {
@@ -760,7 +816,7 @@ export async function bulkDeleteGuestsAction(formData: FormData) {
     throw new Error("Event id is missing.");
   }
 
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
 
   const guestIds = rawGuestIds
     .split(",")
@@ -772,7 +828,7 @@ export async function bulkDeleteGuestsAction(formData: FormData) {
   }
 
   const matchedGuests = await prisma.guest.findMany({
-    where: { eventId, deletedAt: null, id: { in: guestIds } },
+    where: { eventId, deletedAt: null, id: { in: guestIds }, ...guestScope },
     select: { id: true, guestName: true },
   });
 
@@ -787,7 +843,7 @@ export async function bulkDeleteGuestsAction(formData: FormData) {
     where: {
       eventId,
       deletedAt: null,
-      id: { in: guestIds },
+      id: { in: matchedGuests.map((g) => g.id) },
     },
     data: { deletedAt: now },
   });
@@ -844,7 +900,7 @@ export async function bulkUpdateGuestPlanningAction(formData: FormData) {
     throw new Error("Missing event or guest ids.");
   }
 
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
 
   const data: { group?: string | null; tableName?: string | null } = {};
   if (mode === "assignGroup") {
@@ -862,7 +918,7 @@ export async function bulkUpdateGuestPlanningAction(formData: FormData) {
   }
 
   const result = await prisma.guest.updateMany({
-    where: { eventId, deletedAt: null, id: { in: guestIds } },
+    where: { eventId, deletedAt: null, id: { in: guestIds }, ...guestScope },
     data,
   });
 
@@ -882,9 +938,9 @@ export async function bulkUpdateGuestPlanningAction(formData: FormData) {
 }
 
 export async function logGuestWhatsappPreparedAction(eventId: string, guestId: string) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
+    where: { id: guestId, eventId, deletedAt: null, ...guestScope },
     select: {
       id: true,
       guestName: true,
@@ -935,13 +991,13 @@ export async function logGuestWhatsappPreparedAction(eventId: string, guestId: s
 }
 
 export async function logBulkWhatsappPreparedAction(eventId: string, guestIds: string[]) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const uniqueIds = Array.from(new Set(guestIds.map((id) => id.trim()).filter(Boolean)));
   if (uniqueIds.length === 0) {
     return;
   }
   const guests = await prisma.guest.findMany({
-    where: { eventId, deletedAt: null, id: { in: uniqueIds } },
+    where: { eventId, deletedAt: null, id: { in: uniqueIds }, ...guestScope },
     select: { id: true, guestName: true },
   });
 
@@ -975,9 +1031,9 @@ export async function logBulkWhatsappPreparedAction(eventId: string, guestIds: s
 }
 
 export async function sendGuestInviteEmailAction(eventId: string, guestId: string) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
+    where: { id: guestId, eventId, deletedAt: null, ...guestScope },
     select: {
       id: true,
       guestName: true,
@@ -1017,6 +1073,10 @@ export async function sendGuestInviteEmailAction(eventId: string, guestId: strin
     return { ok: true, skipped: true, reason: "missing_email" as const };
   }
 
+  if (!isGuestEmailConfigured()) {
+    return { ok: false, skipped: false, reason: "not_configured" as const };
+  }
+
   const rsvpLink = buildGuestRsvpAbsoluteUrl(guest.token);
   const { inviteText, emailSubject } = buildGuestInviteCommunicationParts({
     guestId: guest.id,
@@ -1030,12 +1090,10 @@ export async function sendGuestInviteEmailAction(eventId: string, guestId: strin
   });
 
   try {
-    await sendEventOwnerNotificationEmail({
-      eventTitle: guest.event.title,
-      to: guest.email,
-      subject: emailSubject,
-      lines: buildGuestInviteEmailLines(inviteText),
-    });
+    const delivery = await sendGuestEmail({ to: guest.email, subject: emailSubject, lines: buildGuestInviteEmailLines(inviteText) });
+    if (delivery.status !== "accepted") {
+      throw new Error(delivery.status === "failed" ? delivery.message : "Email is not configured.");
+    }
     await prisma.guest.update({
       where: { id: guest.id },
       data: {
@@ -1062,7 +1120,7 @@ export async function sendGuestInviteEmailAction(eventId: string, guestId: strin
       actorName: admin.name,
       channel: "email",
       actionKey: "email_invite_sent",
-      label: "Invite email sent",
+      label: "Invite email accepted by email service",
       detail: emailSubject,
       success: true,
     });
@@ -1103,7 +1161,10 @@ export async function sendGuestInviteEmailAction(eventId: string, guestId: strin
 export async function sendBulkGuestInviteEmailsAction(eventId: string, guestIds: string[]) {
   const uniqueIds = Array.from(new Set(guestIds.map((id) => id.trim()).filter(Boolean)));
   if (uniqueIds.length === 0) {
-    return { ok: true, sent: 0, skippedMissingEmail: 0, failed: 0 };
+    return { ok: true, sent: 0, skippedMissingEmail: 0, failed: 0, notConfigured: false };
+  }
+  if (!isGuestEmailConfigured()) {
+    return { ok: false, sent: 0, skippedMissingEmail: 0, failed: 0, notConfigured: true };
   }
 
   let sent = 0;
@@ -1116,13 +1177,13 @@ export async function sendBulkGuestInviteEmailsAction(eventId: string, guestIds:
     if (!result.ok) failed += 1;
   }
   revalidatePath(`/admin/events/${eventId}`);
-  return { ok: failed === 0, sent, skippedMissingEmail, failed };
+  return { ok: failed === 0, sent, skippedMissingEmail, failed, notConfigured: false };
 }
 
 export async function sendGuestReminderEmailAction(eventId: string, guestId: string) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
+    where: { id: guestId, eventId, deletedAt: null, ...guestScope },
     select: {
       id: true,
       guestName: true,
@@ -1186,6 +1247,10 @@ export async function sendGuestReminderEmailAction(eventId: string, guestId: str
     return { ok: true, skipped: true, reason: "missing_email" as const };
   }
 
+  if (!isGuestEmailConfigured()) {
+    return { ok: false, skipped: false, reason: "not_configured" as const };
+  }
+
   const rsvpLink = guestRsvpUrl(guest.token);
   const reminderText = buildGuestRsvpReminderMessage({
     greeting: guest.greeting,
@@ -1195,12 +1260,14 @@ export async function sendGuestReminderEmailAction(eventId: string, guestId: str
   });
 
   try {
-    await sendEventOwnerNotificationEmail({
-      eventTitle: guest.event.title,
+    const delivery = await sendGuestEmail({
       to: guest.email,
       subject: `${guest.event.title} · RSVP reminder for ${guest.guestName}`,
       lines: [reminderText, "", "If you have questions, please reply to this message."],
     });
+    if (delivery.status !== "accepted") {
+      throw new Error(delivery.status === "failed" ? delivery.message : "Email is not configured.");
+    }
     const now = new Date();
     await prisma.guest.update({
       where: { id: guest.id },
@@ -1224,7 +1291,7 @@ export async function sendGuestReminderEmailAction(eventId: string, guestId: str
       actorName: admin.name,
       channel: "email",
       actionKey: "email_reminder_sent",
-      label: "RSVP reminder email sent",
+      label: "Reminder email accepted by email service",
       detail: `${guest.event.title} · RSVP reminder for ${guest.guestName}`,
       success: true,
     });
@@ -1265,7 +1332,10 @@ export async function sendGuestReminderEmailAction(eventId: string, guestId: str
 export async function sendBulkGuestReminderEmailsAction(eventId: string, guestIds: string[]) {
   const uniqueIds = Array.from(new Set(guestIds.map((id) => id.trim()).filter(Boolean)));
   if (uniqueIds.length === 0) {
-    return { ok: true, sent: 0, skippedMissingEmail: 0, skippedNotEligible: 0, failed: 0 };
+    return { ok: true, sent: 0, skippedMissingEmail: 0, skippedNotEligible: 0, failed: 0, notConfigured: false };
+  }
+  if (!isGuestEmailConfigured()) {
+    return { ok: false, sent: 0, skippedMissingEmail: 0, skippedNotEligible: 0, failed: 0, notConfigured: true };
   }
 
   let sent = 0;
@@ -1280,7 +1350,7 @@ export async function sendBulkGuestReminderEmailsAction(eventId: string, guestId
     if (!result.ok) failed += 1;
   }
   revalidatePath(`/admin/events/${eventId}`);
-  return { ok: failed === 0, sent, skippedMissingEmail, skippedNotEligible, failed };
+  return { ok: failed === 0, sent, skippedMissingEmail, skippedNotEligible, failed, notConfigured: false };
 }
 
 export type ReminderChannelTracked = "whatsapp" | "manual";
@@ -1290,7 +1360,7 @@ export async function recordGuestRemindersSentAction(
   guestIds: string[],
   channel: ReminderChannelTracked,
 ) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const uniqueIds = Array.from(new Set(guestIds.map((id) => id.trim()).filter(Boolean)));
   if (uniqueIds.length === 0) {
     return { ok: true, updated: 0 };
@@ -1304,6 +1374,7 @@ export async function recordGuestRemindersSentAction(
       id: { in: uniqueIds },
       invitedAt: { not: null },
       respondedAt: null,
+      ...guestScope,
     },
     select: { id: true },
   });
@@ -1313,7 +1384,7 @@ export async function recordGuestRemindersSentAction(
   }
 
   const result = await prisma.guest.updateMany({
-    where: { eventId, deletedAt: null, id: { in: eligibleIds } },
+    where: { eventId, deletedAt: null, id: { in: eligibleIds }, ...guestScope },
     data: { lastReminderAt: now },
   });
 
@@ -1376,15 +1447,25 @@ export async function markGuestsInvitedAction(
   guestIds: string[],
   channel: InviteChannelTracked,
 ) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const uniqueIds = Array.from(new Set(guestIds.map((id) => id.trim()).filter(Boolean)));
   if (uniqueIds.length === 0) {
     return { ok: true, updated: 0 };
   }
 
+  const eventGuestIds = (
+    await prisma.guest.findMany({
+      where: { eventId, deletedAt: null, id: { in: uniqueIds }, ...guestScope },
+      select: { id: true },
+    })
+  ).map((g) => g.id);
+  if (eventGuestIds.length === 0) {
+    return { ok: true, updated: 0 };
+  }
+
   const now = new Date();
   const result = await prisma.guest.updateMany({
-    where: { eventId, deletedAt: null, id: { in: uniqueIds } },
+    where: { eventId, deletedAt: null, id: { in: eventGuestIds }, ...guestScope },
     data: {
       invitedAt: now,
       inviteChannelLastUsed: channel,
@@ -1401,13 +1482,13 @@ export async function markGuestsInvitedAction(
     entityId: eventId,
     entityName: "Invite tracking",
     message: `${admin.name} marked ${result.count} guest(s) as invited (${channel}).`,
-    metadata: { guestIds: uniqueIds, channel, count: result.count },
+    metadata: { guestIds: eventGuestIds, channel, count: result.count },
   });
 
   const inviteCommChannel =
     channel === "whatsapp" ? "whatsapp" : channel === "email" ? "email" : channel === "imessage" ? "manual" : "manual";
   await prisma.guestCommunicationLog.createMany({
-    data: uniqueIds.map((gid) => ({
+    data: eventGuestIds.map((gid) => ({
       eventId,
       guestId: gid,
       userId: admin.id,
@@ -1426,7 +1507,7 @@ export async function markGuestsInvitedAction(
     });
     const eventDisplay = ev?.coupleNames?.trim() || ev?.title || "your event";
     const named = await prisma.guest.findMany({
-      where: { eventId, deletedAt: null, id: { in: uniqueIds } },
+      where: { eventId, deletedAt: null, id: { in: eventGuestIds }, ...guestScope },
       select: { guestName: true },
       take: 4,
     });
@@ -1450,7 +1531,7 @@ export async function markGuestsInvitedAction(
 }
 
 export async function markGuestsUninvitedAction(eventId: string, guestIds: string[]) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const uniqueIds = Array.from(new Set(guestIds.map((id) => id.trim()).filter(Boolean)));
   if (uniqueIds.length === 0) {
     return { ok: true as const, updated: 0 };
@@ -1463,13 +1544,13 @@ export async function markGuestsUninvitedAction(eventId: string, guestIds: strin
   const eventDisplay = eventRow?.coupleNames?.trim() || eventRow?.title || "this event";
 
   const guests = await prisma.guest.findMany({
-    where: { eventId, deletedAt: null, id: { in: uniqueIds } },
+    where: { eventId, deletedAt: null, id: { in: uniqueIds }, ...guestScope },
     select: { id: true, guestName: true, invitedAt: true },
   });
   const previouslyInvited = guests.filter((g) => g.invitedAt);
 
   const result = await prisma.guest.updateMany({
-    where: { eventId, deletedAt: null, id: { in: uniqueIds } },
+    where: { eventId, deletedAt: null, id: { in: guests.map((g) => g.id) }, ...guestScope },
     data: {
       invitedAt: null,
       inviteChannelLastUsed: null,
@@ -1488,11 +1569,11 @@ export async function markGuestsUninvitedAction(eventId: string, guestIds: strin
       entityId: eventId,
       entityName: "Invite reset",
       message: `${admin.name} set ${result.count} guest(s) back to uninvited.`,
-      metadata: { guestIds: uniqueIds, count: result.count },
+      metadata: { guestIds: guests.map((g) => g.id), count: result.count },
     });
 
     await prisma.guestCommunicationLog.createMany({
-      data: uniqueIds.map((gid) => ({
+      data: guests.map((g) => g.id).map((gid) => ({
         eventId,
         guestId: gid,
         userId: admin.id,
@@ -1520,7 +1601,7 @@ export async function markGuestsUninvitedAction(eventId: string, guestIds: strin
           : `${result.count} guests set back to uninvited`,
       description: `${eventDisplay} · ${admin.name} cleared invite tracking.${sample ? ` Includes: ${sample}${more}.` : ""} RSVPs were left unchanged.`,
       entityType: "Guest",
-      entityId: previouslyInvited[0]?.id ?? uniqueIds[0] ?? eventId,
+      entityId: previouslyInvited[0]?.id ?? guests[0]?.id ?? eventId,
     });
   }
 
@@ -1534,9 +1615,9 @@ export async function setGuestCountOwnershipAction(input: {
   mode: "count_here" | "exclude_here";
   reason?: string;
 }) {
-  const { admin } = await ensureEventAccess(input.eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(input.eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: input.guestId, eventId: input.eventId, deletedAt: null },
+    where: { id: input.guestId, eventId: input.eventId, deletedAt: null, ...guestScope },
     select: {
       id: true,
       guestName: true,
@@ -1562,37 +1643,6 @@ export async function setGuestCountOwnershipAction(input: {
         countOwnerEventId: input.eventId,
       },
     });
-
-    if (guest.sharedGuestKey) {
-      // Fetch siblings to set excluded counts = their individual category totals
-      const siblings = await prisma.guest.findMany({
-        where: {
-          sharedGuestKey: guest.sharedGuestKey,
-          deletedAt: null,
-          id: { not: guest.id },
-          ...(isSuperAdmin(admin) ? {} : { event: { ownerUserId: admin.id } }),
-        },
-        select: { id: true, menCount: true, womenCount: true, kidsCount: true, maxGuests: true },
-      });
-      for (const sibling of siblings) {
-        const sibMen = sibling.menCount ?? 0;
-        const sibWomen = sibling.womenCount ?? 0;
-        const sibKids = sibling.kidsCount ?? 0;
-        const sibTotal = Math.max(sibMen + sibWomen + sibKids, sibling.maxGuests);
-        await prisma.guest.update({
-          where: { id: sibling.id },
-          data: {
-            countOwnerEventId: input.eventId,
-            excludeFromTotals: true,
-            excludedGuestCount: sibTotal,
-            excludedMenCount: sibMen,
-            excludedWomenCount: sibWomen,
-            excludedKidsCount: sibKids,
-            excludeReason: "Counted elsewhere",
-          },
-        });
-      }
-    }
 
     await logAuditActivity({
       eventId: input.eventId,
@@ -1655,23 +1705,16 @@ export async function triggerGuestSendAction(
   guestId: string,
   channel: "whatsapp" | "imessage",
 ) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
+    where: { id: guestId, eventId, deletedAt: null, ...guestScope },
     select: { id: true, guestName: true, invitedAt: true },
   });
   if (!guest) {
     throw new Error("Guest not found for this event.");
   }
-  const now = new Date();
-  await prisma.guest.update({
-    where: { id: guest.id },
-    data: {
-      invitedAt: guest.invitedAt ?? now,
-      inviteChannelLastUsed: channel,
-      inviteCount: { increment: 1 },
-    },
-  });
+  // Opening a composer is not evidence the message was sent; invite status changes only when
+  // someone marks the household as invited.
   await logAuditActivity({
     eventId,
     userId: admin.id,
@@ -1707,9 +1750,9 @@ export async function markGuestEventReminderSentAction(
   guestId: string,
   channel: "whatsapp" | "imessage",
 ) {
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
+    where: { id: guestId, eventId, deletedAt: null, ...guestScope },
     select: { id: true, guestName: true, attending: true },
   });
   if (!guest) throw new Error("Guest not found for this event.");
@@ -1725,8 +1768,8 @@ export async function markGuestEventReminderSentAction(
     entityName: guest.guestName,
     message:
       channel === "whatsapp"
-        ? `${admin.name} sent an event reminder via WhatsApp to "${guest.guestName}".`
-        : `${admin.name} sent an event reminder via Message to "${guest.guestName}".`,
+        ? `${admin.name} opened a WhatsApp event reminder for "${guest.guestName}" (not confirmed as sent).`
+        : `${admin.name} opened a Messages event reminder for "${guest.guestName}" (not confirmed as sent).`,
   });
   await logGuestCommunication({
     eventId,
@@ -1737,8 +1780,8 @@ export async function markGuestEventReminderSentAction(
     actionKey: "event_reminder_sent",
     label:
       channel === "whatsapp"
-        ? "Event reminder sent via WhatsApp"
-        : "Event reminder sent via Message / iMessage",
+        ? "Event reminder opened in WhatsApp (not confirmed sent)"
+        : "Event reminder opened in Messages (not confirmed sent)",
     success: true,
   });
   revalidatePath(`/admin/events/${eventId}`);
@@ -1754,9 +1797,9 @@ export async function recordGuestManualRsvpAction(input: {
   note?: string | null;
   markInvitedIfMissing?: boolean;
 }) {
-  const { admin } = await ensureEventAccess(input.eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(input.eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: input.guestId, eventId: input.eventId, deletedAt: null },
+    where: { id: input.guestId, eventId: input.eventId, deletedAt: null, ...guestScope },
     select: {
       id: true,
       guestName: true,
@@ -1894,9 +1937,9 @@ export type GuestCommunicationPreviewPayload = {
 };
 
 export async function getGuestCommunicationPreviewAction(eventId: string, guestId: string) {
-  await ensureEventAccess(eventId, "manage");
+  const { guestScope } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
+    where: { id: guestId, eventId, deletedAt: null, ...guestScope },
     select: {
       guestName: true,
       greeting: true,
@@ -2015,7 +2058,7 @@ export async function getGuestCommunicationHistoryAction(
     actionCategory?: GuestCommunicationActionCategory | "all";
   },
 ) {
-  await ensureEventAccess(eventId, "manage");
+  const { guestScope } = await ensureEventAccess(eventId, "manage");
   const raw = options?.channel?.trim();
   const channel =
     raw && raw !== "all" && (raw === "whatsapp" || raw === "email" || raw === "manual") ? raw : undefined;
@@ -2033,6 +2076,11 @@ export async function getGuestCommunicationHistoryAction(
       ? (rawCat as GuestCommunicationActionCategory)
       : undefined;
   const actionWhere = guestCommunicationActionCategoryWhere(actionCategory);
+
+  const visibleGuest = await prisma.guest.findFirst({ where: { id: guestId, eventId, ...guestScope }, select: { id: true } });
+  if (!visibleGuest) {
+    return { ok: true as const, entries: [] };
+  }
 
   const rows = await prisma.guestCommunicationLog.findMany({
     where: {
@@ -2068,18 +2116,24 @@ export async function restoreGuestAction(formData: FormData) {
   if (!eventId || !guestId) {
     redirect("/admin/events");
   }
-  const { admin } = await ensureEventAccess(eventId, "manage");
+  const { admin, guestScope } = await ensureEventAccess(eventId, "manage");
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: { not: null } },
-    select: { id: true, guestName: true },
+    where: { id: guestId, eventId, deletedAt: { not: null }, ...guestScope },
+    select: { id: true, guestName: true, allocationId: true, maxGuests: true, menCount: true, womenCount: true, kidsCount: true },
   });
   if (!guest) {
     redirect(`/admin/events/${eventId}?restore=guest_error`);
   }
-  await prisma.guest.update({
-    where: { id: guestId },
-    data: { deletedAt: null },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (guest.allocationId) {
+        await assertAllocationFits(tx, guest.allocationId, invitationPlaces(guest));
+      }
+      await tx.guest.update({ where: { id: guestId }, data: { deletedAt: null } });
+    });
+  } catch {
+    redirect(`/admin/events/${eventId}?restore=guest_allowance`);
+  }
   await logAuditActivity({
     eventId,
     userId: admin.id,
@@ -2100,16 +2154,14 @@ export async function restoreEventAction(formData: FormData) {
     redirect("/admin/events/deleted?restore=error");
   }
   const admin = await requireCurrentAdminUser();
-  const ev = await prisma.event.findFirst({
-    where: { id: eventId, deletedAt: { not: null } },
-    select: { id: true, ownerUserId: true, title: true },
-  });
-  if (!ev) {
+  const access = await getEventAccess(admin, eventId, { state: "deleted" });
+  if (access.status === "not_found") {
     redirect("/admin/events/deleted?restore=error");
   }
-  if (!isSuperAdmin(admin) && ev.ownerUserId !== admin.id) {
+  if (access.status === "forbidden" || (await getGuestListPermission(admin, eventId)).level !== "organizer") {
     redirect("/admin/events/deleted?restore=forbidden");
   }
+  const ev = access.event;
   await prisma.event.update({
     where: { id: eventId },
     data: { deletedAt: null },

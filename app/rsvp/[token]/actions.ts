@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
+import { getOptionalAdminUser } from "@/lib/admin-auth";
+import { canActorAccessEvent } from "@/lib/wedding-access";
 import { prisma } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 import { dispatchEventCommunication } from "@/lib/communications";
@@ -29,7 +30,6 @@ export async function submitRsvpAction(formData: FormData) {
           rsvpDeadline: true,
           title: true,
           coupleNames: true,
-          ownerUserId: true,
         },
       },
     },
@@ -42,10 +42,7 @@ export async function submitRsvpAction(formData: FormData) {
   const previewFlag = formData.get("previewMode") === "1";
   if (previewFlag) {
     const admin = await getOptionalAdminUser();
-    if (
-      admin &&
-      (isSuperAdmin(admin) || guest.event.ownerUserId === admin.id)
-    ) {
+    if (admin && (await canActorAccessEvent(admin, guest.eventId))) {
       throw new Error("RSVP submission is disabled in preview mode.");
     }
   }

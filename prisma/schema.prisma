@@ -13,10 +13,118 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Wedding {
+  id          String   @id @default(cuid())
+  name        String
+  /// Stable key from the legacy backfill mapping file; lets the backfill be re-run idempotently.
+  backfillKey String?  @unique
+  /// ISO 4217 code used for every budget amount in this wedding.
+  currency    String   @default("USD")
+  /// IANA timezone used when an event has none of its own.
+  timezone    String?
+  /// Greeting pre-selected for new households (existing households keep their own).
+  defaultGreeting String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  memberships WeddingMembership[]
+  events      Event[]
+  vendors     Vendor[]
+  budgetItems BudgetItem[]
+}
+
+model Vendor {
+  id          String    @id @default(cuid())
+  weddingId   String
+  name        String
+  category    String
+  contactName String?
+  email       String?
+  phone       String?
+  website     String?
+  /// "considering" | "quoted" | "booked" | "declined"
+  status      String    @default("considering")
+  /// Latest quote, in minor units of the wedding currency.
+  quoteMinor  Int?
+  /// Private to wedding members.
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  wedding     Wedding      @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  budgetItems BudgetItem[]
+
+  @@index([weddingId, deletedAt])
+}
+
+/// One expense line. eventId null = shared across the wedding; each line is counted exactly once.
+model BudgetItem {
+  id             String    @id @default(cuid())
+  weddingId      String
+  eventId        String?
+  vendorId       String?
+  category       String
+  label          String
+  /// Planning estimate (minor units). Ignored for totals once agreedMinor is set.
+  estimateMinor  Int       @default(0)
+  /// Contracted amount (minor units).
+  agreedMinor    Int?
+  /// Optional per-person estimate, multiplied by the linked event's attendance.
+  perPersonMinor Int?
+  /// "invited" | "confirmed"
+  perPersonBasis String?
+  nextPaymentDueAt DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  wedding  Wedding         @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  event    Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  vendor   Vendor?         @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  payments BudgetPayment[]
+
+  @@index([weddingId, deletedAt])
+  @@index([eventId])
+  @@index([vendorId])
+}
+
+model BudgetPayment {
+  id           String   @id @default(cuid())
+  budgetItemId String
+  amountMinor  Int
+  paidAt       DateTime
+  note         String?
+  createdAt    DateTime @default(now())
+
+  budgetItem BudgetItem @relation(fields: [budgetItemId], references: [id], onDelete: Cascade)
+
+  @@index([budgetItemId])
+}
+
+model WeddingMembership {
+  id        String   @id @default(cuid())
+  weddingId String
+  userId    String
+  /// "owner" | "member". Only owners may administer memberships.
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wedding Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([weddingId, userId])
+  @@index([userId])
+}
+
 model Event {
   id            String   @id @default(cuid())
   ownerUserId   String?
   owner         User?    @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  /// Null only for legacy events that have not been assigned by the backfill mapping yet.
+  weddingId     String?
+  wedding       Wedding? @relation(fields: [weddingId], references: [id], onDelete: Restrict)
   title         String
   theme         String   @default("modern")
   slug          String
@@ -45,10 +153,16 @@ model Event {
   guests        Guest[]
   rsvpActivities RsvpActivity[]
   communicationLogs GuestCommunicationLog[]
+  roles         EventRole[]
+  allocations   EventAllocation[]
+  budgetItems   BudgetItem[]
+  /// IANA timezone for this event (falls back to the wedding's).
+  timezone      String?
 
   @@index([slug])
   @@index([ownerUserId, createdAt(sort: Desc)])
   @@index([ownerUserId, deletedAt])
+  @@index([weddingId, deletedAt])
 }
 
 model User {
@@ -61,6 +175,10 @@ model User {
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?
   events       Event[]
+  weddingMemberships WeddingMembership[]
+  eventRoles         EventRole[]
+  eventAllocations   EventAllocation[]
+  managedGuests      Guest[] @relation("GuestManager")
   guestCommunicationLogs GuestCommunicationLog[]
 
   @@index([name])
@@ -138,13 +256,22 @@ model Guest {
   excludedKidsCount      Int      @default(0)
   sharedGuestKey         String?
   countOwnerEventId      String?
+  /// Wedding member who manages this household for this event. Null = organizer/unassigned pool.
+  managedByUserId        String?
+  /// Allowance this invitation's places are charged to. Null = not charged to any contributor.
+  allocationId           String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   deletedAt      DateTime?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  managedBy  User?            @relation("GuestManager", fields: [managedByUserId], references: [id], onDelete: SetNull)
+  allocation EventAllocation? @relation(fields: [allocationId], references: [id], onDelete: Restrict)
   rsvpActivities RsvpActivity[]
   communicationLogs GuestCommunicationLog[]
+
+  @@index([allocationId, deletedAt])
+  @@index([eventId, managedByUserId])
 
   @@index([eventId])
   @@index([eventId, deletedAt])
@@ -152,6 +279,40 @@ model Guest {
   @@index([sharedGuestKey, deletedAt])
   @@index([countOwnerEventId])
   @@index([token])
+}
+
+/// Per-event guest-list role. With no rows for an event, every wedding member keeps full guest editing.
+model EventRole {
+  id                 String   @id @default(cuid())
+  eventId            String
+  userId             String
+  /// "organizer" | "contributor"
+  role               String
+  /// Explicit grant letting a contributor edit every household on this event.
+  canManageAllGuests Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+}
+
+/// Invitation places a contributor may allocate for one event (children and plus-ones included).
+model EventAllocation {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  places    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guests Guest[]
+
+  @@unique([eventId, userId])
 }
 
 model GuestCommunicationLog {

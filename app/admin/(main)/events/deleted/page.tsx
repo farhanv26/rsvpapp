@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { restoreEventAction } from "@/app/admin/events/actions";
-import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
+import { requireCurrentAdminUser } from "@/lib/admin-auth";
+import { accessibleEventsWhere } from "@/lib/wedding-policy";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +10,7 @@ export default async function DeletedEventsPage() {
   const admin = await requireCurrentAdminUser();
   const deleted = await prisma.event.findMany({
     where: {
-      deletedAt: { not: null },
-      ...(isSuperAdmin(admin) ? {} : { ownerUserId: admin.id }),
+      AND: [{ deletedAt: { not: null } }, accessibleEventsWhere(admin)],
     },
     orderBy: { deletedAt: "desc" },
     take: 80,
@@ -21,6 +21,7 @@ export default async function DeletedEventsPage() {
       slug: true,
       deletedAt: true,
       owner: { select: { name: true } },
+      wedding: { select: { name: true } },
     },
   });
 
@@ -56,6 +57,7 @@ export default async function DeletedEventsPage() {
                           ev.deletedAt,
                         )
                       : "—"}
+                    {ev.wedding?.name ? ` · ${ev.wedding.name}` : null}
                     {ev.owner?.name ? ` · Owner: ${ev.owner.name}` : null}
                   </p>
                   <p className="mt-1 font-mono text-[11px] text-zinc-400">{ev.slug}</p>

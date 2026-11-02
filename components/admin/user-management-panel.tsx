@@ -19,8 +19,32 @@ export type UserRowSerialized = {
   role: string;
   active: boolean;
   createdAt: string;
+  /** Events not yet in any wedding (the only events that still follow their creator). */
   _count: { events: number };
+  weddingCount?: number;
+  soleOwnerOf?: string[];
 };
+
+function SoleOwnerNotice({ user }: { user: UserRowSerialized }) {
+  if (!user.soleOwnerOf?.length) return null;
+  return (
+    <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="status">
+      {user.name} is the only owner of {user.soleOwnerOf.map((n) => `"${n}"`).join(", ")}. Make another member an owner
+      first, or this will be refused.
+    </p>
+  );
+}
+
+function WeddingAccessNote({ user }: { user: UserRowSerialized }) {
+  const count = user.weddingCount ?? 0;
+  if (count === 0) return null;
+  return (
+    <p className="text-sm text-zinc-600">
+      {user.name} belongs to {count} wedding{count === 1 ? "" : "s"}. Those events stay with the wedding and its other
+      members keep their access.
+    </p>
+  );
+}
 
 export type TrashUserRow = {
   id: string;
@@ -136,89 +160,65 @@ export function UserManagementPanel({
 
   return (
     <>
-      <div className="app-card p-6 sm:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="section-title">Super admin</p>
-            <h1 className="headline-display mt-2">User management</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-              Add, edit, and safely deactivate team accounts. Event ownership can be transferred before removing access.
-            </p>
-          </div>
-          <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
-            Add user
-          </button>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Users</h1>
+          <p className="page-meta">
+            {initialUsers.length} accounts · {activeUsers.length} active
+            {totalEventsOwned > 0 ? ` · ${totalEventsOwned} events outside any wedding` : ""}
+          </p>
         </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-[#ebe4d6] bg-[#f9f4eb]/80 px-4 py-3 text-center">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total users</p>
-            <p className="mt-1 text-2xl font-semibold text-zinc-900">{initialUsers.length}</p>
-          </div>
-          <div className="rounded-2xl border border-[#ebe4d6] bg-[#f9f4eb]/80 px-4 py-3 text-center">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Active</p>
-            <p className="mt-1 text-2xl font-semibold text-zinc-900">{activeUsers.length}</p>
-          </div>
-          <div className="rounded-2xl border border-[#ebe4d6] bg-[#f9f4eb]/80 px-4 py-3 text-center">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Events (all)</p>
-            <p className="mt-1 text-2xl font-semibold text-zinc-900">{totalEventsOwned}</p>
-          </div>
-        </div>
+        <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
+          Add user
+        </button>
       </div>
 
-      <div className="app-card p-0">
-        <div className="border-b border-[#ebe4d6] px-5 py-4 sm:px-6">
-          <p className="section-title">Directory</p>
-          <p className="mt-1 text-sm text-zinc-600">Names and roles come from the database and power the sign-in list.</p>
-        </div>
-        <ul className="divide-y divide-[#ebe4d6]">
+      <div className="app-card overflow-hidden">
+        <ul className="divide-y divide-[var(--border-soft)]">
           {initialUsers.map((u) => (
             <li
               key={u.id}
-              className={`flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 ${!u.active ? "bg-zinc-50/80" : ""}`}
+              className={`flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${!u.active ? "bg-[var(--surface-muted)]" : ""}`}
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#c9a66b]/90 to-[#8b6914]/90 text-sm font-semibold text-white">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--foreground)] text-xs font-semibold text-white" aria-hidden>
                     {u.name.charAt(0).toUpperCase()}
                   </span>
                   <div>
-                    <p className="font-semibold text-zinc-900">{u.name}</p>
-                    <p className="text-sm text-zinc-600">
+                    <p className="font-medium">{u.name}</p>
+                    <p className="text-sm text-[var(--muted-text)]">
                       {formatAdminRoleLabel(u.role)}
                       {" · "}
-                      {u._count.events} event{u._count.events === 1 ? "" : "s"}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      Added {new Date(u.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                      {u.weddingCount ?? 0} {u.weddingCount === 1 ? "wedding" : "weddings"}
+                      {u._count.events > 0 ? ` · ${u._count.events} event${u._count.events === 1 ? "" : "s"} outside a wedding` : ""}
+                      {" · added "}
+                      {new Date(u.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
                     </p>
                   </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {!u.active ? (
-                    <span className="inline-flex rounded-full bg-zinc-200 px-2.5 py-0.5 text-xs font-semibold text-zinc-700">
-                      Inactive
-                    </span>
+                    <span className="status status-muted">Inactive</span>
                   ) : (
-                    <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                      Active
-                    </span>
+                    <span className="status status-success">Active</span>
                   )}
                 </div>
               </div>
               {u.active ? (
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" className="btn-secondary text-sm" onClick={() => setEditUser(u)}>
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => setEditUser(u)}>
                     Edit
                   </button>
-                  <button type="button" className="btn-secondary text-sm" onClick={() => setTransferUser(u)}>
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => setTransferUser(u)}>
                     Transfer events
                   </button>
-                  <button type="button" className="btn-secondary text-sm" onClick={() => setDeactivateUser(u)}>
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => setDeactivateUser(u)}>
                     Deactivate
                   </button>
                   <button
                     type="button"
-                    className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 transition hover:bg-rose-100"
+                    className="btn-ghost btn-sm text-[var(--danger)]"
                     onClick={() => setDeleteTarget(u)}
                   >
                     Delete
@@ -241,7 +241,7 @@ export function UserManagementPanel({
               <FieldError messages={createState && !createState.ok ? createState.fieldErrors?.name : undefined} />
             </div>
             <p className="rounded-xl border border-[#ebe4d6] bg-[#f9f4eb]/70 px-3 py-2 text-xs text-zinc-600">
-              Password is auto-set to this user&apos;s lowercase first name (for example, Farhan → farhan).
+              Password is auto-set to this user&apos;s lowercase first name (for example, Aisha → aisha).
             </p>
             <div>
               <label className="text-sm font-medium text-zinc-700" htmlFor="create-role">
@@ -330,8 +330,13 @@ export function UserManagementPanel({
           <form action={transferAction} className="space-y-4">
             <input type="hidden" name="fromUserId" value={transferUser.id} />
             <p className="text-sm text-zinc-600">
-              Moves all events owned by this user to another active account. Guests, RSVPs, and images stay with each
-              event.
+              {transferUser._count.events === 0
+                ? `${transferUser.name} has no unassigned events to move.`
+                : `Moves ${transferUser._count.events} unassigned event${transferUser._count.events === 1 ? "" : "s"} (not in any wedding) to the account you choose. Guests and RSVPs stay with each event.`}
+            </p>
+            <p className="text-sm text-zinc-600">
+              This doesn&apos;t give anyone access to a wedding. To share a wedding, add the person as a member of that
+              wedding instead.
             </p>
             <div>
               <label className="text-sm font-medium text-zinc-700" htmlFor="transfer-to">
@@ -353,8 +358,8 @@ export function UserManagementPanel({
               <button type="button" className="btn-secondary" onClick={() => setTransferUser(null)}>
                 Cancel
               </button>
-              <button type="submit" className="btn-primary">
-                Transfer all
+              <button type="submit" className="btn-primary" disabled={transferUser._count.events === 0}>
+                Move events
               </button>
             </div>
           </form>
@@ -365,13 +370,13 @@ export function UserManagementPanel({
         <Modal title={`Deactivate ${deactivateUser.name}`} onClose={() => setDeactivateUser(null)}>
           <form action={deactivateAction} className="space-y-4">
             <input type="hidden" name="userId" value={deactivateUser.id} />
-            <p className="text-sm text-zinc-600">
-              Inactive users cannot sign in. If this user still owns events, pick who should receive them first.
-            </p>
+            <p className="text-sm text-zinc-600">Inactive accounts can&apos;t sign in.</p>
+            <WeddingAccessNote user={deactivateUser} />
+            <SoleOwnerNotice user={deactivateUser} />
             {deactivateUser._count.events > 0 ? (
               <div>
                 <label className="text-sm font-medium text-zinc-700" htmlFor="deactivate-transfer">
-                  Transfer {deactivateUser._count.events} event{deactivateUser._count.events === 1 ? "" : "s"} to
+                  Move {deactivateUser._count.events} unassigned event{deactivateUser._count.events === 1 ? "" : "s"} to
                 </label>
                 <select
                   id="deactivate-transfer"
@@ -406,17 +411,16 @@ export function UserManagementPanel({
       ) : null}
 
       {trashUsers.length > 0 ? (
-        <div className="app-card p-6 sm:p-8">
-          <p className="section-title">Recently deleted users</p>
-          <h2 className="headline-display mt-2 text-xl">Trash</h2>
+        <div className="mt-8">
+          <h2 className="section-heading">Deleted users</h2>
           <p className="mt-2 text-sm text-zinc-600">
-            Restore a user to sign-in and dashboard access. Owned events are restored together when possible.
+            Restoring an account lets it sign in again and brings back the unassigned events deleted with it.
           </p>
           <ul className="mt-4 divide-y divide-[#ebe4d6] rounded-2xl border border-[#ebe4d6]">
             {trashUsers.map((u) => (
               <li key={u.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-semibold text-zinc-900">{u.name}</p>
+                  <p className="font-medium">{u.name}</p>
                   <p className="text-xs text-zinc-500">
                     {formatAdminRoleLabel(u.role)} · {u.eventsCount} event{u.eventsCount === 1 ? "" : "s"} · Deleted{" "}
                     {new Date(u.deletedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
@@ -439,10 +443,14 @@ export function UserManagementPanel({
           <form action={deleteAction} className="space-y-4">
             <input type="hidden" name="userId" value={deleteTarget.id} />
             <p className="text-sm leading-relaxed text-zinc-700">
-              This moves <span className="font-semibold text-zinc-900">{deleteTarget.name}</span> and{" "}
-              <span className="font-semibold text-zinc-900">their active events</span> to trash. Guests and RSVPs stay
-              on file until you restore or permanently remove data later. Other users are not affected.
+              This moves <span className="font-semibold text-zinc-900">{deleteTarget.name}</span> to trash
+              {deleteTarget._count.events > 0
+                ? `, along with ${deleteTarget._count.events} unassigned event${deleteTarget._count.events === 1 ? "" : "s"} only they can open`
+                : ""}
+              . Restoring the account brings those events back.
             </p>
+            <WeddingAccessNote user={deleteTarget} />
+            <SoleOwnerNotice user={deleteTarget} />
             <label className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/60 px-3 py-2.5 text-sm text-rose-950">
               <input type="checkbox" name="confirmDelete" value="1" className="mt-0.5 h-4 w-4 rounded border-rose-300" required />
               <span>I understand this account will be hidden until restored from trash.</span>

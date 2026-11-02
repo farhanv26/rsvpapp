@@ -6,11 +6,12 @@ import { CountdownTimer } from "@/components/countdown-timer";
 import { VenueMapButton } from "@/components/venue-map-button";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { CalendarModal } from "@/components/calendar-modal";
-import { ItineraryTimeline } from "@/components/itinerary-timeline";
+import { guestVisibleItinerary, ItineraryTimeline } from "@/components/itinerary-timeline";
 import type { ItineraryItem } from "@/components/itinerary-timeline";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
+import { getOptionalAdminUser } from "@/lib/admin-auth";
+import { canActorAccessEvent } from "@/lib/wedding-access";
 import { resolveInviteCardImage } from "@/lib/invite-card-resolution";
 import { buildRsvpOgRouteUrl, resolveRsvpPreviewCardSource } from "@/lib/rsvp-share-preview";
 import { formatDateTime, getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
@@ -293,11 +294,9 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
     return (
       <main className="flex min-h-dvh items-center justify-center px-5 py-10">
         <div className="w-full max-w-md rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-8 py-10 text-center shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]">
-          <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">Invitation</p>
-          <h1 className={`mt-3 text-3xl leading-tight text-zinc-900 ${serif}`}>This RSVP link could not be opened</h1>
-          <p className="mt-4 text-sm leading-relaxed text-zinc-600">
-            The link may be incorrect or is no longer active. Please contact Farhan &amp; Rafiya or your hosts for a new
-            RSVP link.
+          <h1 className={`text-3xl leading-tight text-zinc-900 ${serif}`}>We couldn&apos;t find this invitation</h1>
+          <p className="mt-4 text-base leading-relaxed text-zinc-600">
+            The link may be incomplete or no longer active. Please ask your hosts to send it again.
           </p>
         </div>
       </main>
@@ -309,7 +308,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   const previewMode =
     Boolean(previewRequested) &&
     admin !== null &&
-    (isSuperAdmin(admin) || ev.ownerUserId === admin.id);
+    (await canActorAccessEvent(admin, ev.id));
 
   const hasResponded = Boolean(guest.respondedAt);
   const resolvedCard = resolveInviteCardImage(
@@ -325,12 +324,6 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
     { maxGuests: guest.maxGuests, isFamilyInvite: guest.isFamilyInvite },
   );
   const safeImageSrc = getSafeImageSrc(resolvedCard.rawPath);
-  console.info("[event-image] rsvp render src", {
-    token,
-    rawImagePath: resolvedCard.rawPath,
-    variant: resolvedCard.variantLabel,
-    safeImageSrc,
-  });
   const deadlineMeta = getRsvpDeadlineMeta(ev.rsvpDeadline);
   const isRsvpClosed = deadlineMeta?.status === "closed";
 
@@ -382,14 +375,16 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
       })()
     : null;
 
-  const itinerary: ItineraryItem[] = Array.isArray(ev.itinerary)
-    ? (ev.itinerary as ItineraryItem[]).filter(
-        (x) =>
-          x &&
-          typeof x.title === "string" &&
-          (typeof x.startTime === "string" || typeof x.time === "string"),
-      )
-    : [];
+  const itinerary: ItineraryItem[] = guestVisibleItinerary(
+    Array.isArray(ev.itinerary)
+      ? (ev.itinerary as ItineraryItem[]).filter(
+          (x) =>
+            x &&
+            typeof x.title === "string" &&
+            (typeof x.startTime === "string" || typeof x.time === "string"),
+        )
+      : [],
+  );
 
   const invitationContent = (
     <main className="flex min-h-dvh flex-col justify-center px-4 py-8 sm:px-6">
@@ -405,10 +400,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
               Back to event
             </Link>
           </p>
-          <p className="mt-1 text-xs text-amber-900/85">
-            This is an admin preview. RSVP actions are disabled so you don&apos;t change this guest&apos;s response by
-            mistake.
-          </p>
+          <p className="mt-1 text-xs text-amber-900/85">Preview only. Replies are turned off so this household&apos;s answer can&apos;t change.</p>
         </div>
       ) : null}
 
@@ -438,17 +430,17 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
               <div className="mx-auto h-px w-24 bg-gradient-to-r from-transparent via-[#c9a227]/50 to-transparent" aria-hidden />
 
               <div className={`mx-auto max-w-md rounded-2xl border px-5 py-5 text-center ${detailClass}`}>
-                <p className={`text-zinc-900 ${salutationClass}`}>Dear {guest.guestName},</p>
+                <p className={`text-zinc-900 ${salutationClass}`}>Dear {guest.guestName.replace(/^the\s+/i, "")},</p>
                 <p className="mt-3 text-base leading-relaxed text-zinc-700">
                   {hasResponded && guest.attending === false ? (
-                    "We are sorry you will not be able to attend, but we completely understand."
+                    "We'll miss you, and we completely understand."
                   ) : (
                     <>
-                      <span className="block">We would be honored to celebrate with you.</span>
-                      <span className="mt-2 block">
-                        Your invitation includes up to{" "}
+                      {ev.welcomeMessage ? null : <span className="block">We would be honored to celebrate with you.</span>}
+                      <span className={ev.welcomeMessage ? "block" : "mt-2 block"}>
+                        This invitation is for up to{" "}
                         <span className="font-semibold text-zinc-900">{inviteCapacity}</span>{" "}
-                        {inviteCapacity === 1 ? "guest" : "guests"}.
+                        {inviteCapacity === 1 ? "person" : "people"}.
                       </span>
                     </>
                   )}
@@ -491,9 +483,9 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
         {ev.rsvpDeadline ? (
           <ScrollReveal delay={40}>
             <div className="space-y-2 text-center">
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-                RSVP by{" "}
-                {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(ev.rsvpDeadline)}
+              <p className="text-xs uppercase tracking-[0.16em] text-zinc-600">
+                Please reply by{" "}
+                {new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", timeZone: "UTC" }).format(ev.rsvpDeadline)}
               </p>
               {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" ? (
                 <p
@@ -506,10 +498,10 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
                   }`}
                 >
                   {deadlineMeta.status === "closes_today"
-                    ? "Closes today"
-                    : `Closes in ${deadlineMeta.daysRemaining} day${
+                    ? "Last day to reply"
+                    : `${deadlineMeta.daysRemaining} day${
                         deadlineMeta.daysRemaining === 1 ? "" : "s"
-                      }`}
+                      } left to reply`}
                 </p>
               ) : null}
             </div>
@@ -521,10 +513,9 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
           <section>
             {isRsvpClosed && !hasResponded ? (
               <div className="w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-6 py-9 text-center shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]">
-                <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-zinc-500">RSVP closed</p>
-                <h2 className={`mt-3 text-2xl text-zinc-900 ${serif}`}>Responses are now closed.</h2>
-                <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-zinc-600">
-                  This invitation is no longer accepting RSVP responses.
+                <h2 className={`text-2xl text-zinc-900 ${serif}`}>Replies have closed</h2>
+                <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-zinc-600">
+                  If you&apos;d still like to come, please contact your hosts directly.
                 </p>
               </div>
             ) : hasResponded ? (

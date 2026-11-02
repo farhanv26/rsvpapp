@@ -1,12 +1,6 @@
 import type { NextRequest } from "next/server";
-import {
-  getMobileAdminUser,
-  isMobileSuperAdmin,
-  unauthorizedResponse,
-  forbiddenResponse,
-  notFoundResponse,
-} from "@/lib/mobile-api-auth";
-import { prisma, withReconnect } from "@/lib/prisma";
+import { authorizeMobileEvent, getMobileAdminUser, unauthorizedResponse } from "@/lib/mobile-api-auth";
+import { prisma } from "@/lib/prisma";
 
 /** GET /admin/api/mobile/events/[eventId]/activity — recent RSVP activity (last 30). */
 export async function GET(
@@ -19,14 +13,8 @@ export async function GET(
   const { eventId } = await params;
 
   try {
-    const event = await withReconnect(() =>
-      prisma.event.findFirst({
-        where: { id: eventId, deletedAt: null },
-        select: { id: true, ownerUserId: true },
-      })
-    );
-    if (!event) return notFoundResponse("Event not found");
-    if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+    const authz = await authorizeMobileEvent(user, eventId);
+    if (authz.error) return authz.error;
 
     const activities = await prisma.rsvpActivity.findMany({
       where: { eventId },

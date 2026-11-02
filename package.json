@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:next": "next dev",
     "postinstall": "prisma generate",
     "build": "prisma generate && next build",
     "start": "next start",
@@ -11,7 +12,17 @@
     "test": "vitest run",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:local": "node scripts/local-db.mjs",
+    "db:local:setup": "node scripts/local-db.mjs setup",
+    "db:local:start": "node scripts/local-db.mjs start",
+    "db:local:stop": "node scripts/local-db.mjs stop",
+    "db:local:status": "node scripts/local-db.mjs status",
+    "db:local:migrate": "node scripts/local-db.mjs migrate",
+    "db:local:seed": "node scripts/local-db.mjs seed",
+    "db:local:reset": "node scripts/local-db.mjs reset",
+    "db:local:import-users": "node scripts/local-db.mjs import-users",
+    "db:local:remove-demo": "node scripts/local-db.mjs remove-demo"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
@@ -42,6 +53,7 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.4",
     "babel-plugin-react-compiler": "1.0.0",
+    "embedded-postgres": "17.11.0-beta.19",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "jsdom": "^29.0.2",

@@ -1,6 +1,8 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { AdminLoginForm } from "@/components/admin/admin-login-form";
 import { getActiveUsersForLogin } from "@/lib/login-users";
+
+export const metadata: Metadata = { title: "Sign in" };
 
 type Props = {
   searchParams: Promise<{ error?: string; user?: string }>;
@@ -12,54 +14,22 @@ export default async function AdminLoginPage({ searchParams }: Props) {
 
   const message =
     error === "invalid"
-      ? "Incorrect password. Please try again."
+      ? "Incorrect password. Try again."
       : error === "config"
-        ? "Admin sign-in is not configured on the server."
+        ? "Sign-in isn’t available right now. Try again later."
         : null;
 
   return (
-    <main className="min-h-dvh px-4 py-8 sm:px-6 sm:py-12">
-      <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="app-card flex flex-col justify-between p-7 sm:p-9">
-          <div>
-            <p className="section-title">RSVP Admin</p>
-            <h1 className="headline-display mt-3 text-4xl leading-tight sm:text-5xl">Guests, invites, and RSVPs — all in one place.</h1>
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-              Manage your guest list, send invitations via WhatsApp or email, and track every RSVP response in real time.
-            </p>
-          </div>
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Guests</p>
-              <p className="mt-1 text-sm font-medium text-zinc-900">Import, filter, and track every family</p>
-            </div>
-            <div className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Invites</p>
-              <p className="mt-1 text-sm font-medium text-zinc-900">Send via WhatsApp or email in one tap</p>
-            </div>
-            <div className="rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">RSVPs</p>
-              <p className="mt-1 text-sm font-medium text-zinc-900">Live response tracking and follow-ups</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="app-card p-7 sm:p-8">
-          <p className="section-title">Sign In</p>
-          <h2 className="headline-display mt-2 text-3xl">Welcome back</h2>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-            Select your account and enter your password.
-          </p>
-          <AdminLoginForm errorMessage={message} initialUser={user} users={users} />
-          <p className="mt-5 text-xs text-zinc-500">
-            Access is restricted to active admin users. Contact a super admin if you need access.
-          </p>
-          <p className="mt-2 text-xs text-zinc-500">
-            <Link href="/admin/login" className="font-medium text-zinc-700 hover:underline">
-              Refresh login
-            </Link>
-          </p>
-        </section>
+    <main className="flex min-h-dvh flex-col items-center px-5 pt-[12vh] pb-10 sm:justify-center sm:pt-10">
+      <div className="w-full max-w-[22rem]">
+        <p className="text-sm font-semibold tracking-tight">Wedding planner</p>
+        <div className="mt-8 sm:rounded-xl sm:border sm:border-[var(--border-soft)] sm:bg-[var(--surface)] sm:p-7">
+          <h1 className="page-title">Sign in</h1>
+          <AdminLoginForm key={user ?? ""} errorMessage={message} initialUser={user} users={users} />
+        </div>
+        <p className="mt-6 text-[13px] text-[var(--muted-text)] sm:px-7">
+          Need access or a new password? Ask your account administrator.
+        </p>
       </div>
     </main>
   );

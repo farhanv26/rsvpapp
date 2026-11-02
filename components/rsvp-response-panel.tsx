@@ -78,37 +78,37 @@ export function RsvpResponsePanel({
       )}
 
       <p className={`text-[0.6rem] font-semibold uppercase tracking-[0.26em] ${isAttending ? "text-emerald-600" : "text-zinc-400"}`}>
-        {isAttending ? "RSVP Confirmed" : "RSVP received"}
+        Reply received
       </p>
 
       <h2 className={`mt-2 text-[1.65rem] leading-tight text-zinc-900 ${serif}`}>
-        {isAttending ? "See you there!" : "Thank you for letting us know"}
+        {isAttending ? "We'll see you there" : "Thank you for letting us know"}
       </h2>
 
       <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-zinc-600">
         {isAttending ? (
           <>
-            We&apos;re delighted you&apos;ll be joining us.
+            We&apos;re so glad you&apos;re coming.
             {typeof attendingCount === "number" && attendingCount > 0 ? (
               <>
                 <br />
-                {attendingCount} {attendingCount === 1 ? "guest" : "guests"} confirmed.
+                {attendingCount === 1 ? "1 person confirmed." : `${attendingCount} people confirmed.`}
               </>
             ) : null}
           </>
         ) : (
-          "We're sorry you won't be able to make it, but we completely understand."
+          "We'll miss you, and we completely understand."
         )}
       </p>
 
-      <p className="mt-5 text-[0.65rem] uppercase tracking-[0.18em] text-zinc-400">
-        Recorded {respondedAtLabel}
+      <p className="mt-5 text-[0.65rem] uppercase tracking-[0.18em] text-zinc-500">
+        Sent {respondedAtLabel}
       </p>
 
       {/* Host message display */}
       {hostMessage ? (
         <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-4 text-left">
-          <p className="text-[0.58rem] font-semibold uppercase tracking-[0.24em] text-zinc-400">Your message to host</p>
+          <p className="text-[0.58rem] font-semibold uppercase tracking-[0.24em] text-zinc-400">Your note</p>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{hostMessage}</p>
         </div>
       ) : null}
@@ -120,14 +120,12 @@ export function RsvpResponsePanel({
           onClick={() => setIsEditing(true)}
           className="btn-secondary mt-6"
         >
-          Edit RSVP
+          Change my reply
         </button>
       ) : previewMode ? (
-        <p className="mt-5 text-xs text-zinc-400">Preview mode — editing RSVP is disabled.</p>
+        <p className="mt-5 text-xs text-zinc-400">Preview only. Changing the reply is turned off.</p>
       ) : (
-        <p className="mt-5 text-xs uppercase tracking-[0.16em] text-zinc-400">
-          Editing is closed after the RSVP deadline
-        </p>
+        <p className="mt-5 text-sm text-zinc-600">Replies have closed. To change your plans, please contact your hosts.</p>
       )}
     </div>
   );

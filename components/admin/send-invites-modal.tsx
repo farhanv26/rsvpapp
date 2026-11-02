@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   markGuestsInvitedAction,
@@ -8,7 +8,9 @@ import {
   sendBulkGuestInviteEmailsAction,
   sendBulkGuestReminderEmailsAction,
 } from "@/app/admin/events/actions";
-import { WHATSAPP_PHONE_HELPER_TEXT, WHATSAPP_PHONE_INVALID_INLINE } from "@/lib/phone";
+import { Dialog } from "@/components/admin/ui/dialog";
+import { WhatsAppGlyph } from "@/components/admin/guests/guest-row-actions";
+import { WHATSAPP_PHONE_HELPER_TEXT } from "@/lib/phone";
 import {
   buildGuestRsvpReminderMessage,
   buildGuestWhatsAppInviteMessage,
@@ -16,7 +18,7 @@ import {
   normalizePhoneForWhatsAppGuestRecord,
 } from "@/lib/whatsapp";
 
-/** Minimal guest fields for invite workflow (compatible with GuestPanelGuest). */
+/** Minimal guest fields for the invitation workflow. */
 export type SendInvitesGuest = {
   id: string;
   guestName: string;
@@ -25,7 +27,10 @@ export type SendInvitesGuest = {
   phone: string | null;
   phoneCountryCode: string | null;
   email: string | null;
+  invitedAt?: string | null;
 };
+
+type Channel = "whatsapp" | "email" | "copy";
 
 function guestRsvpUrl(siteUrl: string, token: string) {
   const path = `/rsvp/${token}`;
@@ -33,50 +38,9 @@ function guestRsvpUrl(siteUrl: string, token: string) {
   return `${siteUrl.replace(/\/$/, "")}${path}`;
 }
 
-function WhatsAppIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M19.11 17.44c-.26-.13-1.51-.75-1.75-.83-.23-.09-.4-.13-.57.13-.17.26-.66.83-.81 1-.15.17-.3.2-.56.07-.26-.13-1.1-.4-2.09-1.28-.77-.69-1.29-1.54-1.44-1.8-.15-.26-.02-.4.11-.53.12-.12.26-.3.39-.45.13-.15.17-.26.26-.43.09-.17.04-.32-.02-.45-.06-.13-.57-1.36-.78-1.86-.21-.5-.42-.43-.57-.43l-.48-.01c-.17 0-.45.06-.68.32-.23.26-.9.88-.9 2.14 0 1.26.92 2.48 1.05 2.65.13.17 1.8 2.75 4.37 3.86.61.26 1.08.42 1.45.54.61.19 1.17.16 1.61.1.49-.07 1.51-.62 1.72-1.22.21-.6.21-1.11.15-1.22-.06-.11-.23-.17-.49-.3Z"
-      />
-      <path
-        fill="currentColor"
-        d="M16.02 5.33c-5.88 0-10.67 4.78-10.67 10.67 0 1.89.5 3.74 1.45 5.37L5.33 26.7l5.46-1.43c1.57.85 3.33 1.3 5.22 1.3 5.88 0 10.67-4.78 10.67-10.67S21.9 5.33 16.02 5.33Zm0 19.35c-1.68 0-3.33-.45-4.77-1.3l-.34-.2-3.24.85.86-3.16-.22-.33c-.92-1.43-1.41-3.08-1.41-4.78 0-4.95 4.03-8.98 8.98-8.98S25 10.81 25 15.76s-4.03 8.92-8.98 8.92Z"
-      />
-    </svg>
-  );
-}
-
-function csvEscape(value: unknown) {
+function csvCell(value: unknown) {
   const text = String(value ?? "");
-  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
-    return `"${text.replaceAll('"', '""')}"`;
-  }
-  return text;
-}
-
-function downloadCsv(filename: string, rows: string[][]) {
-  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
-}
-
-function hasPhone(g: SendInvitesGuest) {
-  return Boolean(g.phone?.trim());
-}
-function hasEmail(g: SendInvitesGuest) {
-  return Boolean(g.email?.trim());
-}
-function missingContact(g: SendInvitesGuest) {
-  return !hasPhone(g) && !hasEmail(g);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 type Props = {
@@ -92,6 +56,8 @@ type Props = {
   scopeDescription: string;
   /** Reminder flow: RSVP follow-up for guests already invited, not yet responded. */
   mode?: "invite" | "reminder";
+  /** Whether the app can send email (an email service is configured). */
+  emailConfigured?: boolean;
 };
 
 export function SendInvitesModal({
@@ -106,349 +72,318 @@ export function SendInvitesModal({
   guests,
   scopeDescription,
   mode = "invite",
+  emailConfigured = false,
 }: Props) {
   const isReminder = mode === "reminder";
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [waIndex, setWaIndex] = useState(0);
-  const [emailStatus, setEmailStatus] = useState<string | null>(null);
-  const [markStatus, setMarkStatus] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
-
-  const sortedGuests = useMemo(
-    () => [...guests].sort((a, b) => a.guestName.localeCompare(b.guestName)),
-    [guests],
+  const sorted = useMemo(() => [...guests].sort((a, b) => a.guestName.localeCompare(b.guestName)), [guests]);
+  const waReady = useMemo(
+    () => sorted.filter((g) => normalizePhoneForWhatsAppGuestRecord({ phone: g.phone, phoneCountryCode: g.phoneCountryCode }) !== null),
+    [sorted],
   );
+  const withEmail = useMemo(() => sorted.filter((g) => Boolean(g.email?.trim())), [sorted]);
+  const noContact = sorted.filter((g) => !g.phone?.trim() && !g.email?.trim()).length;
+  const alreadyInvited = isReminder ? 0 : sorted.filter((g) => g.invitedAt).length;
 
-  const waPhoneEligible = useMemo(
-    () =>
-      sortedGuests.filter(
-        (g) =>
-          normalizePhoneForWhatsAppGuestRecord({ phone: g.phone, phoneCountryCode: g.phoneCountryCode }) !== null,
-      ),
-    [sortedGuests],
-  );
+  const [channel, setChannel] = useState<Channel>(waReady.length > 0 ? "whatsapp" : withEmail.length > 0 && emailConfigured ? "email" : "copy");
+  const [previewId, setPreviewId] = useState(sorted[0]?.id ?? "");
+  const [opened, setOpened] = useState<string[]>([]);
+  const [status, setStatus] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(null);
+  const [recorded, setRecorded] = useState(false);
 
-  const waStep = Math.min(waIndex, Math.max(0, waPhoneEligible.length - 1));
-
-  const summary = useMemo(() => {
-    const total = guests.length;
-    const withPhone = guests.filter(hasPhone).length;
-    const withEmail = guests.filter(hasEmail).length;
-    const missing = guests.filter(missingContact).length;
-    return { total, withPhone, withEmail, missing };
-  }, [guests]);
-
-  const sampleGuest = sortedGuests[0];
-  const sampleMessage = useMemo(() => {
-    if (!sampleGuest) return "";
-    const build = isReminder ? buildGuestRsvpReminderMessage : buildGuestWhatsAppInviteMessage;
-    return build({
-      guestId: sampleGuest.id,
-      greeting: sampleGuest.greeting,
-      guestName: sampleGuest.guestName,
+  const build = isReminder ? buildGuestRsvpReminderMessage : buildGuestWhatsAppInviteMessage;
+  const messageFor = (g: SendInvitesGuest) =>
+    build({
+      guestId: g.id,
+      greeting: g.greeting,
+      guestName: g.guestName,
       eventTitle,
       coupleNames: eventCoupleNames,
-      rsvpLink: guestRsvpUrl(siteUrl, sampleGuest.token),
+      rsvpLink: guestRsvpUrl(siteUrl, g.token),
       customIntroLine: inviteMessageIntro,
       customLineOverride: inviteMessageLineOverride,
     });
-  }, [sampleGuest, eventTitle, eventCoupleNames, siteUrl, inviteMessageIntro, inviteMessageLineOverride, isReminder]);
+  const previewGuest = sorted.find((g) => g.id === previewId) ?? sorted[0];
+  const nextWa = waReady.find((g) => !opened.includes(g.id));
 
-  const waGuest = waPhoneEligible[waStep];
-  const waMessage = useMemo(() => {
-    if (!waGuest) return "";
-    const build = isReminder ? buildGuestRsvpReminderMessage : buildGuestWhatsAppInviteMessage;
-    return build({
-      guestId: waGuest.id,
-      greeting: waGuest.greeting,
-      guestName: waGuest.guestName,
-      eventTitle,
-      coupleNames: eventCoupleNames,
-      rsvpLink: guestRsvpUrl(siteUrl, waGuest.token),
-      customIntroLine: inviteMessageIntro,
-      customLineOverride: inviteMessageLineOverride,
-    });
-  }, [waGuest, eventTitle, eventCoupleNames, siteUrl, inviteMessageIntro, inviteMessageLineOverride, isReminder]);
-
-  const guestIds = useMemo(() => guests.map((g) => g.id), [guests]);
-  const emailEligibleIds = useMemo(() => guests.filter(hasEmail).map((g) => g.id), [guests]);
-
-  const refresh = useCallback(() => {
+  function refreshWith(text: string, tone: "success" | "info" | "error" = "success") {
+    setStatus({ tone, text });
     router.refresh();
-  }, [router]);
-
-  if (!open) {
-    return null;
-  }
-
-  async function copyAllMessages() {
-    const build = isReminder ? buildGuestRsvpReminderMessage : buildGuestWhatsAppInviteMessage;
-    const bundles = sortedGuests.map((guest) => {
-      const link = guestRsvpUrl(siteUrl, guest.token);
-      const message = build({
-        guestId: guest.id,
-        greeting: guest.greeting,
-        guestName: guest.guestName,
-        eventTitle,
-        coupleNames: eventCoupleNames,
-        rsvpLink: link,
-        customIntroLine: inviteMessageIntro,
-        customLineOverride: inviteMessageLineOverride,
-      });
-      return `${guest.guestName}\n${message}`;
-    });
-    await navigator.clipboard.writeText(bundles.join("\n\n---\n\n"));
-    setCopied("messages");
-    setTimeout(() => setCopied(null), 2000);
-  }
-
-  async function copyAllLinks() {
-    const lines = sortedGuests.map((g) => `${g.guestName}: ${guestRsvpUrl(siteUrl, g.token)}`);
-    await navigator.clipboard.writeText(lines.join("\n"));
-    setCopied("links");
-    setTimeout(() => setCopied(null), 2000);
-  }
-
-  function exportContacts() {
-    const rows = [
-      ["Guest Name", "Phone", "Email", "RSVP Link"],
-      ...sortedGuests.map((g) => [
-        g.guestName,
-        g.phone ?? "",
-        g.email ?? "",
-        guestRsvpUrl(siteUrl, g.token),
-      ]),
-    ];
-    downloadCsv(`${isReminder ? "reminder" : "invite"}-contacts-${eventId.slice(0, 8)}.csv`, rows);
   }
 
   function openNextWhatsApp() {
-    if (!waGuest) return;
-    const url = getWhatsAppInviteUrlForGuest(waGuest.phone, waMessage, waGuest.phoneCountryCode);
+    if (!nextWa) return;
+    const url = getWhatsAppInviteUrlForGuest(nextWa.phone, messageFor(nextWa), nextWa.phoneCountryCode);
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
-    const maxIdx = Math.max(0, waPhoneEligible.length - 1);
-    setWaIndex((i) => Math.min(i + 1, maxIdx));
+    setOpened((o) => [...o, nextWa.id]);
+    setRecorded(false);
+  }
+
+  function recordOpened() {
+    startTransition(async () => {
+      if (isReminder) {
+        const r = await recordGuestRemindersSentAction(eventId, opened, "whatsapp");
+        refreshWith(`Recorded a reminder for ${r.updated} ${r.updated === 1 ? "household" : "households"}.`);
+      } else {
+        const r = await markGuestsInvitedAction(eventId, opened, "whatsapp");
+        refreshWith(`Marked ${r.updated} ${r.updated === 1 ? "household" : "households"} as invited.`);
+      }
+      setRecorded(true);
+    });
   }
 
   function sendEmails() {
-    setEmailStatus(null);
+    setStatus(null);
     startTransition(async () => {
-      if (isReminder) {
-        const result = await sendBulkGuestReminderEmailsAction(eventId, emailEligibleIds);
-        setEmailStatus(
-          `Sent ${result.sent}. Skipped (no email): ${result.skippedMissingEmail}. Not eligible (not invited / already RSVP’d): ${result.skippedNotEligible}. Failed: ${result.failed}.`,
-        );
-      } else {
-        const result = await sendBulkGuestInviteEmailsAction(eventId, emailEligibleIds);
-        setEmailStatus(
-          `Sent ${result.sent}. Skipped (no email): ${result.skippedMissingEmail}. Failed: ${result.failed}.`,
-        );
-      }
-      refresh();
+      const ids = withEmail.map((g) => g.id);
+      const r = isReminder ? await sendBulkGuestReminderEmailsAction(eventId, ids) : await sendBulkGuestInviteEmailsAction(eventId, ids);
+      if (r.notConfigured) return refreshWith("Email isn't set up for this app, so nothing was sent.", "error");
+      const parts = [`The email service accepted ${r.sent} of ${ids.length}.`];
+      if (r.failed) parts.push(`${r.failed} failed.`);
+      if ("skippedNotEligible" in r && r.skippedNotEligible) parts.push(`${r.skippedNotEligible} skipped because they already replied or weren't invited.`);
+      refreshWith(parts.join(" "), r.failed ? "error" : "success");
     });
   }
 
-  function markSent(channel: "whatsapp" | "manual") {
-    setMarkStatus(null);
+  function markAllManual() {
+    const n = sorted.length;
+    if (!confirm(isReminder ? `Record a reminder for all ${n}?` : `Mark all ${n} as invited? Only do this if you sent the invitations yourself.`)) return;
     startTransition(async () => {
+      const ids = sorted.map((g) => g.id);
       if (isReminder) {
-        const res = await recordGuestRemindersSentAction(eventId, guestIds, channel);
-        setMarkStatus(`Recorded last reminder for ${res.updated} guest(s).`);
+        const r = await recordGuestRemindersSentAction(eventId, ids, "manual");
+        refreshWith(`Recorded a reminder for ${r.updated}.`);
       } else {
-        const res = await markGuestsInvitedAction(eventId, guestIds, channel);
-        setMarkStatus(`Updated ${res.updated} guest(s).`);
+        const r = await markGuestsInvitedAction(eventId, ids, "manual");
+        refreshWith(`Marked ${r.updated} as invited.`);
       }
-      refresh();
     });
   }
+
+  async function copyText(text: string, done: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus({ tone: "info", text: done });
+    } catch {
+      setStatus({ tone: "error", text: "Couldn't copy. Your browser blocked clipboard access." });
+    }
+  }
+
+  function downloadContacts() {
+    const rows = [["Guest Name", "Phone", "Email", "RSVP Link"], ...sorted.map((g) => [g.guestName, g.phone ?? "", g.email ?? "", guestRsvpUrl(siteUrl, g.token)])];
+    const blob = new Blob([rows.map((r) => r.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${isReminder ? "reminder" : "invite"}-contacts-${eventId.slice(0, 8)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const n = sorted.length;
+  const noun = n === 1 ? "household" : "households";
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-zinc-900/45 backdrop-blur-[2px]"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 flex max-h-[min(90vh,52rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffcf6] shadow-xl">
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#ebe4d6] px-5 py-4 sm:px-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-              {isReminder ? "RSVP reminders" : "Send invites"}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      size="lg"
+      dismissible={!isPending}
+      title={isReminder ? "Send reply reminders" : "Send invitations"}
+      description={eventTitle}
+      footer={
+        <button type="button" className="btn-secondary" onClick={onClose} disabled={isPending}>
+          Done
+        </button>
+      }
+    >
+      {n === 0 ? (
+        <p className="text-sm text-[var(--muted-text)]">
+          {isReminder ? "Nobody is waiting on a reply right now." : "Everyone here has already been invited."} Select households in the guest list to choose who to send to.
+        </p>
+      ) : (
+        <div className="space-y-6">
+          {/* Who */}
+          <section aria-labelledby="inv-to">
+            <h3 id="inv-to" className="text-xs font-medium text-[var(--muted-text)]">
+              To
+            </h3>
+            <details className="mt-1 group">
+              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+                <span className="text-sm">
+                  <span className="font-medium">
+                    {n} {noun}
+                  </span>
+                  <span className="text-[var(--muted-text)]"> · {scopeDescription}</span>
+                </span>
+                <span className="text-link shrink-0 text-sm group-open:hidden">Show</span>
+                <span className="text-link hidden shrink-0 text-sm group-open:inline">Hide</span>
+              </summary>
+              <ul className="list-rows mt-2 max-h-56 overflow-y-auto text-sm">
+                {sorted.map((g) => {
+                  const wa = waReady.some((w) => w.id === g.id);
+                  return (
+                    <li key={g.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <span className="min-w-0 truncate">{g.guestName}</span>
+                      <span className="shrink-0 text-xs text-[var(--muted-text)]">
+                        {[wa ? "WhatsApp" : null, g.email?.trim() ? "Email" : null].filter(Boolean).join(" · ") || "No contact details"}
+                        {!isReminder && g.invitedAt ? " · already invited" : ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+            <p className="mt-1 text-xs text-[var(--muted-text)]">
+              {waReady.length} can be reached on WhatsApp · {withEmail.length} by email
+              {noContact ? ` · ${noContact} have no contact details` : ""}
+              {alreadyInvited ? ` · ${alreadyInvited} were already invited` : ""}
             </p>
-            <h2 className="font-display text-xl font-semibold text-zinc-900">{eventTitle}</h2>
-            <p className="mt-1 text-sm text-zinc-600">{scopeDescription}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800"
-            aria-label="Close dialog"
-          >
-            ×
-          </button>
-        </div>
+          </section>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
-          {guests.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-4 py-6 text-sm text-zinc-600">
-              No guests in this scope. Adjust filters or add guests first.
-            </p>
-          ) : (
-            <>
-              <section className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] p-4">
-                <h3 className="text-sm font-semibold text-zinc-900">Recipients</h3>
-                <p className="mt-2 text-sm text-zinc-700">
-                  <span className="font-medium text-zinc-900">{summary.total}</span> selected
-                  {summary.total === 1 ? " guest" : " guests"} ·{" "}
-                  <span className="text-zinc-800">{summary.withPhone}</span> with phone on file ·{" "}
-                  <span className="text-zinc-800">{waPhoneEligible.length}</span> with WhatsApp-ready numbers ·{" "}
-                  <span className="text-zinc-800">{summary.withEmail}</span> with email ·{" "}
-                  <span className="text-zinc-800">{summary.missing}</span> missing phone and email
-                </p>
-                {isReminder ? (
-                  <p className="mt-2 text-xs text-zinc-600">
-                    Reminders are for guests who were already invited and have not RSVP’d yet. Ineligible guests are
-                    skipped when sending email.
-                  </p>
-                ) : null}
-                {!isReminder && summary.missing > 0 && summary.withPhone + summary.withEmail < summary.total ? (
-                  <p className="mt-2 text-xs text-zinc-500">
-                    Guests without contact info can still copy RSVP links. For WhatsApp: {WHATSAPP_PHONE_HELPER_TEXT}
-                  </p>
-                ) : null}
-              </section>
-
-              <section className="mt-4 rounded-2xl border border-[#e7dccb] bg-white p-4">
-                <h3 className="text-sm font-semibold text-zinc-900">Message preview</h3>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {isReminder
-                    ? guests.length > 1
-                      ? "Sample reminder — each family gets their own greeting and RSVP link."
-                      : "Your reminder text:"
-                    : guests.length > 1
-                      ? "Sample for one guest — each family gets their own greeting and RSVP link."
-                      : "Your invite text:"}
-                </p>
-                <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-[#ebe4d6] bg-[#fbf8f2] p-3 font-sans text-xs leading-relaxed text-zinc-800">
-                  {sampleMessage || "—"}
-                </pre>
-              </section>
-
-              <section className="mt-4">
-                <h3 className="text-sm font-semibold text-zinc-900">WhatsApp</h3>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {isReminder
-                    ? "Warm reminder text per guest. Use “Open next” to send in order; each RSVP link is unique."
-                    : "Primary channel — one personalized message per guest. Use “Open next” to send in order; each link is unique."}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="btn-primary inline-flex items-center gap-2"
-                    disabled={!waGuest || isPending || waPhoneEligible.length === 0}
-                    title={
-                      waPhoneEligible.length === 0
-                        ? `No guest in this scope has a usable number for WhatsApp. ${WHATSAPP_PHONE_HELPER_TEXT}`
-                        : undefined
-                    }
-                    onClick={openNextWhatsApp}
-                  >
-                    <WhatsAppIcon className="h-4 w-4 text-white" />
-                    Open next ({waGuest ? waStep + 1 : 0}/{waPhoneEligible.length})
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={isPending || guests.length === 0}
-                    onClick={() => markSent("whatsapp")}
-                  >
-                    {isReminder ? "Record reminder sent (WhatsApp)" : "Mark all as invited (WhatsApp)"}
-                  </button>
-                </div>
-                {waPhoneEligible.length === 0 ? (
-                  <p className="mt-2 text-xs text-amber-800">
-                    No guest in this scope can open WhatsApp directly — add or fix phone numbers ({WHATSAPP_PHONE_HELPER_TEXT}
-                    ). Invalid numbers show as “{WHATSAPP_PHONE_INVALID_INLINE}” in guest edit. You can still copy messages
-                    or RSVP links below.
-                  </p>
-                ) : waGuest ? (
-                  <p className="mt-2 text-xs text-zinc-600">
-                    Next: <span className="font-medium text-zinc-900">{waGuest.guestName}</span>
-                    {hasPhone(waGuest) ? " · phone on file" : null}
-                  </p>
-                ) : null}
-              </section>
-
-              <section className="mt-4">
-                <h3 className="text-sm font-semibold text-zinc-900">Email</h3>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {isReminder
-                    ? "Sends reminder emails only to eligible guests with an address. Others are skipped."
-                    : "Sends only to guests with an email address. Others are skipped — not an error."}
-                </p>
-                <button
-                  type="button"
-                  className="btn-secondary mt-2"
-                  disabled={emailEligibleIds.length === 0 || isPending}
-                  title={emailEligibleIds.length === 0 ? "No guests in scope have email" : undefined}
-                  onClick={sendEmails}
-                >
-                  {isReminder ? "Send reminder emails" : "Send email invites"} ({emailEligibleIds.length})
-                </button>
-                {emailStatus ? <p className="mt-2 text-xs text-zinc-600">{emailStatus}</p> : null}
-              </section>
-
-              <section className="mt-4">
-                <h3 className="text-sm font-semibold text-zinc-900">Copy &amp; export</h3>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" className="btn-secondary" disabled={guests.length === 0} onClick={copyAllMessages}>
-                    {copied === "messages"
-                      ? "Copied!"
-                      : isReminder
-                        ? "Copy all reminder messages"
-                        : "Copy all personalized messages"}
-                  </button>
-                  <button type="button" className="btn-secondary" disabled={guests.length === 0} onClick={copyAllLinks}>
-                    {copied === "links" ? "Copied!" : "Copy name + RSVP links"}
-                  </button>
-                  <button type="button" className="btn-secondary" disabled={guests.length === 0} onClick={exportContacts}>
-                    Export contacts (CSV)
-                  </button>
-                </div>
-              </section>
-
-              <section className="mt-4 rounded-2xl border border-[#e1d5c3] bg-[#f8f1e5] p-4">
-                <h3 className="text-sm font-semibold text-zinc-900">
-                  {isReminder ? "Record offline reminders" : "Mark as sent"}
+          {/* Message */}
+          {previewGuest ? (
+            <section aria-labelledby="inv-msg">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 id="inv-msg" className="text-xs font-medium text-[var(--muted-text)]">
+                  Message
                 </h3>
-                <p className="mt-1 text-xs text-zinc-600">
-                  {isReminder
-                    ? "If you nudged guests outside the app (call, text, in person), record the last reminder time here."
-                    : "If you sent invites outside the app, record it here so your list stays accurate."}
+                {n > 1 ? (
+                  <label className="flex items-center gap-2 text-xs text-[var(--muted-text)]">
+                    Preview for
+                    <select value={previewGuest.id} onChange={(e) => setPreviewId(e.target.value)} className="input-luxe mt-0 w-auto max-w-[14rem] py-1 text-sm">
+                      {sorted.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.guestName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+              <div className="mt-2 rounded-xl bg-[#f0ede6] p-3">
+                <p className="ml-auto max-w-[34rem] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-lg rounded-tr-sm bg-white px-3.5 py-2.5 text-sm leading-relaxed shadow-[0_1px_1px_rgba(0,0,0,0.06)]">
+                  {messageFor(previewGuest)}
                 </p>
-                <button
-                  type="button"
-                  className="btn-secondary mt-2"
-                  disabled={guests.length === 0 || isPending}
-                  onClick={() => markSent("manual")}
-                >
-                  {isReminder ? "Record reminder sent (manual)" : "Mark all in scope as invited (manual)"}
-                </button>
-                {markStatus ? <p className="mt-2 text-xs text-zinc-700">{markStatus}</p> : null}
-              </section>
-            </>
-          )}
-        </div>
+              </div>
+              <p className="mt-1.5 text-xs text-[var(--muted-text)]">Each household gets its own greeting and private reply link.</p>
+            </section>
+          ) : null}
 
-        <div className="shrink-0 border-t border-[#ebe4d6] px-5 py-3 sm:px-6">
-          <button type="button" className="btn-primary w-full sm:w-auto" onClick={onClose}>
-            Done
-          </button>
+          {/* How */}
+          <section aria-labelledby="inv-how">
+            <h3 id="inv-how" className="text-xs font-medium text-[var(--muted-text)]">
+              Send with
+            </h3>
+            <div className="segmented mt-1.5" role="group" aria-label="Channel">
+              <button type="button" aria-pressed={channel === "whatsapp"} onClick={() => setChannel("whatsapp")}>
+                WhatsApp
+              </button>
+              <button type="button" aria-pressed={channel === "email"} onClick={() => setChannel("email")}>
+                Email
+              </button>
+              <button type="button" aria-pressed={channel === "copy"} onClick={() => setChannel("copy")}>
+                Copy or export
+              </button>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-[var(--border-soft)] p-4">
+              {channel === "whatsapp" ? (
+                waReady.length === 0 ? (
+                  <p className="text-sm text-[var(--muted-text)]">
+                    Nobody here has a WhatsApp-ready number. {WHATSAPP_PHONE_HELPER_TEXT} You can still copy the messages.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm">
+                      Opens WhatsApp on this device with the message filled in, one household at a time. <strong className="font-medium">You press send in WhatsApp</strong>, so
+                      the app can&apos;t confirm delivery.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {nextWa ? (
+                        <button type="button" className="btn-primary" onClick={openNextWhatsApp}>
+                          <WhatsAppGlyph />
+                          Open WhatsApp for {nextWa.guestName}
+                        </button>
+                      ) : (
+                        <span className="text-sm font-medium">All {waReady.length} opened.</span>
+                      )}
+                      <span className="text-sm tabular-nums text-[var(--muted-text)]">
+                        {opened.length} of {waReady.length} opened
+                      </span>
+                    </div>
+                    {opened.length > 0 && !recorded ? (
+                      <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border-soft)] pt-3">
+                        <p className="text-sm">
+                          Sent {opened.length === 1 ? "it" : "them"}? {isReminder ? "Record the reminder" : "Mark as invited"} so your list stays accurate.
+                        </p>
+                        <button type="button" className="btn-secondary btn-sm" disabled={isPending} onClick={recordOpened}>
+                          {isReminder ? `Record ${opened.length} reminded` : `Mark ${opened.length} invited`}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              ) : channel === "email" ? (
+                !emailConfigured ? (
+                  <p className="text-sm text-[var(--muted-text)]">
+                    Email isn&apos;t set up for this app, so invitations can&apos;t be emailed yet. Use WhatsApp or copy the messages instead.
+                  </p>
+                ) : withEmail.length === 0 ? (
+                  <p className="text-sm text-[var(--muted-text)]">Nobody here has an email address.</p>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm">
+                      Sends from the app to the {withEmail.length} {withEmail.length === 1 ? "household" : "households"} with an email address
+                      {withEmail.length < n ? `; ${n - withEmail.length} without one are skipped` : ""}. You&apos;ll see how many the email service accepted, which
+                      isn&apos;t proof they arrived.
+                    </p>
+                    <button type="button" className="btn-primary" disabled={isPending} onClick={sendEmails}>
+                      {isPending ? "Sending…" : `Send ${withEmail.length} ${withEmail.length === 1 ? "email" : "emails"}`}
+                    </button>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => copyText(sorted.map((g) => `${g.guestName}\n${messageFor(g)}`).join("\n\n---\n\n"), `Copied ${n} messages.`)}
+                    >
+                      Copy all messages
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => copyText(sorted.map((g) => `${g.guestName}: ${guestRsvpUrl(siteUrl, g.token)}`).join("\n"), `Copied ${n} links.`)}
+                    >
+                      Copy names and links
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={downloadContacts}>
+                      Download contacts (CSV)
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border-soft)] pt-3 text-sm">
+                    <span>{isReminder ? "Reminded them another way?" : "Sent them yourself?"}</span>
+                    <button type="button" className="btn-ghost btn-sm text-[var(--accent)]" disabled={isPending} onClick={markAllManual}>
+                      {isReminder ? `Record reminder for all ${n}` : `Mark all ${n} invited`}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {status ? (
+            <p className={status.tone === "error" ? "notice-error" : status.tone === "success" ? "notice-success" : "notice-info"} role="status">
+              {status.text}
+            </p>
+          ) : null}
         </div>
-      </div>
-    </div>
+      )}
+    </Dialog>
   );
 }

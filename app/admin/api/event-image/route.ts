@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
+import { getCurrentAdminUserFromApi } from "@/lib/admin-api-auth";
 import { saveEventImage } from "@/lib/server/event-image-storage";
 import { validateEventImageFile } from "@/lib/event-image";
 
 export async function POST(request: Request) {
+  const admin = await getCurrentAdminUserFromApi();
+  if (!admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const formData = await request.formData();
     const image = formData.get("image");

@@ -37,11 +37,24 @@ describe("Phase 1 - event date/deadline validation", () => {
   });
 
   it("allows event date today", () => {
+    // Date, time and RSVP deadline are required since commit aea07e2 ("rsvpbug").
     const parsed = eventSchema.safeParse({
       ...baseEventInput(),
       eventDate: dateOffset(0),
+      rsvpDeadline: dateOffset(0),
+      eventTime: "18:00",
     });
     expect(parsed.success).toBe(true);
+  });
+
+  it("requires date, time and RSVP deadline", () => {
+    const parsed = eventSchema.safeParse(baseEventInput());
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues.map((i) => i.message)).toEqual(
+        expect.arrayContaining(["Event date is required.", "RSVP deadline is required.", "Event time is required."]),
+      );
+    }
   });
 
   it("rejects deadline in the past", () => {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentAdminUserFromApi } from "@/lib/admin-api-auth";
-import { isSuperAdmin } from "@/lib/admin-auth";
+import { notificationVisibilityWhere } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const takeRaw = Number(searchParams.get("take") || "20");
   const take = Number.isFinite(takeRaw) ? Math.max(1, Math.min(50, takeRaw)) : 20;
-  const where = isSuperAdmin(admin) ? undefined : { userId: admin.id };
+  const where = await notificationVisibilityWhere(admin);
 
   const [items, unreadCount] = await Promise.all([
     prisma.notification.findMany({

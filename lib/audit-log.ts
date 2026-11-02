@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-type AuditEntityType = "Event" | "Guest" | "RSVP" | "User";
+type AuditEntityType = "Event" | "Guest" | "RSVP" | "User" | "Wedding";
 
 type LogAuditInput = {
   eventId?: string | null;

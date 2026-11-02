@@ -1,12 +1,14 @@
 import type { NextRequest } from "next/server";
 import {
+  authorizeMobileEvent,
   getMobileAdminUser,
-  isMobileSuperAdmin,
-  unauthorizedResponse,
-  forbiddenResponse,
+  guestListErrorResponse,
   notFoundResponse,
+  unauthorizedResponse,
 } from "@/lib/mobile-api-auth";
-import { prisma, withReconnect } from "@/lib/prisma";
+import { assertAllocationFits } from "@/lib/guest-allocation";
+import { invitationPlaces } from "@/lib/guest-permissions";
+import { prisma } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 
 type Params = { params: Promise<{ eventId: string; guestId: string }> };
@@ -15,19 +17,14 @@ async function resolveAndAuthorize(req: NextRequest, eventId: string, guestId: s
   const user = await getMobileAdminUser(req);
   if (!user) return { error: unauthorizedResponse() };
 
-  const event = await withReconnect(() =>
-    prisma.event.findFirst({
-      where: { id: eventId, deletedAt: null },
-      select: { id: true, ownerUserId: true },
-    })
-  );
-  if (!event) return { error: notFoundResponse("Event not found") };
-  if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id)
-    return { error: forbiddenResponse() };
+  const authz = await authorizeMobileEvent(user, eventId);
+  if (authz.error) return { error: authz.error };
+  const event = authz.event;
 
   const guest = await prisma.guest.findFirst({
-    where: { id: guestId, eventId, deletedAt: null },
+    where: { id: guestId, eventId, deletedAt: null, ...authz.guestScope },
     select: {
+      allocationId: true,
       id: true, guestName: true, greeting: true,
       menCount: true, womenCount: true, kidsCount: true, maxGuests: true,
       attending: true, attendingCount: true, respondedAt: true,
@@ -114,7 +111,20 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return Response.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
-  const updated = await prisma.guest.update({
+  const nextPlaces = invitationPlaces({
+    maxGuests: (data.maxGuests as number | undefined) ?? guest.maxGuests,
+    menCount: (data.menCount as number | undefined) ?? guest.menCount,
+    womenCount: (data.womenCount as number | undefined) ?? guest.womenCount,
+    kidsCount: (data.kidsCount as number | undefined) ?? guest.kidsCount,
+  });
+
+  let updated;
+  try {
+  updated = await prisma.$transaction(async (tx) => {
+    if (guest.allocationId && nextPlaces > invitationPlaces(guest)) {
+      await assertAllocationFits(tx, guest.allocationId, nextPlaces, [guestId]);
+    }
+    return tx.guest.update({
     where: { id: guestId },
     data,
     select: {
@@ -129,7 +139,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
       excludeReason: true,
       createdAt: true, updatedAt: true,
     },
+    });
   });
+  } catch (error) {
+    const res = guestListErrorResponse(error);
+    if (res) return res;
+    throw error;
+  }
 
   await logAuditActivity({
     eventId,

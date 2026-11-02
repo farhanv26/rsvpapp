@@ -62,7 +62,7 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
   const initial = FONT_OPTIONS.some((x) => x.id === defaultValue) ? (defaultValue as FontStyleId) : "elegant_serif";
   const [selected, setSelected] = useState<FontStyleId>(initial);
   const [open, setOpen] = useState(false);
-  const [previewCoupleNames, setPreviewCoupleNames] = useState("Farhan & Rafiya");
+  const [previewCoupleNames, setPreviewCoupleNames] = useState("Aisha & Omar");
   const [previewEventTitle, setPreviewEventTitle] = useState("Nikkah Ceremony");
   const pickerRef = useRef<HTMLDivElement>(null);
   const active = useMemo(() => FONT_OPTIONS.find((x) => x.id === selected) ?? FONT_OPTIONS[0], [selected]);
@@ -86,7 +86,7 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
     const refreshPreview = () => {
       const nextCouple = coupleInput?.value.trim() || "";
       const nextTitle = titleInput?.value.trim() || "";
-      setPreviewCoupleNames(nextCouple || "Farhan & Rafiya");
+      setPreviewCoupleNames(nextCouple || "Aisha & Omar");
       setPreviewEventTitle(nextTitle || "Nikkah Ceremony");
     };
 
@@ -100,12 +100,12 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
   }, []);
 
   return (
-    <section className="app-card-muted space-y-4 p-4 sm:p-5">
+    <section className="grid gap-4 border-t border-[var(--border-soft)] py-7 md:grid-cols-[13rem_minmax(0,1fr)] md:gap-10">
       <div>
-        <p className="section-title">Typography</p>
-        <h2 className="mt-2 text-lg font-semibold text-zinc-900">Invitation font style</h2>
-        <p className="mt-1 text-sm text-zinc-600">Choose how decorative text appears on the guest RSVP invite page.</p>
+        <h2 className="section-heading">Lettering</h2>
+        <p className="mt-1 text-sm text-[var(--muted-text)]">How names and greetings look on the invitation.</p>
       </div>
+      <div className="min-w-0 space-y-4">
 
       <div className="block text-sm font-medium text-zinc-700">
         Style
@@ -174,6 +174,7 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
           Will you be attending?
         </p>
         <p className="mt-1 text-xs text-zinc-500">These are the exact RSVP portions that will use this style.</p>
+      </div>
       </div>
     </section>
   );

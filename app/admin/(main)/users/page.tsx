@@ -1,6 +1,7 @@
 import { UserManagementPanel, type UserRowSerialized } from "@/components/admin/user-management-panel";
 import { requireSuperAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { weddingsWhereSoleOwner } from "@/lib/admin-user-management-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +16,12 @@ export default async function AdminUsersPage() {
       role: true,
       active: true,
       createdAt: true,
-      _count: { select: { events: { where: { deletedAt: null } } } },
+      _count: { select: { events: { where: { deletedAt: null, weddingId: null } }, weddingMemberships: true } },
     },
   });
+  const soleOwnerByUser = new Map(
+    await Promise.all(users.map(async (u) => [u.id, (await weddingsWhereSoleOwner(u.id)).map((w) => w.name)] as const)),
+  );
   const deletedUsers = await prisma.user.findMany({
     where: { deletedAt: { not: null } },
     orderBy: { deletedAt: "desc" },
@@ -37,6 +41,8 @@ export default async function AdminUsersPage() {
     active: u.active,
     createdAt: u.createdAt.toISOString(),
     _count: { events: u._count.events },
+    weddingCount: u._count.weddingMemberships,
+    soleOwnerOf: soleOwnerByUser.get(u.id) ?? [],
   }));
   const trashUsers = deletedUsers.map((u) => ({
     id: u.id,

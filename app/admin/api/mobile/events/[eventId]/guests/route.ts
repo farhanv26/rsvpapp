@@ -1,12 +1,8 @@
 import type { NextRequest } from "next/server";
-import {
-  getMobileAdminUser,
-  isMobileSuperAdmin,
-  unauthorizedResponse,
-  forbiddenResponse,
-  notFoundResponse,
-} from "@/lib/mobile-api-auth";
-import { prisma, withReconnect } from "@/lib/prisma";
+import { authorizeMobileEvent, getMobileAdminUser, guestListErrorResponse, unauthorizedResponse } from "@/lib/mobile-api-auth";
+import { assertAllocationFits, assertNoDuplicateHousehold, newGuestOwnership } from "@/lib/guest-allocation";
+import { buildSharedGuestKey } from "@/lib/shared-guests";
+import { prisma } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 import { generateSecureToken } from "@/lib/security";
 import {
@@ -36,14 +32,8 @@ export async function GET(
   const { eventId } = await params;
 
   try {
-  const event = await withReconnect(() =>
-    prisma.event.findFirst({
-      where: { id: eventId, deletedAt: null },
-      select: { id: true, ownerUserId: true },
-    })
-  );
-  if (!event) return notFoundResponse("Event not found");
-  if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+  const authz = await authorizeMobileEvent(user, eventId);
+  if (authz.error) return authz.error;
 
   const { searchParams } = req.nextUrl;
   const q = (searchParams.get("q") ?? "").trim().toLowerCase();
@@ -61,7 +51,7 @@ export async function GET(
     { guestName: "asc" };
 
   const guests = await prisma.guest.findMany({
-    where: { eventId, deletedAt: null },
+    where: { eventId, deletedAt: null, ...authz.guestScope },
     orderBy,
     select: {
       id: true,
@@ -237,14 +227,8 @@ export async function POST(
 
   const { eventId } = await params;
 
-  const event = await withReconnect(() =>
-    prisma.event.findFirst({
-      where: { id: eventId, deletedAt: null },
-      select: { id: true, ownerUserId: true },
-    })
-  );
-  if (!event) return notFoundResponse("Event not found");
-  if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+  const authz = await authorizeMobileEvent(user, eventId);
+  if (authz.error) return authz.error;
 
   let body: Record<string, unknown> = {};
   try {
@@ -265,9 +249,32 @@ export async function POST(
     ? Math.max(1, body.maxGuests)
     : Math.max(1, rawTotal);
 
-  const guest = await prisma.guest.create({
+  const phone = typeof body.phone === "string" ? body.phone.trim() || null : null;
+  const phoneCountryCode = typeof body.phoneCountryCode === "string" ? body.phoneCountryCode.trim() || null : null;
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() || null : null;
+  const sharedGuestKey = buildSharedGuestKey({ guestName, phone, phoneCountryCode, email });
+  let ownership: ReturnType<typeof newGuestOwnership>;
+  try {
+    ownership = newGuestOwnership(authz.perm);
+    await assertNoDuplicateHousehold(prisma, authz.perm, eventId, sharedGuestKey);
+  } catch (error) {
+    const res = guestListErrorResponse(error);
+    if (res) return res;
+    throw error;
+  }
+
+  let guest;
+  try {
+  guest = await prisma.$transaction(async (tx) => {
+    if (ownership.allocationId) {
+      await assertAllocationFits(tx, ownership.allocationId, Math.max(maxGuests, rawTotal));
+    }
+    return tx.guest.create({
     data: {
       eventId,
+      managedByUserId: ownership.managedByUserId,
+      allocationId: ownership.allocationId,
+      sharedGuestKey,
       guestName,
       greeting: typeof body.greeting === "string" ? body.greeting.trim() || "Assalamu Alaikum" : "Assalamu Alaikum",
       menCount,
@@ -275,9 +282,9 @@ export async function POST(
       kidsCount,
       maxGuests,
       token: generateSecureToken(),
-      phone: typeof body.phone === "string" ? body.phone.trim() || null : null,
-      phoneCountryCode: typeof body.phoneCountryCode === "string" ? body.phoneCountryCode.trim() || null : null,
-      email: typeof body.email === "string" ? body.email.trim().toLowerCase() || null : null,
+      phone,
+      phoneCountryCode,
+      email,
       group: typeof body.group === "string" ? body.group.trim() || null : null,
       tableName: typeof body.tableName === "string" ? body.tableName.trim() || null : null,
       notes: typeof body.notes === "string" ? body.notes.trim() || null : null,
@@ -293,7 +300,13 @@ export async function POST(
       isFamilyInvite: true, excludeFromTotals: true, excludedGuestCount: true, excludeReason: true,
       createdAt: true, updatedAt: true,
     },
+    });
   });
+  } catch (error) {
+    const res = guestListErrorResponse(error);
+    if (res) return res;
+    throw error;
+  }
 
   await logAuditActivity({
     eventId,

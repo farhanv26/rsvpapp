@@ -139,32 +139,27 @@ export function GuestPhoneFields({
     }
   }
 
-  const isPage = variant === "page";
+  void variant;
   const shellRing = invalid
-    ? "border-amber-300/90"
-    : isPage
-      ? "border-[#dccfbb] focus-within:border-[#b28944] focus-within:ring-2 focus-within:ring-[#b28944]/20"
-      : "border-[#dccfbb] focus-within:border-[#c4a574] focus-within:ring-2 focus-within:ring-[#c4a574]/30";
-  const shellRadius = isPage ? "rounded-2xl" : "rounded-xl";
-  const telPad = isPage ? "px-4 py-3 text-base" : "px-3 py-2 text-sm";
-  const telMinH = isPage ? "min-h-[52px]" : "min-h-[40px]";
-  const combMinH = isPage ? "min-h-[52px]" : "min-h-[40px]";
+    ? "border-amber-400"
+    : "border-[var(--border-strong)] focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/15";
+  const shellRadius = "rounded-lg";
+  const telPad = "px-3 py-2 text-base sm:text-sm";
+  const telMinH = "min-h-11 sm:min-h-9";
+  const combMinH = "min-h-11 sm:min-h-9";
 
   return (
     <div className={`min-w-0 ${className}`}>
-      <label className="block text-sm font-medium text-zinc-700">
+      <label className="block text-sm font-medium text-[var(--foreground)]">
         Phone
-        <span className="mt-0.5 block text-xs font-normal leading-snug text-zinc-500">{WHATSAPP_PHONE_HELPER_TEXT}</span>
         <span className="mt-1.5 block">
           <input type="hidden" name={nameCountry} value={resolvedDial} readOnly />
           <input type="hidden" name={nameNational} value={nationalDigits} readOnly />
           {/* overflow-visible so nothing clips the country trigger; dropdown renders in a portal */}
           <div
-            className={`flex w-full flex-row items-stretch overflow-visible border bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition ${shellRadius} ${shellRing}`}
+            className={`flex w-full flex-row items-stretch overflow-visible border bg-white transition ${shellRadius} ${shellRing}`}
           >
-            <div
-              className={`flex shrink-0 items-stretch border-r border-[#e7dfd0] ${combMinH} ${isPage ? "sm:min-w-[10rem]" : "sm:min-w-[8.75rem]"}`}
-            >
+            <div className={`flex shrink-0 items-stretch border-r border-[var(--border-soft)] ${combMinH} sm:min-w-[7.5rem]`}>
               <PhoneCountryCombobox
                 valueId={resolvedCountryId}
                 onChange={(id) => {
@@ -198,12 +193,11 @@ export function GuestPhoneFields({
         </span>
       </label>
       {invalid ? (
-        <p className="mt-1.5 text-xs font-medium text-amber-900">{WHATSAPP_PHONE_INVALID_INLINE}</p>
-      ) : null}
-      {showWhatsAppPreview && waDigits ? (
-        <p className="mt-1.5 font-mono text-xs text-zinc-600">
-          WhatsApp: <span className="text-zinc-900">{waDigits}</span>
+        <p className="field-error text-amber-900">
+          {WHATSAPP_PHONE_INVALID_INLINE}. {WHATSAPP_PHONE_HELPER_TEXT}
         </p>
+      ) : showWhatsAppPreview && waDigits ? (
+        <p className="field-hint">WhatsApp ready · +{waDigits}</p>
       ) : null}
       {!defaultCountryCode && legacyPhone?.trim() && !nationalDigits.length ? (
         <p className="mt-2 text-xs text-zinc-500">

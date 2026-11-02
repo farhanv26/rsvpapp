@@ -1,38 +1,52 @@
 import Link from "next/link";
+import { FormSection, Optional, Required } from "@/components/admin/form-section";
+import { PageHeader } from "@/components/admin/planning-ui";
 import { createEventAction } from "@/app/admin/events/actions";
 import { EventImageUploadField } from "@/components/admin/event-image-upload-field";
 import { EventFontStyleField } from "@/components/admin/event-font-style-field";
 import { EventSchedulingFields } from "@/components/admin/event-scheduling-fields";
 import { EventItineraryFields } from "@/components/admin/event-itinerary-fields";
+import { redirect } from "next/navigation";
 import { requireCurrentAdminUser } from "@/lib/admin-auth";
+import { resolveActiveWorkspace } from "@/lib/wedding-access";
+import { isPlatformSuperAdmin } from "@/lib/wedding-policy";
 
 export default async function NewEventPage() {
-  await requireCurrentAdminUser();
+  const admin = await requireCurrentAdminUser();
+  const workspace = await resolveActiveWorkspace(admin);
+  const weddingChoices = workspace.weddings.filter((w) => isPlatformSuperAdmin(admin) || w.role !== null);
+  if (weddingChoices.length === 0) {
+    redirect("/admin/weddings?notice=create_first");
+  }
+  const defaultWeddingId = workspace.activeWedding?.id ?? weddingChoices[0]!.id;
   return (
-    <main className="app-shell max-w-4xl">
+    <main className="app-shell">
 
-      {/* ── Back + heading ── */}
-      <div className="mb-8">
-        <Link
-          href="/admin/events"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400 transition hover:text-zinc-700"
-        >
-          <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3" aria-hidden>
-            <path d="M8 10L4 6l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Events
-        </Link>
-        <h1 className="headline-display mt-3">Create event</h1>
-        <p className="mt-1.5 text-sm text-zinc-500">
-          Set up the core details. Guests and invite links are added after.
-        </p>
-      </div>
+      <PageHeader title="New event" back={{ href: "/admin/events", label: "Events" }} />
 
-      <form action={createEventAction} className="space-y-5">
+      <form action={createEventAction} className="max-w-4xl">
 
         {/* ── 1. Identity ── */}
-        <FormSection number="01" title="Identity" description="Names and headline shown on the guest invite page.">
+        <FormSection title="Names" description="Shown at the top of the invitation.">
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="weddingId" className="form-label">
+                Wedding <Required />
+              </label>
+              <select
+                id="weddingId"
+                name="weddingId"
+                defaultValue={defaultWeddingId}
+                className="input-luxe mt-0"
+                required
+              >
+                {weddingChoices.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="sm:col-span-2">
               <label htmlFor="title" className="form-label">
                 Event title <Required />
@@ -54,7 +68,7 @@ export default async function NewEventPage() {
                 id="coupleNames"
                 name="coupleNames"
                 type="text"
-                placeholder="Farhan &amp; Rafiya"
+                placeholder="Aisha &amp; Omar"
                 className="input-luxe mt-0"
               />
               <p className="mt-1.5 text-xs text-zinc-400">Shown as the large heading on the invitation page.</p>
@@ -75,7 +89,7 @@ export default async function NewEventPage() {
         </FormSection>
 
         {/* ── 2. Schedule ── */}
-        <FormSection number="02" title="Schedule" description="Ceremony date, time, and RSVP cutoff.">
+        <FormSection title="Date and replies" description="When it happens and when replies close.">
           <div className="grid gap-4 sm:grid-cols-2">
             <EventSchedulingFields />
           </div>
@@ -85,7 +99,7 @@ export default async function NewEventPage() {
         <EventFontStyleField />
 
         {/* ── 4. Venue & messaging ── */}
-        <FormSection number="04" title="Venue & messaging" description="Location and what guests see on their invite.">
+        <FormSection title="Venue and wording" description="Where it is and what guests read.">
           <div className="space-y-4">
             <div>
               <label htmlFor="venue" className="form-label">
@@ -132,7 +146,7 @@ export default async function NewEventPage() {
                     name="inviteMessageIntro"
                     type="text"
                     className="input-luxe mt-0"
-                    placeholder="You are cordially invited to Farhan &amp; Rafiya's Nikkah Ceremony"
+                    placeholder="You are cordially invited to Aisha &amp; Omar's Nikkah Ceremony"
                   />
                 </div>
                 <div>
@@ -153,21 +167,21 @@ export default async function NewEventPage() {
         </FormSection>
 
         {/* ── 5. Invitation card ── */}
-        <FormSection number="05" title="Invitation card" description="Upload the main invite image guests see on their page.">
+        <FormSection title="Invitation card" description="Upload the main invite image guests see on their page.">
           <EventImageUploadField />
         </FormSection>
 
         {/* ── 6. Itinerary ── */}
-        <FormSection number="06" title="Itinerary" description="Optional day-of schedule shown to guests on their invite.">
+        <FormSection title="Itinerary" description="Optional day-of schedule shown to guests on their invite.">
           <EventItineraryFields />
         </FormSection>
 
         {/* ── Submit footer ── */}
-        <div className="flex flex-col-reverse gap-2 rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/admin/events" className="btn-secondary w-full sm:w-auto">
+        <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center justify-end gap-2 border-t border-[var(--border-soft)] bg-[var(--background)]/95 px-4 py-3 backdrop-blur sm:mx-0 sm:px-0 lg:bottom-0">
+          <Link href="/admin/events" className="btn-ghost">
             Cancel
           </Link>
-          <button type="submit" className="btn-primary w-full sm:w-auto sm:min-w-44">
+          <button type="submit" className="btn-primary">
             Create event
           </button>
         </div>
@@ -177,35 +191,3 @@ export default async function NewEventPage() {
   );
 }
 
-function FormSection({
-  number,
-  title,
-  description,
-  children,
-}: {
-  number: string;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-3xl border border-[#e7dccb] bg-[#fffdfa] shadow-[0_4px_24px_-12px_rgba(71,52,29,0.18)]">
-      <div className="rounded-t-3xl border-b border-[#ece4d4] px-6 py-4 sm:px-7">
-        <div className="flex items-baseline gap-3">
-          <span className="font-mono text-[10px] font-semibold tracking-[0.22em] text-zinc-400">{number}</span>
-          <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
-        </div>
-        <p className="mt-0.5 pl-8 text-sm text-zinc-500">{description}</p>
-      </div>
-      <div className="p-6 sm:p-7">{children}</div>
-    </section>
-  );
-}
-
-function Required() {
-  return <span className="ml-1 text-zinc-400">*</span>;
-}
-
-function Optional() {
-  return <span className="ml-1 font-normal text-zinc-400">(optional)</span>;
-}

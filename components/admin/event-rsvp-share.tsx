@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Dialog } from "@/components/admin/ui/dialog";
 import QRCode from "qrcode";
 import {
   buildGuestWhatsAppInviteMessage,
@@ -18,49 +19,6 @@ type GuestForShare = {
   phone?: string | null;
   phoneCountryCode?: string | null;
 };
-
-function Modal({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[2px]"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-[#e7dccb] bg-[#fffcf6] p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="font-display text-lg font-semibold text-zinc-900">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800"
-            aria-label="Close dialog"
-          >
-            ×
-          </button>
-        </div>
-        <div className="mt-5">{children}</div>
-      </div>
-    </div>
-  );
-}
 
 async function copyText(value: string) {
   await navigator.clipboard.writeText(value);
@@ -155,42 +113,23 @@ export function EventRsvpShare({
           setOpen(true);
         }}
       >
-        Share RSVP
+        Share one link
       </button>
 
-      {open ? (
-        <Modal title="Share RSVP link" onClose={() => setOpen(false)}>
-          <p className="text-sm text-zinc-600">
-            Pick a guest and share their private RSVP link. This uses the existing RSVP route.
-          </p>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm font-medium text-zinc-700">
-              Guest
-              <select
-                className="input-luxe mt-2"
-                value={selectedGuestId}
-                onChange={(e) => setSelectedGuestId(e.target.value)}
-              >
-                {guests.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.guestName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="rounded-2xl border border-[#ebe4d6] bg-white px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Event</p>
-              <p className="mt-1 truncate text-sm font-semibold text-zinc-900">{eventTitle}</p>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-[#ebe4d6] bg-white px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">RSVP link</p>
-            <p className="mt-2 break-all font-mono text-xs text-zinc-700">{link}</p>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
+      <Dialog open={open} onClose={() => setOpen(false)} title="Share one invitation" description={eventTitle}>
+        <div className="space-y-4">
+          <label className="form-label">
+            Household
+            <select className="input-luxe" value={selectedGuestId} onChange={(e) => setSelectedGuestId(e.target.value)}>
+              {guests.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.guestName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="break-all rounded-lg bg-[var(--surface-muted)] px-3 py-2 font-mono text-xs">{link}</p>
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className="btn-primary"
@@ -204,7 +143,7 @@ export function EventRsvpShare({
                 }
               }}
             >
-              {copied ? "Copied!" : "Copy RSVP link"}
+              {copied ? "Copied" : "Copy link"}
             </button>
             <button
               type="button"
@@ -219,83 +158,48 @@ export function EventRsvpShare({
                 }
               }}
             >
-              {copied ? "Copied!" : "Copy invite message"}
+              Copy message
             </button>
             {whatsappDirectUrl ? (
-              <a
-                href={whatsappDirectUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-secondary inline-flex items-center justify-center gap-2"
-                aria-label="Open WhatsApp message for this guest"
-                title="Opens WhatsApp to this guest’s number with the invite prefilled"
-              >
+              <a href={whatsappDirectUrl} target="_blank" rel="noreferrer" className="btn-secondary">
                 <WhatsAppIcon />
-                <span>Open WhatsApp</span>
+                Open WhatsApp
               </a>
             ) : (
               <span
-                className="btn-secondary inline-flex cursor-not-allowed items-center justify-center gap-2 opacity-50"
+                className="btn-secondary cursor-not-allowed opacity-50"
+                aria-disabled="true"
                 title={
                   selected?.phone?.trim()
                     ? WHATSAPP_PHONE_INVALID_INLINE + ". " + WHATSAPP_PHONE_HELPER_TEXT
                     : "Add a phone number for WhatsApp. " + WHATSAPP_PHONE_HELPER_TEXT
                 }
-                aria-disabled="true"
               >
                 <WhatsAppIcon />
-                <span>{selected?.phone?.trim() ? "WhatsApp unavailable" : "WhatsApp (add phone)"}</span>
+                {selected?.phone?.trim() ? "Number not valid for WhatsApp" : "No phone number"}
               </span>
             )}
-            <p className="w-full text-xs text-zinc-500">{WHATSAPP_PHONE_HELPER_TEXT}</p>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setQrDataUrl(null);
-                setQrError(null);
-                QRCode.toDataURL(link, {
-                  width: 560,
-                  margin: 2,
-                  errorCorrectionLevel: "M",
-                  color: { dark: "#1d1b18", light: "#fffcf6" },
-                })
-                  .then((url) => setQrDataUrl(url))
-                  .catch((e: unknown) =>
-                    setQrError(e instanceof Error ? e.message : "Could not generate QR code."),
-                  );
-              }}
-            >
-              Regenerate QR
-            </button>
           </div>
-
-          <div className="mt-5 rounded-2xl border border-[#e7dccb] bg-[#fffdfa] p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">QR code</p>
-            {qrError ? <p className="mt-3 text-sm text-rose-700">{qrError}</p> : null}
-            {!qrError && !qrDataUrl ? <p className="mt-3 text-sm text-zinc-600">Generating…</p> : null}
+          <div className="flex flex-wrap items-center gap-4 border-t border-[var(--border-soft)] pt-4">
+            {qrError ? <p className="text-sm text-[var(--danger)]">{qrError}</p> : null}
+            {!qrError && !qrDataUrl ? <p className="text-sm text-[var(--muted-text)]">Making QR code…</p> : null}
             {qrDataUrl ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
-                <div className="flex items-center justify-center rounded-2xl border border-[#ebe4d6] bg-white p-4">
-                  <img src={qrDataUrl} alt="QR code for RSVP link" className="h-52 w-52" />
-                </div>
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- data URL */}
+                <img src={qrDataUrl} alt={`QR code for ${selected?.guestName ?? "this household"}'s invitation`} className="h-40 w-40 rounded-lg border border-[var(--border-soft)]" />
                 <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => downloadDataUrl(`rsvp-qr-${selected?.guestName ?? "guest"}.png`, qrDataUrl)}
-                  >
-                    Download PNG
+                  <button type="button" className="btn-secondary" onClick={() => downloadDataUrl(`rsvp-qr-${selected?.guestName ?? "guest"}.png`, qrDataUrl)}>
+                    Download QR code
                   </button>
-                  <a href={link} target="_blank" rel="noreferrer" className="btn-secondary text-center">
-                    Open RSVP
+                  <a href={link} target="_blank" rel="noreferrer" className="btn-ghost">
+                    Open invitation
                   </a>
                 </div>
-              </div>
+              </>
             ) : null}
           </div>
-        </Modal>
-      ) : null}
+        </div>
+      </Dialog>
     </>
   );
 }

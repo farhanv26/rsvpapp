@@ -1,12 +1,6 @@
 import type { NextRequest } from "next/server";
-import {
-  getMobileAdminUser,
-  isMobileSuperAdmin,
-  unauthorizedResponse,
-  forbiddenResponse,
-  notFoundResponse,
-} from "@/lib/mobile-api-auth";
-import { prisma, withReconnect } from "@/lib/prisma";
+import { authorizeMobileEvent, getMobileAdminUser, unauthorizedResponse } from "@/lib/mobile-api-auth";
+import { prisma } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 
 type Params = { params: Promise<{ eventId: string }> };
@@ -21,14 +15,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { eventId } = await params;
 
-  const event = await withReconnect(() =>
-    prisma.event.findFirst({
-      where: { id: eventId, deletedAt: null },
-      select: { id: true, ownerUserId: true },
-    })
-  );
-  if (!event) return notFoundResponse("Event not found");
-  if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+  const authz = await authorizeMobileEvent(user, eventId);
+  if (authz.error) return authz.error;
 
   let body: { action?: string; guestIds?: unknown; channel?: string } = {};
   try { body = await req.json(); } catch {
@@ -49,7 +37,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const guests = await prisma.guest.findMany({
-    where: { id: { in: guestIds }, eventId, deletedAt: null },
+    where: { id: { in: guestIds }, eventId, deletedAt: null, ...authz.guestScope },
     select: { id: true, guestName: true },
   });
 

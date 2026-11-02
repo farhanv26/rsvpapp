@@ -254,7 +254,7 @@ export function CommunicationPreviewModal({
                         }
                       }}
                     >
-                      {copied === "wa" ? "Copied!" : "Copy message"}
+                      {copied === "wa" ? "Copied" : "Copy message"}
                     </button>
                     {whatsappHref ? (
                       <a

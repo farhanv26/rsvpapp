@@ -1,39 +1,36 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState } from "react";
 import { ITINERARY_ICONS, type ItineraryItem } from "@/components/itinerary-timeline";
+import { guessItineraryIcon, ITINERARY_ICON_OPTIONS } from "@/lib/itinerary-icons";
 
 type Props = {
   initialItems?: ItineraryItem[];
 };
 
-function ItemIconPreview({ name, title }: { name?: string; title?: string }) {
-  const resolvedName = (name && name !== "CalendarDays") ? name : undefined;
-  const Icon = resolvedName ? ITINERARY_ICONS[resolvedName] : undefined;
+type EditableItem = ItineraryItem & { iconChosen?: boolean };
+
+function ItemIconPreview({ name }: { name?: string }) {
+  const Icon = name ? ITINERARY_ICONS[name] : undefined;
   if (!Icon) return null;
   return (
-    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#b28944]/10 text-[#b28944]">
+    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
       <Icon size={13} strokeWidth={1.6} aria-hidden />
     </span>
   );
 }
 
 export function EventItineraryFields({ initialItems = [] }: Props) {
-  const [items, setItems] = useState<ItineraryItem[]>(initialItems);
-  const [loadingIcon, setLoadingIcon] = useState<Record<number, boolean>>({});
+  const [items, setItems] = useState<EditableItem[]>(() =>
+    initialItems.map((item) => ({ ...item, iconChosen: Boolean(item.icon && item.icon !== "CalendarDays") })),
+  );
 
   function addItem() {
-    setItems((prev) => [...prev, { startTime: "", endTime: "", title: "", icon: undefined }]);
+    setItems((prev) => [...prev, { startTime: "", endTime: "", title: "", icon: undefined, visibility: "guests" }]);
   }
 
-  function updateItem(index: number, field: keyof ItineraryItem, value: string) {
-    setItems((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
-    );
-  }
-
-  function removeItem(index: number) {
-    setItems((prev) => prev.filter((_, i) => i !== index));
+  function updateItem(index: number, patch: Partial<EditableItem>) {
+    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   }
 
   function moveItem(index: number, direction: "up" | "down") {
@@ -46,36 +43,19 @@ export function EventItineraryFields({ initialItems = [] }: Props) {
     });
   }
 
-  // On mount, fetch icons for items without one or stuck on the CalendarDays fallback
-  useEffect(() => {
-    items.forEach((item, i) => {
-      if (item.title.trim() && (!item.icon || item.icon === "CalendarDays")) {
-        fetchIcon(i, item.title);
-      }
-    });
-    // intentionally run only once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fetchIcon = useCallback(async (index: number, title: string) => {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    setLoadingIcon((prev) => ({ ...prev, [index]: true }));
-    try {
-      const res = await fetch(`/api/itinerary-icon?title=${encodeURIComponent(trimmed)}`);
-      if (res.ok) {
-        const { icon } = await res.json() as { icon: string };
-        setItems((prev) =>
-          prev.map((item, i) => (i === index ? { ...item, icon } : item)),
-        );
-      }
-    } finally {
-      setLoadingIcon((prev) => ({ ...prev, [index]: false }));
-    }
-  }, []);
-
   const serialized = JSON.stringify(
-    items.filter((x) => (x.startTime ?? x.time ?? "").trim() && x.title.trim()),
+    items
+      .filter((x) => (x.startTime ?? x.time ?? "").trim() && x.title.trim())
+      .map((x) => ({
+        startTime: x.startTime,
+        time: x.time,
+        endTime: x.endTime,
+        title: x.title,
+        icon: x.icon || guessItineraryIcon(x.title),
+        description: x.description,
+        visibility: x.visibility === "private" ? "private" : "guests",
+        privateNotes: x.privateNotes,
+      })),
   );
 
   return (
@@ -83,117 +63,168 @@ export function EventItineraryFields({ initialItems = [] }: Props) {
       <input type="hidden" name="itinerary" value={serialized} />
 
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-5 py-7 text-center">
-          <p className="text-sm font-medium text-zinc-600">No itinerary added</p>
-          <p className="mt-1 text-xs text-zinc-400">
-            Add a schedule so guests see timing on their invite page.
-          </p>
+        <div className="rounded-xl border border-dashed border-[var(--border-soft)] px-5 py-6 text-center">
+          <p className="text-sm font-medium text-zinc-700">No schedule yet</p>
+          <p className="mt-1 text-xs text-zinc-500">Add items to show timings on the invitation, or keep them for planning only.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {items.map((item, i) => (
-            <div
-              key={i}
-              className="rounded-2xl border border-[#e3d8c7] bg-white p-4"
-            >
-              {/* Row 1: icon preview + title */}
-              <div className="mb-3">
-                <div className="mb-1.5 flex items-center gap-2">
-                  <label className="text-xs font-medium text-zinc-600">Title</label>
-                  {loadingIcon[i] ? (
-                    <span className="inline-block h-3 w-3 animate-spin rounded-full border border-[#b28944]/40 border-t-[#b28944]" aria-label="Fetching icon…" />
-                  ) : (
-                    <ItemIconPreview name={item.icon} />
-                  )}
+        <ol className="space-y-2">
+          {items.map((item, i) => {
+            const idBase = `itinerary-${i}`;
+            return (
+              <li key={i} className="rounded-xl border border-[var(--border-soft)] bg-white p-4">
+                <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
+                  <div>
+                    <label htmlFor={`${idBase}-title`} className="form-label">
+                      Title
+                    </label>
+                    <input
+                      id={`${idBase}-title`}
+                      type="text"
+                      value={item.title}
+                      onChange={(e) =>
+                        updateItem(i, {
+                          title: e.target.value,
+                          ...(item.iconChosen ? {} : { icon: guessItineraryIcon(e.target.value) }),
+                        })
+                      }
+                      placeholder="Ring ceremony"
+                      className="input-luxe text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`${idBase}-icon`} className="form-label">
+                      Icon
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <ItemIconPreview name={item.icon || guessItineraryIcon(item.title)} />
+                      <select
+                        id={`${idBase}-icon`}
+                        value={item.icon || guessItineraryIcon(item.title)}
+                        onChange={(e) => updateItem(i, { icon: e.target.value, iconChosen: true })}
+                        className="input-luxe text-sm"
+                      >
+                        {ITINERARY_ICON_OPTIONS.map((opt) => (
+                          <option key={opt.name} value={opt.name}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  value={item.title}
-                  onChange={(e) => updateItem(i, "title", e.target.value)}
-                  onBlur={(e) => fetchIcon(i, e.target.value)}
-                  placeholder="Ring Ceremony"
-                  className="input-luxe mt-0 text-sm"
-                />
-              </div>
 
-              {/* Row 2: From + To */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-zinc-600">
-                    From
-                  </label>
-                  <input
-                    type="text"
-                    value={item.startTime ?? item.time ?? ""}
-                    onChange={(e) => updateItem(i, "startTime", e.target.value)}
-                    placeholder="6:00 PM"
-                    className="input-luxe mt-0 text-sm"
-                  />
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor={`${idBase}-start`} className="form-label">
+                      Starts
+                    </label>
+                    <input
+                      id={`${idBase}-start`}
+                      type="text"
+                      value={item.startTime ?? item.time ?? ""}
+                      onChange={(e) => updateItem(i, { startTime: e.target.value })}
+                      placeholder="6:00 PM"
+                      className="input-luxe text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`${idBase}-end`} className="form-label">
+                      Ends <span className="font-normal text-zinc-500">(optional)</span>
+                    </label>
+                    <input
+                      id={`${idBase}-end`}
+                      type="text"
+                      value={item.endTime ?? ""}
+                      onChange={(e) => updateItem(i, { endTime: e.target.value })}
+                      placeholder="7:00 PM"
+                      className="input-luxe text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label htmlFor={`${idBase}-visibility`} className="form-label">
+                      Shown to
+                    </label>
+                    <select
+                      id={`${idBase}-visibility`}
+                      value={item.visibility === "private" ? "private" : "guests"}
+                      onChange={(e) => updateItem(i, { visibility: e.target.value === "private" ? "private" : "guests" })}
+                      className="input-luxe text-sm"
+                    >
+                      <option value="guests">Guests and planners</option>
+                      <option value="private">Planners only</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-zinc-600">
-                    To{" "}
-                    <span className="font-normal text-zinc-400">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={item.endTime ?? ""}
-                    onChange={(e) => updateItem(i, "endTime", e.target.value)}
-                    placeholder="7:00 PM"
-                    className="input-luxe mt-0 text-sm"
-                  />
-                </div>
-              </div>
 
-              {/* Row 3: reorder + remove */}
-              <div className="mt-3 flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => moveItem(i, "up")}
-                  disabled={i === 0}
-                  aria-label="Move item up"
-                  className="flex h-7 w-7 items-center justify-center rounded-xl border border-[#e3d8c7] bg-white text-zinc-400 transition hover:bg-[#faf6ef] hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <svg viewBox="0 0 10 10" fill="none" className="h-3 w-3" aria-hidden>
-                    <path d="M5 8V2M2 5l3-3 3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveItem(i, "down")}
-                  disabled={i === items.length - 1}
-                  aria-label="Move item down"
-                  className="flex h-7 w-7 items-center justify-center rounded-xl border border-[#e3d8c7] bg-white text-zinc-400 transition hover:bg-[#faf6ef] hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <svg viewBox="0 0 10 10" fill="none" className="h-3 w-3" aria-hidden>
-                    <path d="M5 2v6M2 5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                <span className="ml-1 text-[11px] text-zinc-400">
-                  {i + 1} of {items.length}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeItem(i)}
-                  className="ml-auto flex h-7 items-center gap-1.5 rounded-xl border border-rose-100 bg-rose-50 px-2.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor={`${idBase}-desc`} className="form-label">
+                      Note for guests <span className="font-normal text-zinc-500">(optional)</span>
+                    </label>
+                    <input
+                      id={`${idBase}-desc`}
+                      type="text"
+                      value={item.description ?? ""}
+                      onChange={(e) => updateItem(i, { description: e.target.value })}
+                      placeholder="Please be seated by 5:45"
+                      className="input-luxe text-sm"
+                      disabled={item.visibility === "private"}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`${idBase}-private`} className="form-label">
+                      Planning note <span className="font-normal text-zinc-500">(never shown to guests)</span>
+                    </label>
+                    <input
+                      id={`${idBase}-private`}
+                      type="text"
+                      value={item.privateNotes ?? ""}
+                      onChange={(e) => updateItem(i, { privateNotes: e.target.value })}
+                      placeholder="DJ arrives 4:30, confirm mic"
+                      className="input-luxe text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => moveItem(i, "up")}
+                    disabled={i === 0}
+                    aria-label={`Move "${item.title || `item ${i + 1}`}" up`}
+                    className="btn-secondary h-8 px-2.5 py-0 text-xs"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveItem(i, "down")}
+                    disabled={i === items.length - 1}
+                    aria-label={`Move "${item.title || `item ${i + 1}`}" down`}
+                    className="btn-secondary h-8 px-2.5 py-0 text-xs"
+                  >
+                    ↓
+                  </button>
+                  <span className="ml-1 text-xs text-zinc-500">
+                    {i + 1} of {items.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setItems((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="btn-secondary ml-auto h-8 px-3 py-0 text-xs text-rose-800"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       )}
 
-      <button
-        type="button"
-        onClick={addItem}
-        className="btn-secondary w-full justify-center"
-      >
-        <svg viewBox="0 0 12 12" fill="none" className="mr-1.5 h-3 w-3" aria-hidden>
-          <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-        Add itinerary item
+      <button type="button" onClick={addItem} className="btn-secondary w-full">
+        Add schedule item
       </button>
     </div>
   );

@@ -10,25 +10,64 @@ import {
   type CsvPreviewRow,
 } from "@/lib/csv-guests";
 import { parseCsvPhoneRow } from "@/lib/phone";
-import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
+import { requireCurrentAdminUser } from "@/lib/admin-auth";
 import { logAuditActivity } from "@/lib/audit-log";
 import { prisma } from "@/lib/prisma";
 import { generateSecureToken } from "@/lib/security";
 import { resolveSharedGuestState } from "@/lib/shared-guests";
+import { getEventAccess } from "@/lib/wedding-access";
+import type { Prisma } from "@prisma/client";
+import { assertAllocationFits, getGuestListPermission, newGuestOwnership } from "@/lib/guest-allocation";
+import { GuestListPermissionError, invitationPlaces, type GuestListPermission } from "@/lib/guest-permissions";
 
 async function ensureCsvEventAccess(eventId: string) {
   const admin = await requireCurrentAdminUser();
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, deletedAt: null },
-    select: { id: true, ownerUserId: true },
-  });
-  if (!event) {
+  const access = await getEventAccess(admin, eventId);
+  if (access.status === "not_found") {
     return { error: "Event not found.", event: null, admin: null };
   }
-  if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
-    return { error: "You are not allowed to import guests for this event.", event: null, admin: null };
+  if (access.status === "forbidden") {
+    return { error: "You are not allowed to import guests for this event.", event: null, admin: null, perm: null };
   }
-  return { error: null, event, admin };
+  const perm = await getGuestListPermission(admin, eventId);
+  if (perm.level === "contributor" && !perm.allocation) {
+    return {
+      error: "You don't have a guest allowance for this event yet. Ask the organizer to set one.",
+      event: null,
+      admin: null,
+      perm: null,
+    };
+  }
+  return { error: null, event: access.event, admin, perm };
+}
+
+/** Charges the whole import to one allowance atomically: either every row fits, or nothing is created. */
+async function createImportedGuests(
+  perm: GuestListPermission,
+  rows: Prisma.GuestUncheckedCreateInput[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ownership = newGuestOwnership(perm);
+  const data = rows.map((row) => ({ ...row, managedByUserId: ownership.managedByUserId, allocationId: ownership.allocationId }));
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (ownership.allocationId) {
+        const places = data.reduce((sum, row) => sum + invitationPlaces({
+          maxGuests: row.maxGuests,
+          menCount: row.menCount ?? 0,
+          womenCount: row.womenCount ?? 0,
+          kidsCount: row.kidsCount ?? 0,
+        }), 0);
+        await assertAllocationFits(tx, ownership.allocationId, places);
+      }
+      for (const row of data) {
+        await tx.guest.create({ data: row });
+      }
+    });
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof GuestListPermissionError) return { ok: false, error: error.message };
+    throw error;
+  }
 }
 
 export async function previewGuestCsvAction(eventId: string, csvText: string) {
@@ -140,15 +179,20 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
     };
   }
 
+  const sharedScope = { eventId, weddingId: access.event.weddingId };
   const createData = await Promise.all(
     toCreate.map(async (row) => {
-      const sharedState = await resolveSharedGuestState(prisma, {
-        eventId,
-        guestName: row.guestName,
-        phone: row.phone?.trim() || null,
-        phoneCountryCode: row.phoneCountryCode?.trim() || null,
-        email: row.email?.trim() || null,
-      });
+      const sharedState = await resolveSharedGuestState(
+        prisma,
+        {
+          eventId,
+          guestName: row.guestName,
+          phone: row.phone?.trim() || null,
+          phoneCountryCode: row.phoneCountryCode?.trim() || null,
+          email: row.email?.trim() || null,
+        },
+        sharedScope,
+      );
       const guestTotal = row.menCount + row.womenCount + row.kidsCount;
       const forceExclude = sharedState.shouldExcludeFromTotals;
       const excludedMenCount = forceExclude ? row.menCount : 0;
@@ -188,7 +232,10 @@ export async function importGuestCsvRowsAction(eventId: string, rows: unknown) {
     }),
   );
 
-  await prisma.$transaction(createData.map((data) => prisma.guest.create({ data })));
+  const created = await createImportedGuests(access.perm!, createData);
+  if (!created.ok) {
+    return { error: created.error, created: 0, skippedInvalid, skippedDuplicateInDb, skippedDuplicateInFile };
+  }
   const sharedDetectedCount = createData.filter((d) => Boolean(d.sharedGuestKey && d.countOwnerEventId)).length;
 
   if (access.admin) {
@@ -269,15 +316,20 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
     };
   }
 
+  const sharedScope = { eventId, weddingId: access.event.weddingId };
   const createData = await Promise.all(
     toCreate.map(async (row) => {
-      const sharedState = await resolveSharedGuestState(prisma, {
-        eventId,
-        guestName: row.guestName,
-        phone: row.phone?.trim() || null,
-        phoneCountryCode: row.phoneCountryCode?.trim() || null,
-        email: row.email?.trim() || null,
-      });
+      const sharedState = await resolveSharedGuestState(
+        prisma,
+        {
+          eventId,
+          guestName: row.guestName,
+          phone: row.phone?.trim() || null,
+          phoneCountryCode: row.phoneCountryCode?.trim() || null,
+          email: row.email?.trim() || null,
+        },
+        sharedScope,
+      );
       const guestTotal = row.menCount + row.womenCount + row.kidsCount;
       const forceExclude = sharedState.shouldExcludeFromTotals;
       const excludedMenCount = forceExclude ? row.menCount : 0;
@@ -316,7 +368,10 @@ export async function commitGuestCsvImportAction(eventId: string, csvText: strin
       };
     }),
   );
-  await prisma.$transaction(createData.map((data) => prisma.guest.create({ data })));
+  const created = await createImportedGuests(access.perm!, createData);
+  if (!created.ok) {
+    return { error: created.error, created: 0, skippedInvalid, skippedDuplicateInDb, skippedDuplicateInFile };
+  }
   const sharedDetectedCount = createData.filter((d) => Boolean(d.sharedGuestKey && d.countOwnerEventId)).length;
 
   if (access.admin) {

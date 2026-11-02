@@ -15,6 +15,8 @@ import { PHONE_COUNTRY_OPTIONS } from "@/lib/phone";
 type Props = {
   eventId: string;
   existingGuestNameKeys: string[];
+  /** Rendered inside a dialog that already provides the title and frame. */
+  embedded?: boolean;
 };
 
 function csvMetaFromResult(result: ReturnType<typeof previewGuestCsv>) {
@@ -28,7 +30,7 @@ function csvMetaFromResult(result: ReturnType<typeof previewGuestCsv>) {
   };
 }
 
-export function GuestCsvImport({ eventId, existingGuestNameKeys }: Props) {
+export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = false }: Props) {
   const router = useRouter();
   const existingSet = useMemo(() => new Set(existingGuestNameKeys), [existingGuestNameKeys]);
   const [csvText, setCsvText] = useState("");
@@ -100,38 +102,29 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys }: Props) {
   }
 
   return (
-    <div className="app-card p-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className={embedded ? "" : "app-card p-5"}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-zinc-900">Import guests from CSV</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Required columns: <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">guestName</code>,{" "}
-            <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">men</code>,{" "}
-            <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">women</code>,{" "}
-            <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">kids</code>. Optional:{" "}
-            <code className="text-xs">greeting</code>, <code className="text-xs">group</code>,{" "}
-            <code className="text-xs">tableName</code>, <code className="text-xs">notes</code>,{" "}
-            <code className="text-xs">phone</code>, <code className="text-xs">phoneCountryCode</code>,{" "}
-            <code className="text-xs">email</code>, <code className="text-xs">excludeFromTotals</code>,{" "}
-            <code className="text-xs">excludeReason</code>.
-          </p>
-          <p className="mt-1 text-xs text-zinc-500">
-            Choose a file or paste CSV, then tab out of the box — rows load automatically. Edit cells before
-            importing. International numbers with + (e.g. +44…) are detected from the phone column.
+          {embedded ? null : <h2 className="section-heading">Import guests from CSV</h2>}
+          <p className="text-sm text-[var(--muted-text)]">
+            Needs <code className="rounded bg-[var(--surface-muted)] px-1 text-xs">guestName</code>,{" "}
+            <code className="rounded bg-[var(--surface-muted)] px-1 text-xs">men</code>,{" "}
+            <code className="rounded bg-[var(--surface-muted)] px-1 text-xs">women</code> and{" "}
+            <code className="rounded bg-[var(--surface-muted)] px-1 text-xs">kids</code> columns. Phone, email, group, table, greeting and notes are optional.
           </p>
         </div>
-        <a href="/samples/guests-import.csv" download className="btn-secondary w-fit">
+        <a href="/samples/guests-import.csv" download className="btn-secondary btn-sm w-fit">
           Download template
         </a>
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium text-zinc-700" htmlFor="csv">
-          Paste CSV or upload a .csv file
+        <label className="form-label" htmlFor="csv">
+          CSV
         </label>
         <div
-          className={`mt-2 rounded-2xl border-2 border-dashed p-3 transition ${
-            isDragging ? "border-[#b28944] bg-[#f8f1e5]" : "border-[#dbcdb8] bg-[#fdfaf3]"
+          className={`mt-2 rounded-lg border border-dashed p-2 transition ${
+            isDragging ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border-strong)] bg-[var(--surface-muted)]"
           }`}
           onDragOver={(e) => {
             e.preventDefault();
@@ -159,15 +152,15 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys }: Props) {
             onBlur={() => parseAndSet(csvText)}
             rows={6}
             placeholder={`guestName,men,women,kids,greeting,group,tableName,notes,phone,phoneCountryCode\nThe Valli Family,2,2,1,Assalamu Alaikum,Family,Table 1,,+44 7415 980802,`}
-            className="w-full rounded-xl border border-[#dccfbb] bg-white px-4 py-3 font-mono text-sm text-zinc-900 placeholder:text-zinc-400"
+            className="w-full rounded-md border border-[var(--border-soft)] bg-white px-3 py-2 font-mono text-sm text-[var(--foreground)] placeholder:text-zinc-400"
           />
-          <p className="mt-2 text-xs text-zinc-500">Tip: drag and drop a .csv file here, or paste and click outside to load rows.</p>
+          <p className="mt-1.5 text-xs text-[var(--muted-text)]">Paste rows or drop a .csv file here.</p>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <input
             type="file"
             accept=".csv,text/csv"
-            className="text-sm text-zinc-600 file:mr-3 file:rounded-xl file:border-0 file:bg-[#3f2f1f] file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
+            className="text-sm text-[var(--muted-text)] file:mr-3 file:min-h-9 file:rounded-lg file:border file:border-[var(--border-strong)] file:bg-white file:px-3 file:text-sm file:font-medium file:text-[var(--foreground)]"
             onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
@@ -189,12 +182,12 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys }: Props) {
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+        <p className="notice-error mt-4" role="alert">
           {error}
         </p>
       ) : null}
       {success ? (
-        <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <p className="notice-success mt-4" role="status">
           {success}
         </p>
       ) : null}
@@ -220,9 +213,9 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys }: Props) {
           <p className="text-xs text-zinc-500">
             {meta.headerMode === "header" ? "Header mapping" : "No-header positional mapping"}
           </p>
-          <div className="max-h-[min(70vh,28rem)] overflow-auto rounded-2xl border border-zinc-200">
+          <div className="max-h-[min(60vh,26rem)] overflow-auto rounded-lg border border-[var(--border-soft)]">
             <table className="min-w-[56rem] text-left text-xs sm:text-sm">
-              <thead className="sticky top-0 z-10 bg-zinc-100 text-zinc-600">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[var(--muted-text)]">
                 <tr>
                   <th className="px-2 py-2 font-medium">#</th>
                   <th className="min-w-[8rem] px-2 py-2 font-medium">Name</th>

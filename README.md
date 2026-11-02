@@ -19,7 +19,7 @@ Mobile-first wedding RSVP app: Next.js App Router, TypeScript, Tailwind CSS, Pri
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and set:
+Copy `.env.example` to `.env.local` and set (for local development the database URLs are overridden by `.env.development.local`, see below):
 
 | Variable | Purpose |
 | -------- | ------- |
@@ -36,35 +36,76 @@ Copy `.env.example` to `.env` and set:
 
 ## Local development
 
-### 1. PostgreSQL
+Local development runs against an isolated PostgreSQL 17 server inside the project
+(`.local/postgres`, git-ignored). It never touches the hosted database. No Docker or system
+Postgres is needed: the binaries come from the `embedded-postgres` dev dependency.
 
-Use Docker (example):
-
-```bash
-docker run --name rsvp-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=rsvpapp -p 5432:5432 -d postgres:16
-```
-
-Point both `DATABASE_URL` and `DIRECT_URL` at that instance (for local Postgres they can be the same URL).
-
-### 2. Install and migrate
+### First time
 
 ```bash
-cp .env.example .env
-# Edit .env: DATABASE_URL, DIRECT_URL, NEXT_PUBLIC_APP_URL, ADMIN_PASSWORD, ADMIN_AUTH_SECRET
-
 npm install
-npx prisma migrate deploy
-npm run db:seed   # optional
+npm run db:local:setup         # creates the local server, writes .env.development.local, applies migrations
+npm run db:local:import-users  # copies your sign-in accounts so your usual name and password work
 npm run dev
 ```
 
-Open `http://localhost:3000`. Admin: `http://localhost:3000/admin/login` → then `/admin/events`.
+Open `http://localhost:3000/admin/login` and sign in as usual.
 
-### 3. Scripts
+`npm run db:local:seed` optionally adds a fictional demo wedding (accounts **Demo Aisha**, **Demo Omar**,
+**Demo Platform Admin**, password `demo-local-only`); `npm run db:local:remove-demo` deletes those
+accounts and everything tied to them.
 
-- `npm run db:migrate` — create/apply migrations in dev (`prisma migrate dev`)
-- `npm run db:deploy` — apply migrations in CI/production (`prisma migrate deploy`)
-- `npm run db:seed` — seed data
+`db:local:import-users` reads the `User` table (names, roles, password hashes) from the database in
+`.env.local` inside a read-only transaction and copies it into the local database, so existing
+accounts sign in with their usual passwords. It copies nothing else. On a fresh database, migration
+`20260414235500` inserts a placeholder "Farhan" (`seed_farhan`) whose password can never match; the
+import replaces it.
+
+### Every day
+
+```bash
+npm run dev
+```
+
+`npm run dev` starts the local database if it is stopped, applies any new committed migrations to
+it, then starts `next dev`. It refuses to start if `DATABASE_URL` resolves to a non-local host
+(set `ALLOW_REMOTE_DEV_DATABASE=1` to override deliberately). The raw `next dev` is still
+available as `npm run dev:next`.
+
+### How the database is chosen
+
+Next.js resolves each variable from the first of: shell environment, `.env.development.local`,
+`.env.local`, `.env.development`, `.env`. `.env.development.local` holds only the local
+`DATABASE_URL`/`DIRECT_URL`, so it overrides any hosted URLs in `.env.local` for `next dev` only.
+`next build`/`next start` do not read it. An exported `DATABASE_URL` in your shell wins over every file.
+
+### Local database commands
+
+| Command | Purpose |
+| ------- | ------- |
+| `npm run db:local:status` | Server state and migration status |
+| `npm run db:local:start` / `db:local:stop` | Start or stop the background server (data persists) |
+| `npm run db:local:migrate` | Apply committed migrations to the local database |
+| `npm run db:local:seed` | Load the fictional demo wedding (replaces only `[Demo]` records) |
+| `npm run db:local:remove-demo` | Delete the demo accounts, their wedding, events, guests and related rows |
+| `npm run db:local:reset -- --yes` | Drop the local database and re-apply every migration (run `db:local:import-users` again afterwards) |
+| `npm run db:local:import-users` | Copy sign-in accounts from the `.env.local` database (read-only there) |
+| `npm run db:local -- prisma <args>` | Any Prisma CLI command against the local database, e.g. `npm run db:local -- prisma migrate dev --name add_x` or `prisma studio` |
+
+The server listens on `127.0.0.1:54330` (override with `LOCAL_DB_PORT`); its log is `.local/postgres/server.log`.
+
+### Schema changes
+
+Create migrations with `npm run db:local -- prisma migrate dev --name <change>` and commit the
+generated folder. A fresh database must be reproducible from committed migrations alone:
+`npm run db:local:reset -- --yes` followed by
+`npm run db:local -- prisma migrate diff --from-url postgresql://postgres@127.0.0.1:54330/rsvp_dev --to-schema-datamodel prisma/schema.prisma --exit-code`
+should report no difference. Do not use `prisma db push` against shared databases.
+
+### Production scripts
+
+- `npm run db:deploy` — apply migrations in CI/production (`prisma migrate deploy`, uses `DIRECT_URL` from the environment)
+- `npm run db:seed` — original seed script
 
 ## Moving from SQLite (older clones)
 

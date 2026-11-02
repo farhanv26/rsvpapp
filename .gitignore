@@ -49,4 +49,5 @@ node_modules
 .env.local
 prisma/dev.db
 public/uploads
+/.local/
 .DS_Store

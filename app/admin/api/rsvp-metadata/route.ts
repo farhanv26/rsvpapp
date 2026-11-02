@@ -3,6 +3,7 @@ import { getCurrentAdminUserFromApi } from "@/lib/admin-api-auth";
 import { prisma } from "@/lib/prisma";
 import { buildRsvpOgRouteUrl, resolveRsvpPreviewCardSource, toAbsolutePreviewUrl } from "@/lib/rsvp-share-preview";
 import { getPublicSiteUrl } from "@/lib/utils";
+import { canActorAccessEvent } from "@/lib/wedding-access";
 
 export async function GET(request: Request) {
   const admin = await getCurrentAdminUserFromApi();
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
     },
   });
 
-  if (!guest) {
+  if (!guest || !(await canActorAccessEvent(admin, guest.event.id))) {
     return NextResponse.json({ error: "Guest not found for token" }, { status: 404 });
   }
 

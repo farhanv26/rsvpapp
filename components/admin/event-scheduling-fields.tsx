@@ -219,13 +219,6 @@ export function EventSchedulingFields({
 
   return (
     <>
-      <div className="sm:col-span-2">
-        <p className="section-title">Schedule</p>
-        <h3 className="mt-2 text-lg font-semibold text-zinc-900">Date, time, and RSVP deadline</h3>
-        <p className="mt-1 text-sm text-zinc-600">
-          Set ceremony timing with a clear RSVP cutoff for invited families.
-        </p>
-      </div>
 
       <div className="space-y-2" data-date-picker-root>
         <label htmlFor="eventDate" className="block text-sm font-medium">

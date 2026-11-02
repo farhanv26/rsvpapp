@@ -1,13 +1,13 @@
 import type { NextRequest } from "next/server";
 import {
+  authorizeMobileEvent,
   getMobileAdminUser,
-  isMobileSuperAdmin,
-  unauthorizedResponse,
-  forbiddenResponse,
   notFoundResponse,
+  unauthorizedResponse,
 } from "@/lib/mobile-api-auth";
 import { prisma, withReconnect } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
+import { summarizeEventAttendance } from "@/lib/attendance";
 
 /** GET /admin/api/mobile/events/[eventId] — event detail with computed stats. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
@@ -17,10 +17,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
 
   const { eventId } = await params;
 
+  const authz = await authorizeMobileEvent(user, eventId);
+  if (authz.error) return authz.error;
+
   const event = await withReconnect(() => prisma.event.findFirst({
     where: { id: eventId, deletedAt: null },
     select: {
       id: true,
+      weddingId: true,
       title: true,
       slug: true,
       coupleNames: true,
@@ -33,7 +37,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
       description: true,
       imagePath: true,
       itinerary: true,
-      ownerUserId: true,
       createdAt: true,
       guests: {
         where: { deletedAt: null },
@@ -56,6 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
           group: true,
           tableName: true,
           excludeFromTotals: true,
+          excludeReason: true,
           excludedGuestCount: true,
           excludedMenCount: true,
           excludedWomenCount: true,
@@ -67,51 +71,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
   }));
 
   if (!event) return notFoundResponse("Event not found");
-  if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
 
-  const guestCountedBreakdown = (g: typeof event.guests[number]) => {
-    const excMen = g.excludedMenCount ?? 0;
-    const excWomen = g.excludedWomenCount ?? 0;
-    const excKids = g.excludedKidsCount ?? 0;
-    const catSum = excMen + excWomen + excKids;
-    const rawMen = g.menCount ?? 0;
-    const rawWomen = g.womenCount ?? 0;
-    const rawKids = g.kidsCount ?? 0;
-    const rawTotal = rawMen + rawWomen + rawKids > 0 ? rawMen + rawWomen + rawKids : g.maxGuests;
-    if (catSum > 0) {
-      const cMen = Math.max(rawMen - excMen, 0);
-      const cWomen = Math.max(rawWomen - excWomen, 0);
-      const cKids = Math.max(rawKids - excKids, 0);
-      return { men: cMen, women: cWomen, kids: cKids, total: cMen + cWomen + cKids };
-    }
-    const legacyExcluded = g.excludedGuestCount ?? 0;
-    return {
-      men: legacyExcluded === 0 ? rawMen : 0,
-      women: legacyExcluded === 0 ? rawWomen : 0,
-      kids: legacyExcluded === 0 ? rawKids : 0,
-      total: Math.max(rawTotal - legacyExcluded, 0),
-    };
-  };
-  const counted = event.guests.filter((g) => guestCountedBreakdown(g).total > 0);
-  const totalFamilies = event.guests.length;
-  const countedFamilies = counted.length;
-  const totalMaxInvited = event.guests.reduce((s, g) => s + guestCountedBreakdown(g).total, 0);
-  const totalMen = event.guests.reduce((s, g) => s + guestCountedBreakdown(g).men, 0);
-  const totalWomen = event.guests.reduce((s, g) => s + guestCountedBreakdown(g).women, 0);
-  const totalKids = event.guests.reduce((s, g) => s + guestCountedBreakdown(g).kids, 0);
-  const invitedFamilies = counted.filter((g) => g.invitedAt).length;
-  const totalResponded = counted.filter((g) => g.respondedAt).length;
-  const totalPending = countedFamilies - totalResponded;
-  const attendingFamilies = counted.filter((g) => g.attending === true).length;
-  const declinedFamilies = counted.filter((g) => g.attending === false).length;
-  const confirmedAttendees = counted.reduce((s, g) => s + (g.attendingCount ?? 0), 0);
-  const responseRate = countedFamilies > 0 ? Math.round((totalResponded / countedFamilies) * 100) : 0;
-  const notInvitedCount = counted.filter((g) => !g.invitedAt).length;
-  const awaitingRsvpCount = counted.filter((g) => g.invitedAt && !g.respondedAt).length;
+  const a = summarizeEventAttendance(event.guests);
+  const totalFamilies = a.households;
+  const countedFamilies = a.countedHouseholds;
+  const totalMaxInvited = a.invitedPeople;
+  const totalMen = a.men;
+  const totalWomen = a.women;
+  const totalKids = a.kids;
+  const invitedFamilies = a.invitedHouseholds;
+  const totalResponded = a.respondedHouseholds;
+  const totalPending = a.pendingHouseholds;
+  const attendingFamilies = a.attendingHouseholds;
+  const declinedFamilies = a.declinedHouseholds;
+  const confirmedAttendees = a.confirmedPeople;
+  const responseRate = Math.round(a.responseRate * 100);
+  const notInvitedCount = a.notInvitedHouseholds;
+  const awaitingRsvpCount = a.awaitingReplyHouseholds;
 
   return Response.json({
     event: {
       id: event.id,
+      weddingId: event.weddingId,
       title: event.title,
       slug: event.slug,
       coupleNames: event.coupleNames,
@@ -158,14 +139,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ even
 
     const { eventId } = await params;
 
-    const event = await withReconnect(() =>
-      prisma.event.findFirst({
-        where: { id: eventId, deletedAt: null },
-        select: { id: true, title: true, ownerUserId: true },
-      })
-    );
-    if (!event) return notFoundResponse("Event not found");
-    if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+    const authz = await authorizeMobileEvent(user, eventId, { organizerOnly: true });
+    if (authz.error) return authz.error;
+    const event = authz.event;
 
     let body: Record<string, unknown> = {};
     try { body = await req.json(); } catch {
@@ -234,14 +210,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ e
 
     const { eventId } = await params;
 
-    const event = await withReconnect(() =>
-      prisma.event.findFirst({
-        where: { id: eventId, deletedAt: null },
-        select: { id: true, title: true, ownerUserId: true },
-      })
-    );
-    if (!event) return notFoundResponse("Event not found");
-    if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+    const authz = await authorizeMobileEvent(user, eventId, { organizerOnly: true });
+    if (authz.error) return authz.error;
+    const event = authz.event;
 
     await prisma.event.update({ where: { id: eventId }, data: { deletedAt: new Date() } });
 

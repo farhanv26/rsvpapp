@@ -63,8 +63,25 @@ export type ItineraryItem = {
   endTime?: string;
   title: string;
   icon?: string;
+  /** Shown to guests under the title. */
   description?: string | null;
+  /** "private" items appear only on planner screens. Missing = guests (legacy items). */
+  visibility?: "guests" | "private";
+  /** Planner-only note; must never reach guest pages. */
+  privateNotes?: string | null;
 };
+
+/** Server-side filter for anything rendered to guests: drops private items and planner notes. */
+export function guestVisibleItinerary(items: ItineraryItem[]): ItineraryItem[] {
+  return items
+    .filter((item) => item.visibility !== "private")
+    .map((item) => {
+      const rest = { ...item };
+      delete rest.privateNotes;
+      delete rest.visibility;
+      return rest;
+    });
+}
 
 function getDisplayTime(item: ItineraryItem): string {
   const start = item.startTime ?? item.time ?? "";

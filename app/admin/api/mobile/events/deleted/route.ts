@@ -1,20 +1,14 @@
 import type { NextRequest } from "next/server";
-import {
-  getMobileAdminUser,
-  isMobileSuperAdmin,
-  unauthorizedResponse,
-} from "@/lib/mobile-api-auth";
+import { getMobileAdminUser, unauthorizedResponse } from "@/lib/mobile-api-auth";
 import { prisma, withReconnect } from "@/lib/prisma";
+import { accessibleEventsWhere } from "@/lib/wedding-policy";
 
 /** GET /admin/api/mobile/events/deleted — list soft-deleted events. */
 export async function GET(req: NextRequest) {
   const user = await getMobileAdminUser(req);
   if (!user) return unauthorizedResponse();
 
-  const where = {
-    deletedAt: { not: null },
-    ...(isMobileSuperAdmin(user) ? {} : { ownerUserId: user.id }),
-  };
+  const where = { AND: [{ deletedAt: { not: null } }, accessibleEventsWhere(user)] };
 
   try {
     const events = await withReconnect(() =>

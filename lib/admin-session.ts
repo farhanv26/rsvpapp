@@ -37,5 +37,9 @@ export async function verifyAdminSessionToken(token: string) {
 export async function readAdminSessionToken(token: string) {
   const secret = getSecretBytes();
   const { payload } = await jwtVerify(token, secret);
+  // A missing userId would turn `findFirst({ where: { id: undefined } })` into "any user".
+  if (payload.role !== "admin" || typeof payload.userId !== "string" || !payload.userId) {
+    throw new Error("Invalid admin session token.");
+  }
   return payload as AdminSessionClaims;
 }

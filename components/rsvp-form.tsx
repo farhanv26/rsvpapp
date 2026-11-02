@@ -30,11 +30,12 @@ export function RsvpForm({
 }: RsvpFormProps) {
   const router = useRouter();
   const [attending, setAttending] = useState<"yes" | "no">(initialAttending);
+  // First-time responders choose a number explicitly so a default never inflates the headcount.
   const [attendingCount, setAttendingCount] = useState(() => {
     if (initialAttending === "yes" && typeof initialAttendingCount === "number") {
       return Math.min(maxGuests, Math.max(0, initialAttendingCount));
     }
-    return Math.min(maxGuests, 1);
+    return 0;
   });
   const [error, setError] = useState<string | null>(null);
   const [hostMessage, setHostMessage] = useState(initialHostMessage ?? "");
@@ -57,7 +58,7 @@ export function RsvpForm({
         setShowConfirm(false);
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not submit RSVP.");
+        setError(err instanceof Error ? err.message : "Your reply didn't go through. Please try again.");
       }
     });
   }
@@ -67,7 +68,7 @@ export function RsvpForm({
     if (previewMode) return;
     setError(null);
     if (attending === "yes" && (attendingCount < 1 || attendingCount > maxGuests)) {
-      setError(`Please choose between 1 and ${maxGuests} guests.`);
+      setError(`Choose how many are coming, from 1 to ${maxGuests}.`);
       return;
     }
     setShowConfirm(true);
@@ -95,7 +96,7 @@ export function RsvpForm({
           <p className="text-[0.6rem] font-semibold uppercase tracking-[0.28em] text-zinc-400">RSVP</p>
           {previewMode ? (
             <p className="mt-2 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-center text-xs text-amber-950">
-              Preview mode — RSVP submission is turned off.
+              Preview only. Replies are turned off.
             </p>
           ) : null}
           <p className={`mt-2 text-[1.7rem] text-zinc-900 ${script}`}>Will you be attending?</p>
@@ -134,10 +135,7 @@ export function RsvpForm({
                   <div className="flex items-center justify-between">
                     <div>
                       <span className={`block text-[1.1rem] text-zinc-900 ${serif}`}>
-                        {isYes ? "Accept" : "Decline"}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-zinc-500">
-                        {isYes ? "I will attend" : "I can't attend"}
+                        {isYes ? "Yes, we'll be there" : "Sorry, can't make it"}
                       </span>
                     </div>
                     {/* Selection indicator */}
@@ -167,10 +165,13 @@ export function RsvpForm({
         {attending === "yes" ? (
           <div className="mt-6 rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5">
             <input type="hidden" name="attendingCount" value={attendingCount} />
-            <p className="text-center text-sm font-medium text-zinc-800">How many guests will attend?</p>
+            <p className="text-center text-base font-medium text-zinc-800">How many of you are coming?</p>
             <p className="mt-0.5 text-center text-xs text-zinc-500">
-              Your invitation allows up to {maxGuests} {maxGuests === 1 ? "guest" : "guests"}
+              Your invitation is for up to {maxGuests} {maxGuests === 1 ? "person" : "people"}
             </p>
+            {attendingCount === 0 ? (
+              <p className="mt-1 text-center text-xs font-medium text-amber-800">Tap + to choose</p>
+            ) : null}
             <div className="mt-5 flex items-center justify-center gap-4">
               <StepButton
                 onClick={() => step(-1)}
@@ -200,17 +201,20 @@ export function RsvpForm({
 
         {/* Optional message to host */}
         <div className="mt-5 rounded-2xl border border-[#e7dccb] bg-white px-4 py-4">
-          <p className="text-center text-sm font-medium text-zinc-800">Message to host <span className="text-zinc-400 font-normal">(optional)</span></p>
+          <label htmlFor="rsvp-host-message" className="block text-center text-sm font-medium text-zinc-800">
+            A note for the hosts <span className="font-normal text-zinc-500">(optional)</span>
+          </label>
           <textarea
+            id="rsvp-host-message"
             value={hostMessage}
             onChange={(e) => setHostMessage(e.target.value)}
             maxLength={500}
             rows={3}
             disabled={disabled}
             className="mt-3 w-full resize-none rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#b28944] focus:ring-2 focus:ring-[#b28944]/20 disabled:cursor-not-allowed disabled:bg-zinc-50"
-            placeholder="Write a note for your hosts…"
+            placeholder="Congratulations…"
           />
-          <p className="mt-1.5 text-right text-[11px] text-zinc-400">{hostMessage.length}/500</p>
+          <p className="mt-1.5 text-right text-[11px] text-zinc-500">{hostMessage.length}/500</p>
         </div>
 
         {error ? (
@@ -228,10 +232,10 @@ export function RsvpForm({
           className={`mt-8 w-full rounded-2xl border border-[#3f2f1f] bg-[#3f2f1f] py-4 text-sm font-semibold tracking-[0.07em] text-white shadow-[0_14px_40px_-18px_rgba(50,40,20,0.55)] transition hover:bg-[#352618] active:scale-[0.99] disabled:opacity-60 touch-manipulation ${serif}`}
         >
           {previewMode
-            ? "Preview — RSVP disabled"
+            ? "Preview only"
             : isPending
               ? "Sending…"
-              : "Review & Submit RSVP"}
+              : "Continue"}
         </button>
 
         {onCancelEdit ? (
@@ -241,20 +245,26 @@ export function RsvpForm({
             disabled={previewMode}
             className="btn-secondary mt-3 w-full disabled:opacity-50"
           >
-            Cancel edit
+            Keep my earlier reply
           </button>
         ) : null}
       </form>
 
       {/* Confirm modal */}
       {showConfirm ? (
-        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowConfirm(false); }}>
-          <div className="modal-panel">
-            <p className="text-[0.6rem] font-semibold uppercase tracking-[0.26em] text-zinc-400">Confirm RSVP</p>
-            <p className={`mt-3 text-xl leading-snug text-zinc-900 ${serif}`}>
+        <div
+          className="modal-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowConfirm(false); }}
+          onKeyDown={(e) => { if (e.key === "Escape") setShowConfirm(false); }}
+        >
+          <div className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="rsvp-confirm-title" aria-describedby="rsvp-confirm-body">
+            <p id="rsvp-confirm-title" className="text-[0.6rem] font-semibold uppercase tracking-[0.26em] text-zinc-500">Check your reply</p>
+            <p id="rsvp-confirm-body" className={`mt-3 text-xl leading-snug text-zinc-900 ${serif}`}>
               {attending === "yes"
-                ? `Confirming attendance for ${attendingCount} ${attendingCount === 1 ? "guest" : "guests"}.`
-                : "Letting your hosts know you can't make it."}
+                ? attendingCount === 1
+                  ? "1 person is coming."
+                  : `${attendingCount} of you are coming.`
+                : "You can't make it this time."}
             </p>
             {attending === "yes" && hostMessage.trim() ? (
               <p className="mt-2 text-sm text-zinc-600">
@@ -267,8 +277,9 @@ export function RsvpForm({
                 onClick={() => { setShowConfirm(false); submitRsvp(); }}
                 className="btn-primary flex-1 py-3.5"
                 disabled={isPending}
+                autoFocus
               >
-                Confirm
+                Send reply
               </button>
               <button
                 type="button"

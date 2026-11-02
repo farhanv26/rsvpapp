@@ -1,12 +1,6 @@
 import type { NextRequest } from "next/server";
-import {
-  getMobileAdminUser,
-  isMobileSuperAdmin,
-  unauthorizedResponse,
-  forbiddenResponse,
-  notFoundResponse,
-} from "@/lib/mobile-api-auth";
-import { prisma, withReconnect } from "@/lib/prisma";
+import { authorizeMobileEvent, getMobileAdminUser, unauthorizedResponse } from "@/lib/mobile-api-auth";
+import { prisma } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
 
 /** POST /admin/api/mobile/events/[eventId]/restore — restore a soft-deleted event. */
@@ -16,14 +10,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
 
   const { eventId } = await params;
 
-  const event = await withReconnect(() =>
-    prisma.event.findFirst({
-      where: { id: eventId, deletedAt: { not: null } },
-      select: { id: true, title: true, ownerUserId: true },
-    })
-  );
-  if (!event) return notFoundResponse("Deleted event not found");
-  if (!isMobileSuperAdmin(user) && event.ownerUserId !== user.id) return forbiddenResponse();
+  const authz = await authorizeMobileEvent(user, eventId, {
+    state: "deleted",
+    organizerOnly: true,
+    notFoundMessage: "Deleted event not found",
+  });
+  if (authz.error) return authz.error;
+  const event = authz.event;
 
   try {
     await prisma.event.update({ where: { id: eventId }, data: { deletedAt: null } });

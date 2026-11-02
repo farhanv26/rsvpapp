@@ -23,7 +23,7 @@ describe("Phase 3 - RSVP edit flow UI", () => {
         canEdit
       />,
     );
-    expect(screen.getByRole("button", { name: "Edit RSVP" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change my reply" })).toBeInTheDocument();
   });
 
   it("opens edit flow when edit button is clicked", () => {
@@ -38,7 +38,7 @@ describe("Phase 3 - RSVP edit flow UI", () => {
         canEdit
       />,
     );
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit RSVP" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Change my reply" })[0]);
     expect(screen.getByTestId("rsvp-form-edit")).toBeInTheDocument();
   });
 
@@ -54,7 +54,7 @@ describe("Phase 3 - RSVP edit flow UI", () => {
         canEdit={false}
       />,
     );
-    expect(screen.queryAllByRole("button", { name: "Edit RSVP" })).toHaveLength(0);
-    expect(screen.getByText("Editing is closed after the RSVP deadline")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: "Change my reply" })).toHaveLength(0);
+    expect(screen.getByText("Replies have closed. To change your plans, please contact your hosts.")).toBeInTheDocument();
   });
 });

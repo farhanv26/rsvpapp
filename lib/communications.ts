@@ -62,10 +62,12 @@ function scheduleBackgroundTask(task: () => Promise<void>, label: string) {
 async function queueEventOwnerEmail(input: DispatchEventCommunicationInput) {
   const event = await prisma.event.findFirst({
     where: { id: input.eventId, deletedAt: null },
-    select: { id: true, title: true, ownerUserId: true },
+    select: { id: true, title: true, ownerUserId: true, weddingId: true },
   });
 
-  if (!event?.ownerUserId) {
+  // Customer weddings have no verified recipient address yet; never route their guest details
+  // to the single platform inbox (RSVP_NOTIFY_EMAIL). In-app notifications still go to members.
+  if (!event?.ownerUserId || event.weddingId) {
     return;
   }
 

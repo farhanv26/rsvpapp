@@ -3,7 +3,7 @@ import { submitRsvpAction } from "@/app/rsvp/[token]/actions";
 
 const prismaMock = vi.hoisted(() => ({
   guest: {
-    findUnique: vi.fn(),
+    findFirst: vi.fn(),
     update: vi.fn(),
   },
   rsvpActivity: {
@@ -19,15 +19,18 @@ vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
 }));
 
+vi.mock("@/lib/audit-log", () => ({ logAuditActivity: vi.fn() }));
+vi.mock("@/lib/communications", () => ({ dispatchEventCommunication: vi.fn() }));
+
 describe("Phase 3 - RSVP activity logging", () => {
   beforeEach(() => {
-    prismaMock.guest.findUnique.mockReset();
+    prismaMock.guest.findFirst.mockReset();
     prismaMock.guest.update.mockReset();
     prismaMock.rsvpActivity.create.mockReset();
   });
 
   it("logs accepted activity for first-time RSVP", async () => {
-    prismaMock.guest.findUnique.mockResolvedValue({
+    prismaMock.guest.findFirst.mockResolvedValue({
       id: "g1",
       maxGuests: 3,
       respondedAt: null,
@@ -57,7 +60,7 @@ describe("Phase 3 - RSVP activity logging", () => {
   });
 
   it("logs attendee count update for edited RSVP", async () => {
-    prismaMock.guest.findUnique.mockResolvedValue({
+    prismaMock.guest.findFirst.mockResolvedValue({
       id: "g1",
       maxGuests: 3,
       respondedAt: new Date(),

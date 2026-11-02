@@ -54,6 +54,13 @@ export const eventSchema = z.object({
       path: ["eventDate"],
     });
   }
+  if (deadlineText && !eventDateText) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Set an event date before adding an RSVP deadline.",
+      path: ["rsvpDeadline"],
+    });
+  }
   if (deadlineText && !deadlineDate) {
     ctx.addIssue({
       code: "custom",
@@ -87,6 +94,23 @@ export const eventSchema = z.object({
   }
 
 });
+
+/** A guest-form validation failure tied to the field the user needs to fix. */
+export class GuestFieldError extends Error {
+  constructor(
+    message: string,
+    readonly field: string | null,
+  ) {
+    super(message);
+    this.name = "GuestFieldError";
+  }
+}
+
+export function guestFieldErrorFrom(issues: { message: string; path: PropertyKey[] }[]): GuestFieldError {
+  const issue = issues[0];
+  const path = issue?.path[0];
+  return new GuestFieldError(issue?.message ?? "Invalid guest details.", typeof path === "string" ? path : null);
+}
 
 export const guestSchema = z
   .object({

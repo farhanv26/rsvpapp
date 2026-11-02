@@ -49,14 +49,13 @@ export function SuperAdminOwnerFilter({
   }, [debouncedQ]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={`flex flex-wrap items-center gap-2 ${isPending ? "opacity-70" : ""}`}>
       <input
         value={localQ}
         onChange={(e) => setLocalQ(e.target.value)}
-        placeholder="Search title, couple names, slug, owner"
-        className="input-luxe mt-0 w-72 py-2.5 text-sm"
+        placeholder="Search events or owners"
+        className="input-luxe mt-0 w-full sm:w-64"
         aria-label="Search events"
-        disabled={isPending}
       />
       <select
         value={owner}
@@ -68,7 +67,7 @@ export function SuperAdminOwnerFilter({
             router.replace(`${pathname}?${p.toString()}`);
           });
         }}
-        className="input-luxe mt-0 w-52 py-2.5 text-sm"
+        className="input-luxe mt-0 w-auto"
         aria-label="Filter by creator owner"
       >
         <option value="all">All creators</option>
@@ -80,7 +79,7 @@ export function SuperAdminOwnerFilter({
       </select>
       <button
         type="button"
-        className="btn-secondary"
+        className="btn-ghost text-[var(--muted-text)]"
         onClick={() => {
           setLocalQ("");
           startTransition(() => {
@@ -92,7 +91,6 @@ export function SuperAdminOwnerFilter({
       >
         Clear
       </button>
-      <span className="text-xs text-zinc-500">{isPending ? "Updating..." : ""}</span>
     </div>
   );
 }
@@ -125,14 +123,13 @@ export function CreatorRealtimeFilters({
   const statusValue = useMemo(() => status || "all", [status]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={`flex flex-wrap items-center gap-2 ${isPending ? "opacity-70" : ""}`}>
       <input
         value={localQ}
         onChange={(e) => setLocalQ(e.target.value)}
-        placeholder="Search event title, couple names, or slug"
-        className="input-luxe mt-0 w-72 py-2.5 text-sm"
+        placeholder="Search events"
+        className="input-luxe mt-0 w-full sm:w-64"
         aria-label="Search events"
-        disabled={isPending}
       />
       <select
         value={statusValue}
@@ -144,18 +141,18 @@ export function CreatorRealtimeFilters({
             router.replace(`${pathname}?${p.toString()}`);
           });
         }}
-        className="input-luxe mt-0 w-44 py-2.5 text-sm"
+        className="input-luxe mt-0 w-auto"
         aria-label="Filter by RSVP status"
       >
-        <option value="all">All statuses</option>
-        <option value="open">Open</option>
+        <option value="all">Any reply deadline</option>
+        <option value="open">Open for replies</option>
         <option value="closing_soon">Closing soon</option>
         <option value="closes_today">Closes today</option>
-        <option value="closed">Closed</option>
+        <option value="closed">Replies closed</option>
       </select>
       <button
         type="button"
-        className="btn-secondary"
+        className="btn-ghost text-[var(--muted-text)]"
         onClick={() => {
           setLocalQ("");
           startTransition(() => {

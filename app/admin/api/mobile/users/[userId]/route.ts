@@ -8,6 +8,7 @@ import {
 } from "@/lib/mobile-api-auth";
 import { prisma, withReconnect } from "@/lib/prisma";
 import { logAuditActivity } from "@/lib/audit-log";
+import { weddingsWhereSoleOwner } from "@/lib/admin-user-management-actions";
 
 type Params = { params: Promise<{ userId: string }> };
 
@@ -42,6 +43,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (Object.keys(data).length === 0) {
     return Response.json({ error: "No valid fields to update" }, { status: 400 });
   }
+  if (data.active === false) {
+    const soleOwnerOf = await weddingsWhereSoleOwner(userId);
+    if (soleOwnerOf.length > 0) {
+      return Response.json(
+        { error: `${target.name} is the only owner of ${soleOwnerOf.map((w) => `"${w.name}"`).join(", ")}. Make another member an owner first.` },
+        { status: 409 },
+      );
+    }
+  }
 
   try {
     const updated = await prisma.user.update({
@@ -62,7 +72,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       metadata: { changes: Object.keys(data) },
     });
 
-    const eventCount = await prisma.event.count({ where: { ownerUserId: userId, deletedAt: null } });
+    const eventCount = await prisma.event.count({ where: { ownerUserId: userId, deletedAt: null, weddingId: null } });
 
     return Response.json({
       user: { ...updated, createdAt: updated.createdAt.toISOString(), eventCount },
@@ -89,6 +99,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     })
   );
   if (!target) return notFoundResponse("User not found");
+  const soleOwnerOf = await weddingsWhereSoleOwner(userId);
+  if (soleOwnerOf.length > 0) {
+    return Response.json(
+      { error: `${target.name} is the only owner of ${soleOwnerOf.map((w) => `"${w.name}"`).join(", ")}. Make another member an owner first.` },
+      { status: 409 },
+    );
+  }
 
   try {
     await prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date(), active: false } });

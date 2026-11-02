@@ -5,11 +5,12 @@ import { CountdownTimer } from "@/components/countdown-timer";
 import { VenueMapButton } from "@/components/venue-map-button";
 import { CalendarModal } from "@/components/calendar-modal";
 import { ScrollReveal } from "@/components/scroll-reveal";
-import { ItineraryTimeline } from "@/components/itinerary-timeline";
+import { guestVisibleItinerary, ItineraryTimeline } from "@/components/itinerary-timeline";
 import type { ItineraryItem } from "@/components/itinerary-timeline";
 import { redirect } from "next/navigation";
-import { getOptionalAdminUser, isSuperAdmin } from "@/lib/admin-auth";
-import { readAdminSessionToken } from "@/lib/admin-session";
+import { getOptionalAdminUser } from "@/lib/admin-auth";
+import { getEventAccess } from "@/lib/wedding-access";
+import { readEventPreviewToken } from "@/lib/preview-token";
 import { resolveInviteCardImage } from "@/lib/invite-card-resolution";
 import { getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
@@ -105,24 +106,20 @@ export default async function RsvpPreviewPage({ params, searchParams }: Props) {
   const { eventId } = await params;
   const sp = searchParams ? await searchParams : {};
 
-  // Auth: web session or mobile Bearer token passed as ?mt=
+  // Auth: web session, or a short-lived single-event preview grant (?pt=) issued to the mobile app.
   let admin = await getOptionalAdminUser();
 
   if (!admin) {
-    const mtParam = sp.mt;
-    const mt = Array.isArray(mtParam) ? mtParam[0] : mtParam;
-    if (mt) {
-      try {
-        const session = await readAdminSessionToken(mt);
-        const row = await prisma.user.findFirst({
-          where: { id: session.userId, deletedAt: null },
-          select: { id: true, name: true, role: true, active: true },
-        });
-        if (row?.active) {
-          admin = { id: row.id, name: row.name, role: row.role };
-        }
-      } catch {
-        // invalid token — fall through to redirect
+    const ptParam = sp.pt;
+    const pt = Array.isArray(ptParam) ? ptParam[0] : ptParam;
+    const grant = pt ? await readEventPreviewToken(pt) : null;
+    if (grant && grant.eventId === eventId) {
+      const row = await prisma.user.findFirst({
+        where: { id: grant.userId, deletedAt: null },
+        select: { id: true, name: true, role: true, active: true },
+      });
+      if (row?.active) {
+        admin = { id: row.id, name: row.name, role: row.role };
       }
     }
   }
@@ -131,11 +128,15 @@ export default async function RsvpPreviewPage({ params, searchParams }: Props) {
     redirect("/admin/login");
   }
 
-  const event = await prisma.event.findFirst({
+  const access = await getEventAccess(admin, eventId);
+  if (access.status === "forbidden") {
+    redirect("/admin/events");
+  }
+
+  const event = access.status !== "ok" ? null : await prisma.event.findFirst({
     where: { id: eventId, deletedAt: null },
     select: {
       id: true,
-      ownerUserId: true,
       title: true,
       description: true,
       imagePath: true,
@@ -165,10 +166,6 @@ export default async function RsvpPreviewPage({ params, searchParams }: Props) {
         </div>
       </main>
     );
-  }
-
-  if (!isSuperAdmin(admin) && event.ownerUserId !== admin.id) {
-    redirect("/admin/events");
   }
 
   const resolvedCard = resolveInviteCardImage(
@@ -232,14 +229,16 @@ export default async function RsvpPreviewPage({ params, searchParams }: Props) {
     venue: event.venue,
   });
 
-  const itinerary: ItineraryItem[] = Array.isArray(event.itinerary)
-    ? (event.itinerary as ItineraryItem[]).filter(
-        (x) =>
-          x &&
-          typeof x.title === "string" &&
-          (typeof x.startTime === "string" || typeof x.time === "string"),
-      )
-    : [];
+  const itinerary: ItineraryItem[] = guestVisibleItinerary(
+    Array.isArray(event.itinerary)
+      ? (event.itinerary as ItineraryItem[]).filter(
+          (x) =>
+            x &&
+            typeof x.title === "string" &&
+            (typeof x.startTime === "string" || typeof x.time === "string"),
+        )
+      : [],
+  );
 
   const invitationContent = (
     <main className="flex min-h-dvh flex-col justify-center px-4 py-8 sm:px-6">
