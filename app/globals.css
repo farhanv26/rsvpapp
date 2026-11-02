@@ -1,23 +1,75 @@
 @import "tailwindcss";
 @import "react-day-picker/style.css";
 
+/*
+ * VowPal: white workspace panels, cool neutrals and warm vermilion actions.
+ * The accent is reserved for the primary action, current location, selection and focus.
+ */
 :root {
-  /* Planning dashboard: warm white, near-black ink, one accent. */
-  --background: #fbfaf8;
-  --foreground: #1b1a17;
+  --background: #fafafa;
+  --rail: #ffffff;
   --surface: #ffffff;
-  --surface-muted: #f5f3ef;
-  --border-soft: #e9e5de;
-  --border-strong: #d6d0c6;
-  --brand-deep: #1b1a17;
-  --brand-accent: #b28944;
-  /* The single accent: links, focus, selection, active navigation (≈5.9:1 on white). */
-  --accent: #85591c;
-  --accent-soft: #f6efe4;
-  --muted-text: #635f58;
-  --success: #276141;
-  --warning: #8a5300;
-  --danger: #b42318;
+  --surface-muted: #f4f4f5;
+  --border-soft: #e4e4e7;
+  --border-strong: #c9c9ce;
+  --foreground: #27262b;
+  --muted-text: #626169;
+  /* Placeholders and quiet marks; 4.6:1 on --surface. */
+  --faint: #737078;
+
+  --accent: #bc412d;
+  --accent-hover: #a73827;
+  --accent-soft: #fff0eb;
+  --accent-ink: #9f3424;
+
+  --success: #2b6a46;
+  --success-soft: #e9f1eb;
+  --warning: #855400;
+  --warning-soft: #f7eedb;
+  --danger: #a3301f;
+  --danger-soft: #f8e8e4;
+
+  /* Aliases kept for components that still reference the earlier names. */
+  --brand-deep: var(--foreground);
+  --brand-accent: var(--accent);
+}
+
+/* Tailwind's zinc greys, re-tinted to the neutral ramp so older components sit in the same palette. */
+@theme {
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-300: #c9c9ce;
+  --color-zinc-400: #96919c;
+  --color-zinc-500: #706b76;
+  --color-zinc-600: #626169;
+  --color-zinc-700: #514b57;
+  --color-zinc-800: #36323c;
+  --color-zinc-900: #27262b;
+  --color-zinc-950: #18151d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ui-mono), ui-monospace, monospace;
+}
+
+html {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  caret-color: var(--accent);
+}
+
+::selection {
+  background: #f8d8cf;
+  color: var(--foreground);
 }
 
 :focus-visible {
@@ -25,69 +77,66 @@
   outline-offset: 2px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
 }
 
 @layer components {
   /* ── Layout ─────────────────────────────────────────────── */
   .app-shell {
-    @apply mx-auto w-full max-w-6xl px-4 pt-5 pb-28 sm:px-6 sm:pt-8 lg:pb-16;
+    @apply mx-auto w-full max-w-6xl px-4 pt-5 pb-28 sm:px-6 sm:pt-7 lg:px-8 lg:pb-16;
   }
 
+  /* A white workspace panel that groups related work. */
   .app-card {
+    @apply overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface)];
+  }
+
+  /* A raised surface for things that are objects (an invitation, a dialog). */
+  .paper-sheet {
     background: var(--surface);
     border: 1px solid var(--border-soft);
-    @apply rounded-xl;
+    @apply rounded-lg;
   }
 
   .app-card-muted {
     background: var(--surface-muted);
     border: 1px solid var(--border-soft);
-    @apply rounded-xl;
+    @apply rounded-lg;
   }
 
   .page-header {
-    @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-5;
+    @apply flex flex-wrap items-end justify-between gap-x-4 gap-y-3 pb-5;
   }
 
   .page-title {
-    @apply text-[1.375rem] font-semibold leading-tight tracking-[-0.01em] text-[var(--foreground)];
+    @apply text-[1.75rem] leading-tight font-bold tracking-[-0.02em] text-balance text-[var(--foreground)];
   }
 
   .page-meta {
-    @apply mt-1 text-sm text-[var(--muted-text)];
+    @apply mt-1 text-sm text-[var(--muted-text)] tabular-nums;
   }
 
   .section-heading {
-    @apply text-[0.9375rem] font-semibold text-[var(--foreground)];
+    @apply text-base font-semibold tracking-[-0.005em] text-[var(--foreground)];
   }
 
   .section-title {
     @apply text-xs font-medium text-[var(--muted-text)];
   }
 
-  /* Serif display type is reserved for guest-facing invitation previews. */
-  .headline-display {
-    font-family: var(--font-display-serif), Georgia, serif;
-    @apply text-3xl leading-tight text-zinc-900 sm:text-4xl;
+  /* Column headers and figure labels: the register's printed field names. */
+  .field-name {
+    @apply text-[11px] font-semibold tracking-[0.06em] text-[var(--muted-text)] uppercase;
   }
 
   /* ── Tables & lists ─────────────────────────────────────── */
   .data-table {
-    @apply w-full border-collapse text-left text-sm;
+    @apply w-full border-collapse text-left text-sm tabular-nums;
   }
   .data-table th {
-    @apply border-b border-[var(--border-soft)] px-3 py-2 text-xs font-medium whitespace-nowrap text-[var(--muted-text)];
+    @apply border-b border-[var(--border-strong)] px-3 py-2 text-[11px] font-semibold tracking-[0.06em] whitespace-nowrap text-[var(--muted-text)] uppercase;
   }
   .data-table td {
     @apply border-b border-[var(--border-soft)] px-3 py-3 align-top text-[var(--foreground)];
@@ -96,7 +145,7 @@ body {
     @apply border-b-0;
   }
   .data-table tbody tr {
-    @apply transition-colors hover:bg-[var(--surface-muted)]/60;
+    @apply transition-colors hover:bg-[var(--surface-muted)]/55;
   }
 
   .list-rows {
@@ -105,38 +154,39 @@ body {
 
   /* ── Feedback ───────────────────────────────────────────── */
   .notice-success {
-    @apply rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900;
+    @apply rounded-md border border-[#cfe0d4] bg-[var(--success-soft)] px-3 py-2 text-sm text-[#1f4f34];
   }
   .notice-error {
-    @apply rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900;
+    @apply rounded-md border border-[#ecc9c1] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[#7d2416];
   }
   .notice-info {
-    @apply rounded-lg border border-[var(--border-soft)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--foreground)];
+    @apply rounded-md border border-[var(--border-soft)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--foreground)];
   }
   .notice-warning {
-    @apply rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950;
+    @apply rounded-md border border-[#ead8b0] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[#5f3d00];
   }
 
   /* ── Buttons ────────────────────────────────────────────── */
   .btn-primary {
-    background: var(--brand-deep);
-    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#33302b] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-3.5;
+    background: var(--accent);
+    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-[var(--accent-hover)] active:bg-[var(--accent-ink)] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-3.5;
   }
 
   .btn-secondary {
-    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg border border-[var(--border-strong)] bg-white px-4 text-sm font-medium whitespace-nowrap text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-3.5;
+    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-medium whitespace-nowrap text-[var(--foreground)] transition-colors hover:border-[#b9b4bd] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-3.5;
   }
 
   .btn-ghost {
-    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium whitespace-nowrap text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-2.5;
+    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-md px-3 text-sm font-medium whitespace-nowrap text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-2.5;
   }
 
   .btn-danger {
-    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg bg-[var(--danger)] px-4 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#912018] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-3.5;
+    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-md bg-[var(--danger)] px-4 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-[#87261a] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-3.5;
   }
 
+  /* Destructive actions stay outline-only and sit apart from their neighbours. */
   .btn-danger-quiet {
-    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-4 text-sm font-medium whitespace-nowrap text-[var(--danger)] transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-3.5;
+    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-md border border-[#e3bdb4] bg-[var(--surface)] px-4 text-sm font-medium whitespace-nowrap text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:px-3.5;
   }
 
   .btn-sm {
@@ -144,16 +194,16 @@ body {
   }
 
   .icon-btn {
-    @apply inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg text-[var(--muted-text)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] sm:h-8 sm:w-8;
+    @apply inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-md text-[var(--muted-text)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-50 sm:h-8 sm:w-8;
   }
 
   .text-link {
-    @apply font-medium text-[var(--accent)] underline-offset-2 hover:underline;
+    @apply font-medium text-[var(--accent)] underline-offset-[3px] hover:underline;
   }
 
   /* ── Forms ──────────────────────────────────────────────── */
   .input-luxe {
-    @apply mt-1.5 block min-h-11 w-full rounded-lg border border-[var(--border-strong)] bg-white px-3 py-2 text-base text-[var(--foreground)] outline-none transition placeholder:text-zinc-400 focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 disabled:bg-[var(--surface-muted)] disabled:text-[var(--muted-text)] aria-invalid:border-rose-400 sm:min-h-9 sm:text-sm;
+    @apply mt-1.5 block min-h-11 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-base text-[var(--foreground)] outline-none transition placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 disabled:bg-[var(--surface-muted)] disabled:text-[var(--muted-text)] aria-invalid:border-[var(--danger)] aria-invalid:ring-2 aria-invalid:ring-[var(--danger)]/10 sm:min-h-9 sm:text-sm;
   }
 
   .form-label {
@@ -165,7 +215,7 @@ body {
   }
 
   .field-error {
-    @apply mt-1 text-xs font-medium text-[var(--danger)];
+    @apply mt-1.5 text-[13px] font-medium text-[var(--danger)];
   }
 
   /* ── Status (dot + label, sentence case) ─────────────────── */
@@ -174,61 +224,113 @@ body {
   }
   .status::before {
     content: "";
-    @apply h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400;
+    @apply h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--faint)];
   }
-  .status-success::before { background: #2f8a57; }
-  .status-warning::before { background: #d08a12; }
-  .status-danger::before { background: #d4483b; }
+  .status-success::before { background: #2f7a51; }
+  .status-warning::before { background: #c4830f; }
+  .status-danger::before { background: #c2412d; }
   .status-muted { color: var(--muted-text); }
-  .status-muted::before { background: #c7c1b7; }
+  .status-muted::before { background: #aaa6ae; }
 
   .badge-soft,
   .badge-neutral,
   .badge-success,
   .badge-warning,
   .badge-danger {
-    @apply inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium whitespace-nowrap;
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap;
   }
-  .badge-soft { @apply bg-[var(--accent-soft)] text-[#6b4815]; }
+  .badge-soft { @apply bg-[var(--accent-soft)] text-[var(--accent-ink)]; }
   .badge-neutral { @apply bg-[var(--surface-muted)] text-[var(--muted-text)]; }
-  .badge-success { @apply bg-emerald-50 text-emerald-800; }
-  .badge-warning { @apply bg-amber-50 text-amber-900; }
-  .badge-danger { @apply bg-rose-50 text-rose-800; }
+  .badge-success { @apply bg-[var(--success-soft)] text-[var(--success)]; }
+  .badge-warning { @apply bg-[var(--warning-soft)] text-[var(--warning)]; }
+  .badge-danger { @apply bg-[var(--danger-soft)] text-[var(--danger)]; }
 
   /* ── Tabs ───────────────────────────────────────────────── */
   .tab-list {
-    @apply flex gap-1 overflow-x-auto border-b border-[var(--border-soft)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+    @apply flex gap-1 overflow-x-auto border-b border-[var(--border-strong)] [scrollbar-width:none] max-sm:pr-6 max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] [&::-webkit-scrollbar]:hidden;
   }
   .tab {
-    @apply -mb-px inline-flex min-h-11 shrink-0 items-center border-b-2 border-transparent px-3 text-sm font-medium text-[var(--muted-text)] transition-colors hover:text-[var(--foreground)];
+    @apply -mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-3 text-sm font-medium text-[var(--muted-text)] transition-colors hover:text-[var(--foreground)];
   }
   .tab[aria-current="page"],
   .tab[aria-selected="true"] {
-    @apply border-[var(--foreground)] text-[var(--foreground)];
+    @apply border-[var(--accent)] font-semibold text-[var(--foreground)];
   }
 
   .segmented {
-    @apply inline-flex rounded-lg border border-[var(--border-soft)] bg-[var(--surface-muted)] p-0.5;
+    @apply inline-flex rounded-md border border-[var(--border-soft)] bg-[var(--surface-muted)] p-0.5;
   }
   .segmented > * {
-    @apply inline-flex min-h-9 items-center rounded-md px-3 text-[13px] font-medium text-[var(--muted-text)] transition-colors sm:min-h-8;
+    @apply inline-flex min-h-9 items-center rounded-[5px] px-3 text-[13px] font-medium text-[var(--muted-text)] transition-colors hover:text-[var(--foreground)] sm:min-h-8;
   }
   .segmented > [aria-pressed="true"],
   .segmented > [aria-current="true"] {
-    @apply bg-white text-[var(--foreground)] shadow-[0_1px_2px_rgba(0,0,0,0.06)];
+    @apply bg-[var(--surface)] text-[var(--foreground)] shadow-[0_1px_2px_rgba(39,38,43,0.08)];
+  }
+
+  /* ── Place register ─────────────────────────────────────── */
+  .register-strip {
+    @apply relative flex h-2.5 w-full overflow-hidden rounded-[3px] border border-[var(--border-strong)] bg-[var(--surface)];
+  }
+  .register-strip > .seg {
+    @apply h-full shrink-0;
+  }
+  .register-strip > .seg-ink { background: var(--foreground); }
+  .register-strip > .seg-accent { background: var(--accent); }
+  .register-strip > .seg-soft { background: #a3a1a7; }
+  .register-strip > .seg-pale { background: #e7e5e8; }
+  .register-strip > .seg-hatch {
+    background: repeating-linear-gradient(135deg, #a3a1a7 0 1.5px, transparent 1.5px 4px);
+  }
+  .register-strip > .seg-over { background: var(--danger); }
+  .register-strip > .ticks {
+    @apply pointer-events-none absolute inset-0;
+    background-image: repeating-linear-gradient(to right, transparent 0 calc(var(--tick) - 1px), var(--border-soft) calc(var(--tick) - 1px) var(--tick));
   }
 
   /* ── Dialogs ────────────────────────────────────────────── */
   .modal-backdrop {
-    @apply fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 sm:items-center sm:p-4;
+    @apply fixed inset-0 z-50 flex items-end justify-center bg-[#27262b]/40 p-0 sm:items-center sm:p-4;
   }
 
   .modal-panel {
-    @apply w-full max-w-md rounded-t-2xl border border-[var(--border-soft)] bg-white p-5 shadow-xl sm:rounded-xl;
+    @apply w-full max-w-md rounded-t-xl border border-[var(--border-soft)] bg-[var(--surface)] p-5 shadow-[0_12px_32px_rgba(39,38,43,0.18)] sm:rounded-lg;
   }
 
   .sheet {
-    @apply m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-2xl border border-[var(--border-soft)] bg-white p-0 text-[var(--foreground)] shadow-2xl backdrop:bg-zinc-900/40 sm:m-auto sm:max-h-[min(88dvh,52rem)] sm:max-w-xl sm:rounded-xl;
+    @apply m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-xl border border-[var(--border-soft)] bg-[var(--surface)] p-0 text-[var(--foreground)] shadow-[0_16px_40px_rgba(39,38,43,0.2)] backdrop:bg-[#27262b]/40 sm:m-auto sm:max-h-[min(88dvh,52rem)] sm:max-w-xl sm:rounded-lg;
+  }
+}
+
+/* ─── Guest invitation ─────────────────────────────────────── */
+/* The same register, set more expressively: a cream sheet on paper, a plum double rule. */
+.invite {
+  --inv-ground: #f2ede4;
+  --inv-sheet: #fffdf8;
+  --inv-rule: #e3d9c8;
+  --inv-ink: #221b17;
+  --inv-muted: #6b6157;
+  --inv-accent: #7a2e63;
+  --inv-accent-soft: #f4e8ef;
+  background: var(--inv-ground);
+  color: var(--inv-ink);
+}
+
+@layer components {
+  .invite-sheet {
+    @apply rounded-[10px] border border-[var(--inv-rule)] bg-[var(--inv-sheet)] shadow-[0_1px_2px_rgba(34,27,23,0.05),0_28px_56px_-36px_rgba(60,34,48,0.35)];
+  }
+  .invite-rule {
+    @apply mx-auto h-[5px] w-16 border-y border-[var(--inv-accent)]/60;
+  }
+  .invite-label {
+    @apply text-[11px] font-semibold tracking-[0.14em] text-[var(--inv-muted)] uppercase;
+  }
+  .invite-btn {
+    @apply flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-md bg-[var(--inv-accent)] px-5 text-[15px] font-semibold text-white transition-colors hover:bg-[#63244f] active:bg-[#5a1f48] disabled:cursor-not-allowed disabled:opacity-55;
+  }
+  .invite-btn-quiet {
+    @apply inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-md border border-[var(--inv-rule)] bg-[var(--inv-sheet)] px-4 text-sm font-medium text-[var(--inv-ink)] transition-colors hover:border-[#cbbfa9] hover:bg-[#faf6ee] disabled:cursor-not-allowed disabled:opacity-55;
   }
 }
 
@@ -309,11 +411,47 @@ dialog.sheet[open] {
 }
 
 .rdp-root {
-  --rdp-accent-color: #7a5d35;
-  --rdp-background-color: #f3ecdf;
+  --rdp-accent-color: var(--accent);
+  --rdp-background-color: var(--accent-soft);
   margin: 0;
 }
 
 .rdp-day_button {
-  border-radius: 10px;
+  border-radius: 6px;
 }
+
+.scroll-reveal { transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+.scroll-reveal.reveal-pending { opacity: 0; transform: translateY(10px); }
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal, .scroll-reveal.reveal-pending { opacity: 1; transform: none; transition: none; }
+}
+
+/* Connected finance workspace: clear hierarchy, one record, focused tasks. */
+.finance-shell { max-width: 76rem; }
+.finance-shell .page-header { align-items: center; padding-bottom: 1.75rem; }
+.finance-shell .page-title { font-size: clamp(1.8rem, 2.2vw, 2.25rem); font-weight: 650; letter-spacing: -0.03em; }
+.finance-form { text-align: start; }
+.finance-form .input-luxe { min-height: 44px; margin-top: 6px; }
+.finance-form .form-label { font-size: 13px; line-height: 1.5; }
+.finance-options { border-top: 1px solid var(--border-soft); padding-top: 16px; }
+.finance-options summary { cursor: pointer; font-size: 13px; font-weight: 600; min-height: 24px; }
+.finance-budget-summary { background: white; border: 1px solid var(--border-soft); border-radius: 12px; padding: 24px; }
+.finance-budget-summary dt, .finance-cost-strip dt, .finance-vendor-row dt { font-size: 13px; color: var(--muted-text); }
+.finance-budget-summary dd { margin-top: 10px; font-size: clamp(24px, 2.4vw, 34px); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.025em; line-height: 1.2; }
+.finance-budget-summary .finance-remaining dd { color: var(--accent-ink); }
+.finance-budget-summary .finance-remaining dd.text-\[var\(--danger\)\] { color: var(--danger); }
+.finance-cost-strip { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; padding: 24px 0; border-block: 1px solid var(--border-soft); }
+.finance-cost-strip dd { margin-top: 8px; font-size: clamp(21px,2.6vw,34px); line-height: 1.2; letter-spacing: -0.025em; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.finance-vendors { border-block: 1px solid var(--border-soft); }
+.finance-vendor-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 12px; border-bottom: 1px solid var(--border-soft); transition: background 150ms ease; }
+.finance-vendor-row:last-child { border-bottom: 0; }
+.finance-vendor-row:hover { background: var(--surface-muted); }
+.finance-vendor-row dd { margin-top: 6px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.finance-detail-grid { display: grid; gap: 40px; margin-top: 36px; }
+.finance-secondary { border-top: 1px solid var(--border-soft); padding-top: 24px; }
+.finance-record-link { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-underline-offset: 4px; }
+.finance-record-link:hover { text-decoration: underline; color: var(--accent-ink); }
+.finance-table th { text-transform: none; letter-spacing: 0; font-size: 12px; padding-block: 14px; background: var(--surface-muted); }
+.finance-table td { padding-block: 20px; }
+@media (min-width: 1280px) { .finance-detail-grid { grid-template-columns: minmax(0,1fr) 240px; gap: 48px; } .finance-secondary { border-top: 0; padding-top: 0; } }
+@media (max-width: 639px) { .finance-budget-summary { padding: 20px; } .finance-budget-summary dl { grid-template-columns: 1fr 1fr; gap: 20px; } .finance-budget-summary .finance-remaining { grid-column: 1 / -1; border-top: 1px solid var(--border-soft); padding-top: 20px; } .finance-budget-summary .finance-remaining dd { font-size: 36px; } .finance-shell .page-header > div:last-child { gap: 8px; } .finance-cost-strip { gap: 10px; } .finance-cost-strip dt { font-size: 12px; } .finance-vendor-row { padding-inline: 0; } .finance-vendor-row dl { width: 100%; } }

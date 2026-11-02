@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Ellipsis, Plus } from "lucide-react";
 import { CreatorRealtimeFilters, SuperAdminOwnerFilter } from "@/components/admin/admin-events-filters";
-import { EmptyState, PageHeader, Stat, StatStrip } from "@/components/admin/planning-ui";
+import { EmptyState, PageHeader, PlaceRegister, Stat, StatStrip } from "@/components/admin/planning-ui";
 import { Menu, MenuItem } from "@/components/admin/ui/menu";
 import { isSuperAdmin, requireCurrentAdminUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -256,11 +256,11 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
       {isSuper && scope.kind === "all" && !isTrueEmptyList ? (
         <div className="mb-5">
           <StatStrip columns={5}>
-            <Stat label="Events" value={visibleEvents.length} />
-            <Stat label="Creators" value={totalCreatorsStat} />
-            <Stat label="Households invited" value={invitedFamilies} />
-            <Stat label="People confirmed" value={confirmedAttendees} />
-            <Stat label="Closing soon" value={closingSoonCount} />
+            <Stat label="events" value={visibleEvents.length} />
+            <Stat label="creators" value={totalCreatorsStat} />
+            <Stat label="households invited" value={invitedFamilies} />
+            <Stat label="people confirmed" value={confirmedAttendees} />
+            <Stat label="closing soon" value={closingSoonCount} />
           </StatStrip>
         </div>
       ) : null}
@@ -352,7 +352,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                   <th scope="col" className="text-right">
                     Replied
                   </th>
-                  <th scope="col" className="text-right">
+                  <th scope="col" className="w-48">
                     Coming
                   </th>
                   <th scope="col">Replies close</th>
@@ -374,7 +374,24 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                     </td>
                     <td className="whitespace-nowrap">{when || <span className="text-[var(--muted-text)]">Not set</span>}</td>
                     <td className="text-right tabular-nums">{a.households === 0 ? "—" : `${a.respondedHouseholds} of ${a.countedHouseholds}`}</td>
-                    <td className="text-right tabular-nums">{a.households === 0 ? "—" : `${a.confirmedPeople} of ${a.invitedPeople}`}</td>
+                    <td className="tabular-nums">
+                      {a.households === 0 ? (
+                        "—"
+                      ) : (
+                        <>
+                          <span className="font-semibold">{a.confirmedPeople}</span> of {a.invitedPeople}
+                          {a.invitedPeople > 0 ? (
+                            <div className="mt-1.5 w-40">
+                              <PlaceRegister
+                                total={a.invitedPeople}
+                                segments={[{ places: a.confirmedPeople, tone: "ink", label: "Coming" }]}
+                                label={`${a.confirmedPeople} of ${a.invitedPeople} coming`}
+                              />
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </td>
                     <td>
                       {deadline ? (
                         <span className={`status ${deadline.tone === "warn" ? "status-warning" : "status-muted"}`}>{deadline.short}</span>

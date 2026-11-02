@@ -64,7 +64,14 @@ export default async function GuestsPage({ searchParams }: Props) {
     const mine = perm.allocation ? usage.allocations.find((a) => a.id === perm.allocation!.id) : null;
     const visible = canSeeAllGuests(perm) ? usage.allocations : usage.allocations.filter((a) => a.userId === admin.id);
     for (const a of visible) {
-      allowances.push({ eventId: e.id, eventTitle: e.title, memberName: a.userId === admin.id ? "You" : a.userName, places: a.places, used: a.used });
+      allowances.push({
+        eventId: e.id,
+        eventTitle: e.title,
+        memberName: a.userId === admin.id ? "You" : a.userName,
+        places: a.places,
+        used: a.used,
+        declinedPlaces: a.declinedPlaces,
+      });
     }
     directoryEvents.push({
       id: e.id,
@@ -113,7 +120,7 @@ export default async function GuestsPage({ searchParams }: Props) {
       ({ key, name: g.guestName, group: g.group, contact, managers: [], cells: {} } satisfies DirectoryHousehold);
     if (!h.contact && contact) h.contact = contact;
     if (!h.group && g.group) h.group = g.group;
-    const manager = g.managedByUserId ? (memberName.get(g.managedByUserId) ?? "Former member") : null;
+    const manager = g.managedByUserId ? (g.managedByUserId === admin.id ? "You" : (memberName.get(g.managedByUserId) ?? "Former member")) : null;
     if (manager && !h.managers.includes(manager)) h.managers.push(manager);
     const exclusion = effectiveExclusionFields(g);
     h.cells[g.eventId] = {
@@ -154,7 +161,7 @@ export default async function GuestsPage({ searchParams }: Props) {
   let rows = [...households.values()];
   if (eventFilter) rows = rows.filter((h) => h.cells[eventFilter]);
   if (memberFilter) {
-    const name = memberName.get(memberFilter)!;
+    const name = memberFilter === admin.id ? "You" : memberName.get(memberFilter)!;
     rows = rows.filter((h) => h.managers.includes(name));
   }
   if (statusFilter) {
@@ -175,7 +182,7 @@ export default async function GuestsPage({ searchParams }: Props) {
     <main className="app-shell">
       <GuestDirectory
         events={directoryEvents}
-        members={members.map((m) => ({ id: m.userId, name: m.user.name }))}
+        members={members.map((m) => ({ id: m.userId, name: m.userId === admin.id ? "You" : m.user.name }))}
         rows={pageRows}
         matchCount={rows.length}
         totalHouseholds={totalHouseholds}

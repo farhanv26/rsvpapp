@@ -1,11 +1,15 @@
 export default function RsvpLoading() {
   return (
-    <main className="relative flex min-h-dvh items-center justify-center px-4 py-10">
-      <div className="w-full max-w-lg rounded-[2rem] border border-[#d9bf7b]/40 bg-[#fdfaf4] p-6 shadow-[0_28px_80px_-48px_rgba(90,70,40,0.45)]">
-        <div className="h-72 animate-pulse rounded-[1.4rem] bg-[#f2e8d6]" />
-        <div className="mt-5 h-6 w-2/3 animate-pulse rounded bg-[#efe2cd]" />
-        <div className="mt-3 h-4 w-5/6 animate-pulse rounded bg-[#f0e5d2]" />
-        <div className="mt-8 h-28 animate-pulse rounded-2xl bg-[#f2e8d6]" />
+    <main className="flex min-h-dvh items-center justify-center px-4 py-10" aria-busy="true">
+      <span className="sr-only" role="status">
+        Loading your invitation
+      </span>
+      <div className="invite-sheet w-full max-w-xl animate-pulse px-8 py-10 motion-reduce:animate-none" aria-hidden>
+        <div className="invite-rule" />
+        <div className="mx-auto mt-7 h-9 w-2/3 rounded bg-[#efe8dc]" />
+        <div className="mx-auto mt-4 h-3 w-24 rounded bg-[#efe8dc]" />
+        <div className="mx-auto mt-10 h-5 w-1/2 rounded bg-[#efe8dc]" />
+        <div className="mx-auto mt-3 h-4 w-3/4 rounded bg-[#efe8dc]" />
       </div>
     </main>
   );

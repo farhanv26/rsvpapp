@@ -20,6 +20,7 @@ model Wedding {
   backfillKey String?  @unique
   /// ISO 4217 code used for every budget amount in this wedding.
   currency    String   @default("USD")
+  plannedBudgetMinor Int?
   /// IANA timezone used when an event has none of its own.
   timezone    String?
   /// Greeting pre-selected for new households (existing households keep their own).
@@ -33,6 +34,8 @@ model Wedding {
 }
 
 model Vendor {
+  version Int @default(0)
+  requestKey String? @unique
   id          String    @id @default(cuid())
   weddingId   String
   name        String
@@ -53,12 +56,15 @@ model Vendor {
 
   wedding     Wedding      @relation(fields: [weddingId], references: [id], onDelete: Cascade)
   budgetItems BudgetItem[]
+  contracts   VendorContract[]
 
   @@index([weddingId, deletedAt])
 }
 
 /// One expense line. eventId null = shared across the wedding; each line is counted exactly once.
 model BudgetItem {
+  version Int @default(0)
+  requestKey String? @unique
   id             String    @id @default(cuid())
   weddingId      String
   eventId        String?
@@ -90,6 +96,12 @@ model BudgetItem {
 }
 
 model BudgetPayment {
+  version Int @default(0)
+  requestKey String? @unique
+  method String?
+  reference String?
+  deletedAt DateTime?
+  updatedAt DateTime @default(now()) @updatedAt
   id           String   @id @default(cuid())
   budgetItemId String
   amountMinor  Int
@@ -349,4 +361,21 @@ model RsvpActivity {
 
   @@index([eventId, createdAt(sort: Desc)])
   @@index([guestId, createdAt(sort: Desc)])
+}
+
+/// Private attachments; served only through an authenticated, wedding-scoped route.
+model VendorContract {
+  requestKey String? @unique
+  digest String?
+  id String @id @default(cuid())
+  vendorId String
+  name String
+  contentType String
+  size Int
+  content Bytes
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  @@index([vendorId, deletedAt])
+  @@unique([vendorId, digest])
 }

@@ -169,9 +169,9 @@ export function PhoneCountryCombobox({ valueId, onChange, compact, disabled, cla
               width: panelBox.width,
               zIndex: PANEL_Z,
             }}
-            className="overflow-hidden rounded-xl border border-[#dccfbb] bg-white shadow-[0_12px_40px_-16px_rgba(47,35,20,0.35)]"
+            className="overflow-hidden rounded-xl border border-[var(--border-strong)] bg-white shadow-[0_12px_40px_-16px_rgba(47,35,20,0.35)]"
           >
-            <div className="border-b border-[#eee8dc] p-2">
+            <div className="border-b border-[var(--border-soft)] p-2">
               <input
                 ref={searchRef}
                 type="search"
@@ -182,7 +182,7 @@ export function PhoneCountryCombobox({ valueId, onChange, compact, disabled, cla
                 }}
                 onKeyDown={onSearchKeyDown}
                 placeholder="Search country or code…"
-                className="w-full rounded-lg border border-[#e7dfd0] bg-[#fdfaf3] px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#c4a574] focus:outline-none focus:ring-1 focus:ring-[#c4a574]/50"
+                className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-sm text-zinc-900 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/50"
                 aria-label="Search countries"
                 autoComplete="off"
               />
@@ -203,7 +203,7 @@ export function PhoneCountryCombobox({ valueId, onChange, compact, disabled, cla
                     aria-selected={entry.id === valueId}
                     data-index={i}
                     className={`flex min-h-[44px] cursor-pointer items-center gap-2 px-3 py-2 text-sm ${
-                      i === effectiveHighlight ? "bg-[#f4ead8]" : "hover:bg-[#faf6ee]"
+                      i === effectiveHighlight ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]"
                     } ${entry.id === valueId ? "font-medium text-zinc-900" : "text-zinc-800"}`}
                     onMouseEnter={() => setHighlight(i)}
                     onMouseDown={(e) => {
@@ -239,7 +239,7 @@ export function PhoneCountryCombobox({ valueId, onChange, compact, disabled, cla
         aria-controls={listId}
         onClick={toggleOpen}
         onKeyDown={onBtnKeyDown}
-        className={`flex h-full min-h-[40px] w-full min-w-0 flex-1 items-center justify-between gap-1.5 rounded-none border-0 bg-transparent px-2.5 pl-3 text-left text-sm text-zinc-900 outline-none transition hover:bg-zinc-50/80 focus-visible:z-[1] focus-visible:ring-2 focus-visible:ring-[#b28944]/40 sm:min-w-[8.25rem] ${
+        className={`flex h-full min-h-[40px] w-full min-w-0 flex-1 items-center justify-between gap-1.5 rounded-none border-0 bg-transparent px-2.5 pl-3 text-left text-sm text-zinc-900 outline-none transition hover:bg-zinc-50/80 focus-visible:z-[1] focus-visible:ring-2 focus-visible:ring-[var(--accent-hover)]/40 sm:min-w-[8.25rem] ${
           compact ? "sm:min-w-[8.75rem]" : ""
         } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
       >

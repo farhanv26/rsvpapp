@@ -86,8 +86,8 @@ export function GuestCommunicationHistoryModal({ open, onClose, eventId, guestId
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <button type="button" className="absolute inset-0 bg-black/50" aria-label="Close" onClick={onClose} />
-      <div className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffdfa] shadow-xl">
-        <div className="border-b border-[#efe4d4] px-5 py-4">
+      <div className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] shadow-xl">
+        <div className="border-b border-[var(--border-soft)] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Communication history</p>
@@ -107,7 +107,7 @@ export function GuestCommunicationHistoryModal({ open, onClose, eventId, guestId
                 id="comm-history-channel"
                 value={channel}
                 onChange={(e) => setChannel(e.target.value)}
-                className="rounded-xl border border-[#dccfbb] bg-white px-2 py-1.5 text-xs text-zinc-900"
+                className="rounded-xl border border-[var(--border-strong)] bg-white px-2 py-1.5 text-xs text-zinc-900"
               >
                 <option value="all">All</option>
                 <option value="whatsapp">WhatsApp</option>
@@ -125,7 +125,7 @@ export function GuestCommunicationHistoryModal({ open, onClose, eventId, guestId
                 onChange={(e) =>
                   setActionCategory(e.target.value as "all" | GuestCommunicationActionCategory)
                 }
-                className="rounded-xl border border-[#dccfbb] bg-white px-2 py-1.5 text-xs text-zinc-900"
+                className="rounded-xl border border-[var(--border-strong)] bg-white px-2 py-1.5 text-xs text-zinc-900"
               >
                 <option value="all">All</option>
                 <option value="invite_marked">Invite marked sent</option>
@@ -143,7 +143,7 @@ export function GuestCommunicationHistoryModal({ open, onClose, eventId, guestId
                 id="comm-history-limit"
                 value={String(limit)}
                 onChange={(e) => setLimit(Number(e.target.value))}
-                className="rounded-xl border border-[#dccfbb] bg-white px-2 py-1.5 text-xs text-zinc-900"
+                className="rounded-xl border border-[var(--border-strong)] bg-white px-2 py-1.5 text-xs text-zinc-900"
               >
                 <option value="10">10 recent</option>
                 <option value="25">25 recent</option>
@@ -160,7 +160,7 @@ export function GuestCommunicationHistoryModal({ open, onClose, eventId, guestId
           ) : error ? (
             <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>
           ) : entries.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-4 py-8 text-center text-sm text-zinc-600">
+            <p className="rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)] px-4 py-8 text-center text-sm text-zinc-600">
               No entries match these filters. Try &quot;All&quot; channel and action, or a larger &quot;Show&quot; window.
             </p>
           ) : (
@@ -168,7 +168,7 @@ export function GuestCommunicationHistoryModal({ open, onClose, eventId, guestId
               {entries.map((e) => (
                 <li
                   key={e.id}
-                  className="rounded-xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3 text-sm"
+                  className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted)] px-4 py-3 text-sm"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium text-zinc-900">{e.label}</span>

@@ -102,7 +102,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
   }
 
   return (
-    <div className={embedded ? "" : "app-card p-5"}>
+    <div className={embedded ? "" : "paper-sheet p-5"}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           {embedded ? null : <h2 className="section-heading">Import guests from CSV</h2>}
@@ -152,7 +152,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
             onBlur={() => parseAndSet(csvText)}
             rows={6}
             placeholder={`guestName,men,women,kids,greeting,group,tableName,notes,phone,phoneCountryCode\nThe Valli Family,2,2,1,Assalamu Alaikum,Family,Table 1,,+44 7415 980802,`}
-            className="w-full rounded-md border border-[var(--border-soft)] bg-white px-3 py-2 font-mono text-sm text-[var(--foreground)] placeholder:text-zinc-400"
+            className="w-full rounded-md border border-[var(--border-soft)] bg-white px-3 py-2 font-mono text-sm text-[var(--foreground)] placeholder:text-[var(--faint)]"
           />
           <p className="mt-1.5 text-xs text-[var(--muted-text)]">Paste rows or drop a .csv file here.</p>
         </div>
@@ -240,7 +240,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                         <input
                           value={row.data.guestName}
                           onChange={(e) => updateRowField(i, { guestName: e.target.value })}
-                          className="w-full min-w-[7rem] rounded-lg border border-[#e7dfd0] bg-white px-2 py-1 text-xs text-zinc-900 outline-none focus:border-[#c4a574] sm:text-sm"
+                          className="w-full min-w-[7rem] rounded-lg border border-[var(--border-strong)] bg-white px-2 py-1 text-xs text-zinc-900 outline-none focus:border-[var(--accent)] sm:text-sm"
                         />
                       ) : (
                         <span className="text-zinc-400">—</span>
@@ -253,7 +253,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                           min={0}
                           value={row.data.menCount}
                           onChange={(e) => updateRowField(i, { menCount: Number(e.target.value) || 0 })}
-                          className="w-full rounded-lg border border-[#e7dfd0] bg-white px-1 py-1 text-xs tabular-nums outline-none focus:border-[#c4a574]"
+                          className="w-full rounded-lg border border-[var(--border-strong)] bg-white px-1 py-1 text-xs tabular-nums outline-none focus:border-[var(--accent)]"
                         />
                       ) : (
                         "—"
@@ -266,7 +266,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                           min={0}
                           value={row.data.womenCount}
                           onChange={(e) => updateRowField(i, { womenCount: Number(e.target.value) || 0 })}
-                          className="w-full rounded-lg border border-[#e7dfd0] bg-white px-1 py-1 text-xs tabular-nums outline-none focus:border-[#c4a574]"
+                          className="w-full rounded-lg border border-[var(--border-strong)] bg-white px-1 py-1 text-xs tabular-nums outline-none focus:border-[var(--accent)]"
                         />
                       ) : (
                         "—"
@@ -279,7 +279,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                           min={0}
                           value={row.data.kidsCount}
                           onChange={(e) => updateRowField(i, { kidsCount: Number(e.target.value) || 0 })}
-                          className="w-full rounded-lg border border-[#e7dfd0] bg-white px-1 py-1 text-xs tabular-nums outline-none focus:border-[#c4a574]"
+                          className="w-full rounded-lg border border-[var(--border-strong)] bg-white px-1 py-1 text-xs tabular-nums outline-none focus:border-[var(--accent)]"
                         />
                       ) : (
                         "—"
@@ -290,7 +290,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                         <input
                           value={row.data.greeting ?? ""}
                           onChange={(e) => updateRowField(i, { greeting: e.target.value || undefined })}
-                          className="w-full min-w-[6rem] rounded-lg border border-[#e7dfd0] bg-white px-2 py-1 text-xs outline-none focus:border-[#c4a574]"
+                          className="w-full min-w-[6rem] rounded-lg border border-[var(--border-strong)] bg-white px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
                           placeholder="Greeting"
                         />
                       ) : (
@@ -302,7 +302,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                         <input
                           value={row.data.group ?? ""}
                           onChange={(e) => updateRowField(i, { group: e.target.value || undefined })}
-                          className="w-full min-w-[5rem] rounded-lg border border-[#e7dfd0] bg-white px-2 py-1 text-xs outline-none focus:border-[#c4a574]"
+                          className="w-full min-w-[5rem] rounded-lg border border-[var(--border-strong)] bg-white px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
                           placeholder="Group"
                         />
                       ) : (
@@ -316,7 +316,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                           onChange={(e) =>
                             updateRowField(i, { phoneCountryCode: e.target.value || undefined })
                           }
-                          className="w-full max-w-[9rem] rounded-lg border border-[#e7dfd0] bg-white px-1 py-1 text-[11px] outline-none focus:border-[#c4a574] sm:text-xs"
+                          className="w-full max-w-[9rem] rounded-lg border border-[var(--border-strong)] bg-white px-1 py-1 text-[11px] outline-none focus:border-[var(--accent)] sm:text-xs"
                           title="Country code (optional if phone starts with +)"
                         >
                           <option value="">Auto / from phone</option>
@@ -335,7 +335,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                         <input
                           value={row.data.phone ?? ""}
                           onChange={(e) => updateRowField(i, { phone: e.target.value || undefined })}
-                          className="w-full min-w-[8rem] rounded-lg border border-[#e7dfd0] bg-white px-2 py-1 font-mono text-[11px] text-zinc-900 outline-none focus:border-[#c4a574] sm:text-xs"
+                          className="w-full min-w-[8rem] rounded-lg border border-[var(--border-strong)] bg-white px-2 py-1 font-mono text-[11px] text-zinc-900 outline-none focus:border-[var(--accent)] sm:text-xs"
                           placeholder="+44… or digits"
                           spellCheck={false}
                         />
@@ -349,7 +349,7 @@ export function GuestCsvImport({ eventId, existingGuestNameKeys, embedded = fals
                           type="email"
                           value={row.data.email ?? ""}
                           onChange={(e) => updateRowField(i, { email: e.target.value || undefined })}
-                          className="w-full min-w-[8rem] rounded-lg border border-[#e7dfd0] bg-white px-2 py-1 text-xs outline-none focus:border-[#c4a574]"
+                          className="w-full min-w-[8rem] rounded-lg border border-[var(--border-strong)] bg-white px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
                           placeholder="Email"
                         />
                       ) : (

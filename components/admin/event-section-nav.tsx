@@ -120,7 +120,7 @@ export function EventSectionNav({ items }: Props) {
 
   return (
     <div
-      className="sticky top-2 z-30 rounded-2xl border border-[#e7dccb] bg-[#fffdfa]/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-[#fffdfa]/80 lg:shadow-[0_12px_36px_-28px_rgba(71,52,29,0.22)] lg:transition-[opacity,box-shadow] lg:duration-300 lg:ease-out"
+      className="sticky top-2 z-30 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)]/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-[var(--surface)]/80 lg:shadow-[0_12px_36px_-28px_rgba(71,52,29,0.22)] lg:transition-[opacity,box-shadow] lg:duration-300 lg:ease-out"
       style={navChrome.fade ? { opacity: navChrome.opacity } : undefined}
     >
       <div className="flex gap-2 overflow-x-auto pb-1 lg:gap-2.5 lg:px-0.5">
@@ -139,8 +139,8 @@ export function EventSectionNav({ items }: Props) {
               }}
               className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition lg:py-2 ${
                 active
-                  ? "bg-[#3f2f1f] text-white"
-                  : "border border-[#e7dccb] bg-[#fbf8f2] text-zinc-700 hover:bg-[#f4ece0]"
+                  ? "bg-[var(--accent-ink)] text-white"
+                  : "border border-[var(--border-soft)] bg-[var(--surface-muted)] text-zinc-700 hover:bg-[var(--accent-soft)]"
               }`}
             >
               {item.label}

@@ -286,7 +286,7 @@ export default async function EventReportPage({ params }: Props) {
           .report-break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
         }
       `}</style>
-      <main className="min-h-screen bg-[#f4f1ea] print:bg-white">
+      <main className="min-h-screen bg-[var(--background)] print:bg-white">
         <div className="report-no-print mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <Link href={`/admin/events/${event.id}`} className="text-sm font-medium text-zinc-600 hover:text-zinc-900">
             ← Event dashboard

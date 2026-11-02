@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { saveGuestAction, type GuestFormResult } from "@/app/admin/events/guest-form-actions";
 import { GuestPhoneFields } from "@/components/admin/guest-phone-fields";
 import { Dialog } from "@/components/admin/ui/dialog";
+import { AllowanceRegister } from "@/components/admin/planning-ui";
 
 export type GuestFormGuest = {
   id: string;
@@ -195,18 +197,21 @@ export function GuestFormDialog({
             <CountInput label="Women" name="womenCount" value={women} onChange={editCount(setWomen)} invalid={countsInvalid} />
             <CountInput label="Kids" name="kidsCount" value={kids} onChange={editCount(setKids)} invalid={countsInvalid} />
           </div>
-          <p
-            id="guest-form-places"
-            className={`mt-2 text-sm ${overAllowance && !countsInvalid ? "font-medium text-[var(--danger)]" : "text-[var(--muted-text)]"}`}
-            aria-live="polite"
-          >
-            {total === 1 ? "1 place" : `${total} places`}
-            {allowance && projected !== null && !countsInvalid
-              ? overAllowance
-                ? ` · ${projected} of your ${allowance.places} places — ${projected - allowance.places} over your allowance`
-                : ` · ${projected} of your ${allowance.places} places allocated`
-              : ""}
-          </p>
+          <div id="guest-form-places" className="mt-3" aria-live="polite">
+            <p className="text-sm text-[var(--muted-text)] tabular-nums">
+              This household takes <span className="font-semibold text-[var(--foreground)]">{total === 1 ? "1 place" : `${total} places`}</span>
+            </p>
+            {allowance && projected !== null ? (
+              <div className="mt-2.5 rounded-md bg-[var(--surface-muted)] px-3 py-2.5">
+                <AllowanceRegister compact name={`Your allowance${event ? ` · ${event.title}` : ""}`} used={projected} places={allowance.places} />
+                {overAllowance && !countsInvalid ? (
+                  <p className="field-error">
+                    {projected - allowance.places} over. Reduce the party size or ask an organizer for more places.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           {countsInvalid ? (
             <p className="field-error" role="alert">
               {error.error}
@@ -242,12 +247,10 @@ export function GuestFormDialog({
           </div>
         </div>
 
-        <details className="group rounded-lg border border-[var(--border-soft)]" open={hasMoreDetails || undefined}>
+        <details className="group rounded-md border border-[var(--border-soft)]" open={hasMoreDetails || undefined}>
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
             Greeting, group, table and notes
-            <span className="text-[var(--muted-text)] transition group-open:rotate-180" aria-hidden>
-              ▾
-            </span>
+            <ChevronDown className="h-4 w-4 text-[var(--muted-text)] transition group-open:rotate-180" aria-hidden />
           </summary>
           <div className="space-y-4 border-t border-[var(--border-soft)] p-3">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -287,7 +290,7 @@ export function GuestFormDialog({
               <input name="notes" defaultValue={guest?.notes ?? ""} className="input-luxe" />
             </label>
             <label className="flex items-start gap-2.5 text-sm">
-              <input type="checkbox" name="isFamilyInvite" value="true" defaultChecked={guest?.isFamilyInvite} className="mt-0.5 h-4 w-4 accent-[var(--foreground)]" />
+              <input type="checkbox" name="isFamilyInvite" value="true" defaultChecked={guest?.isFamilyInvite} className="mt-0.5 h-4 w-4" />
               <span>
                 Family invitation
                 <span className="block text-xs text-[var(--muted-text)]">Uses the family invitation card when the event has one.</span>

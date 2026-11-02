@@ -4,7 +4,6 @@ import { useState } from "react";
 import { RsvpForm } from "@/components/rsvp-form";
 
 const serif = "font-[family-name:var(--font-wedding-serif),Georgia,serif]";
-const script = "font-[family-name:var(--font-wedding-script),cursive]";
 
 type Props = {
   token: string;
@@ -47,53 +46,20 @@ export function RsvpResponsePanel({
   const isAttending = attending === true;
 
   return (
-    <div
-      className="w-full rounded-3xl border px-6 py-9 text-center shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]"
-      style={
-        isAttending
-          ? {
-              background: "linear-gradient(160deg, #f0fdf6 0%, #fffdfa 55%)",
-              borderColor: "#a7f3d0",
-            }
-          : {
-              background: "#fffdfa",
-              borderColor: "#e7dccb",
-            }
-      }
-    >
-      {/* Status icon */}
-      {isAttending ? (
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-50 shadow-[0_0_0_4px_rgba(16,185,129,0.1)]">
-          <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7 text-emerald-600" aria-hidden>
-            <path d="M4 12.5l5 5L20 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      ) : (
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-zinc-200 bg-zinc-50">
-          <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7 text-zinc-400" aria-hidden>
-            <path d="M12 8v5M12 16.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
-          </svg>
-        </div>
-      )}
-
-      <p className={`text-[0.6rem] font-semibold uppercase tracking-[0.26em] ${isAttending ? "text-emerald-600" : "text-zinc-400"}`}>
-        Reply received
-      </p>
-
-      <h2 className={`mt-2 text-[1.65rem] leading-tight text-zinc-900 ${serif}`}>
+    <div className="invite-sheet w-full px-6 pt-8 pb-7 text-center sm:px-8">
+      <div className="invite-rule" aria-hidden />
+      <h2 className={`mt-5 text-[1.75rem] leading-tight text-[var(--inv-ink)] ${serif}`}>
         {isAttending ? "We'll see you there" : "Thank you for letting us know"}
       </h2>
 
-      <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-zinc-600">
+      <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-[#4a413a]">
         {isAttending ? (
           <>
             We&apos;re so glad you&apos;re coming.
             {typeof attendingCount === "number" && attendingCount > 0 ? (
-              <>
-                <br />
+              <span className="mt-1 block font-semibold text-[var(--inv-accent)] tabular-nums">
                 {attendingCount === 1 ? "1 person confirmed." : `${attendingCount} people confirmed.`}
-              </>
+              </span>
             ) : null}
           </>
         ) : (
@@ -101,31 +67,23 @@ export function RsvpResponsePanel({
         )}
       </p>
 
-      <p className="mt-5 text-[0.65rem] uppercase tracking-[0.18em] text-zinc-500">
-        Sent {respondedAtLabel}
-      </p>
+      <p className="mt-4 text-[13px] text-[var(--inv-muted)]">Reply sent {respondedAtLabel}</p>
 
-      {/* Host message display */}
       {hostMessage ? (
-        <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-4 text-left">
-          <p className="text-[0.58rem] font-semibold uppercase tracking-[0.24em] text-zinc-400">Your note</p>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{hostMessage}</p>
+        <div className="mx-auto mt-6 max-w-sm border-t border-[var(--inv-rule)] pt-5 text-left">
+          <p className="text-[11px] font-semibold tracking-[0.14em] text-[var(--inv-muted)] uppercase">Your note</p>
+          <p className="mt-1.5 text-[15px] leading-relaxed whitespace-pre-wrap text-[#4a413a]">{hostMessage}</p>
         </div>
       ) : null}
 
-      {/* Edit / closed state */}
       {canEdit && !previewMode ? (
-        <button
-          type="button"
-          onClick={() => setIsEditing(true)}
-          className="btn-secondary mt-6"
-        >
+        <button type="button" onClick={() => setIsEditing(true)} className="invite-btn-quiet mt-6">
           Change my reply
         </button>
       ) : previewMode ? (
-        <p className="mt-5 text-xs text-zinc-400">Preview only. Changing the reply is turned off.</p>
+        <p className="mt-5 text-xs text-[var(--inv-muted)]">Preview only. Changing the reply is turned off.</p>
       ) : (
-        <p className="mt-5 text-sm text-zinc-600">Replies have closed. To change your plans, please contact your hosts.</p>
+        <p className="mt-5 text-sm text-[var(--inv-muted)]">Replies have closed. To change your plans, please contact your hosts.</p>
       )}
     </div>
   );

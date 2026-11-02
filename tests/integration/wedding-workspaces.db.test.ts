@@ -57,6 +57,11 @@ vi.mock("@/lib/admin-api-auth", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { authenticateAdminCredentials } from "@/lib/login-credentials";
+import { hash } from "bcryptjs";
+import { randomBytes } from "node:crypto";
+import { POST as uploadContract } from '@/app/admin/api/vendors/[vendorId]/contracts/route';
+import { GET as downloadContract, DELETE as removeContract } from '@/app/admin/api/vendors/[vendorId]/contracts/[contractId]/route';
 import { createAdminSessionToken } from "@/lib/admin-session";
 import {
   createGuestAction,
@@ -391,4 +396,44 @@ describe.skipIf(!env.enabled)("wedding workspaces (real Postgres)", () => {
       await expect(submitRsvpAction(form({ token: aKhan.token, attending: "no", previewMode: "1" }))).rejects.toThrow("preview mode");
     });
   });
+  describe('private vendor contracts (real Postgres)', () => {
+    it('stores private bytes, enforces wedding access and removes recoverably', async () => {
+      const vendor = await prisma.vendor.create({data:{weddingId:ids.weddingA,name:'Fictional catering contract test',category:'Caterer'}});
+      const url = `http://localhost/admin/api/vendors/${vendor.id}/contracts`;
+      const body = new FormData(); body.set('file',new File(['%PDF-1.7\nSynthetic test contract'],'agreement.pdf',{type:'application/pdf'}));
+      as(people.aMember);
+      const uploaded = await uploadContract(new Request(url,{method:'POST',headers:{origin:'http://localhost'},body}),params({vendorId:vendor.id}));
+      expect(uploaded.status).toBe(201);
+      const {id} = await uploaded.json();
+      const context = params({vendorId:vendor.id,contractId:id});
+      const read = await downloadContract(new Request(url),context);
+      expect(await read.text()).toBe('%PDF-1.7\nSynthetic test contract');
+      expect(read.headers.get('cache-control')).toBe('private, no-store');
+      as(people.bOwner);
+      expect((await downloadContract(new Request(url),context)).status).toBe(404);
+      expect((await removeContract(new Request(url,{method:'DELETE',headers:{origin:'http://localhost'}}),context)).status).toBe(404);
+      as(people.aOwner);
+      expect((await removeContract(new Request(url,{method:'DELETE',headers:{origin:'http://localhost'}}),context)).status).toBe(204);
+      expect((await downloadContract(new Request(url),context)).status).toBe(404);
+      expect((await prisma.vendorContract.findUniqueOrThrow({where:{id}})).deletedAt).not.toBeNull();
+    });
+    it('enables RLS with no public policies on the attachment table',async()=>{
+      const rows = await prisma.$queryRaw<Array<{relrowsecurity:boolean}>>`SELECT relrowsecurity FROM pg_class WHERE oid = '"VendorContract"'::regclass`;
+      expect(rows[0].relrowsecurity).toBe(true);
+      const policies = await prisma.$queryRaw<Array<{count:bigint}>>`SELECT count(*) FROM pg_policies WHERE tablename = 'VendorContract'`;
+      expect(Number(policies[0].count)).toBe(0);
+    });
+  });
+
+  it('authenticates a real local bcrypt account and rejects inactive/deleted accounts', async () => {
+    const secret = randomBytes(24).toString('base64url');
+    const user = await prisma.user.create({data:{name:'Local Auth Regression',role:'event_creator',passwordHash:await hash(secret,4)}});
+    expect(await authenticateAdminCredentials('  local AUTH regression  ',secret)).toEqual({id:user.id,name:user.name,role:user.role});
+    expect(await authenticateAdminCredentials(user.name,` ${secret}`)).toBeNull();
+    await prisma.user.update({where:{id:user.id},data:{active:false}});
+    expect(await authenticateAdminCredentials(user.name,secret)).toBeNull();
+    await prisma.user.update({where:{id:user.id},data:{active:true,deletedAt:new Date()}});
+    expect(await authenticateAdminCredentials(user.name,secret)).toBeNull();
+  });
+
 });

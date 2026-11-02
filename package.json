@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:demo": "node scripts/dev.mjs --demo",
     "dev:next": "next dev",
     "postinstall": "prisma generate",
     "build": "prisma generate && next build",
@@ -12,17 +13,19 @@
     "test": "vitest run",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "prisma db seed",
+    "db:seed": "tsx prisma/seed.ts",
     "db:local": "node scripts/local-db.mjs",
     "db:local:setup": "node scripts/local-db.mjs setup",
     "db:local:start": "node scripts/local-db.mjs start",
     "db:local:stop": "node scripts/local-db.mjs stop",
     "db:local:status": "node scripts/local-db.mjs status",
     "db:local:migrate": "node scripts/local-db.mjs migrate",
-    "db:local:seed": "node scripts/local-db.mjs seed",
+    "db:local:seed": "node scripts/local-db.mjs seed-demo",
     "db:local:reset": "node scripts/local-db.mjs reset",
     "db:local:import-users": "node scripts/local-db.mjs import-users",
-    "db:local:remove-demo": "node scripts/local-db.mjs remove-demo"
+    "db:local:remove-demo": "node scripts/local-db.mjs remove-demo",
+    "db:demo:seed": "node scripts/local-db.mjs seed-demo",
+    "local:account": "python3 scripts/local-account.py"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
@@ -61,8 +64,5 @@
     "tsx": "^4.20.6",
     "typescript": "^5",
     "vitest": "^4.1.4"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   }
 }

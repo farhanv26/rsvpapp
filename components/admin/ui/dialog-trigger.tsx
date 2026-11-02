@@ -38,11 +38,22 @@ export function DialogTrigger({
 }
 
 /** Submit button that asks for confirmation first. */
-export function ConfirmSubmit({ message, className, children }: { message: string; className?: string; children: React.ReactNode }) {
+export function ConfirmSubmit({
+  message,
+  className,
+  ariaLabel,
+  children,
+}: {
+  message: string;
+  className?: string;
+  ariaLabel?: string;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="submit"
       className={className}
+      aria-label={ariaLabel}
       onClick={(e) => {
         if (!confirm(message)) e.preventDefault();
       }}

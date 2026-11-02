@@ -33,6 +33,8 @@ export function AdminNotificationBell({ placement = "bottom-end" }: { placement?
       const data = (await res.json()) as { items: NotificationItem[]; unreadCount: number };
       setItems(data.items);
       setUnreadCount(data.unreadCount);
+    } catch {
+      // Offline or the server restarted; the next poll retries.
     } finally {
       setLoading(false);
     }

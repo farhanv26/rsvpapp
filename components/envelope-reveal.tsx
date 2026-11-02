@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Phase = "pending" | "sealed" | "opening" | "revealing" | "open";
 
@@ -16,33 +16,26 @@ export function EnvelopeReveal({
   skip = false,
   guestName,
 }: Props) {
-  const [phase, setPhase] = useState<Phase>("pending");
+  const [phase, setPhase] = useState<Phase>("sealed");
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  useEffect(() => {
-    setPhase(skip ? "open" : "sealed");
-  }, [skip]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   function handleOpen() {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setPhase("open");
+      return;
+    }
     setPhase("opening");
-    setTimeout(() => setPhase("revealing"), 700);
-    setTimeout(() => setPhase("open"), 1200);
+    timers.current = [setTimeout(() => setPhase("revealing"), 700), setTimeout(() => setPhase("open"), 1200)];
   }
 
   // Avoid flash of envelope on server / hydration — match envelope background so there's no white flash
   if (phase === "pending") {
-    return (
-      <div
-        className="min-h-dvh"
-        style={{
-          background:
-            "radial-gradient(ellipse 120% 80% at 50% -10%, #faf6ef 0%, #f0e6d8 45%, #ebe2d4 100%)",
-        }}
-        aria-hidden
-      />
-    );
+    return <div className="min-h-dvh bg-[var(--inv-ground)]" aria-hidden />;
   }
 
-  if (phase === "open") {
+  if (skip || phase === "open") {
     return <>{children}</>;
   }
 
@@ -67,36 +60,8 @@ function EnvelopeScreen({
   const isOpening = phase === "opening" || phase === "revealing";
 
   return (
-    <div
-      className="flex min-h-dvh flex-col items-center justify-center px-5 py-10"
-      style={{
-        background:
-          "radial-gradient(ellipse 120% 80% at 50% -10%, #faf6ef 0%, #f0e6d8 45%, #ebe2d4 100%)",
-      }}
-    >
-      {/* Ambient glow behind envelope */}
-      <div
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-0 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{
-          background: "radial-gradient(circle, rgba(178,137,68,0.14) 0%, transparent 70%)",
-          filter: "blur(40px)",
-        }}
-        aria-hidden
-      />
-
-      <div className="relative z-10 flex w-full max-w-[22rem] flex-col items-center">
-        {/* For label */}
-        {guestName ? (
-          <p
-            className="mb-5 text-center text-[0.62rem] font-semibold uppercase tracking-[0.28em] text-zinc-400"
-            style={{
-              opacity: isOpening ? 0 : 1,
-              transition: "opacity 0.4s ease",
-            }}
-          >
-            For {guestName}
-          </p>
-        ) : null}
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-[var(--inv-ground)] px-5 py-10">
+      <div className="relative z-10 flex w-full max-w-[23rem] flex-col items-center">
 
         {/* Envelope wrapper — slides up + fades on revealing */}
         <button
@@ -114,12 +79,12 @@ function EnvelopeScreen({
                 : undefined,
           }}
         >
-          <EnvelopeCard isOpening={isOpening} />
+          <EnvelopeCard isOpening={isOpening} guestName={guestName} />
         </button>
 
         {/* Tap hint */}
         <p
-          className="mt-5 text-center text-xs font-medium text-zinc-400 transition-all duration-300 group-hover:text-zinc-600"
+          className="mt-6 text-center text-sm font-medium text-[var(--inv-muted)] transition-all duration-300 group-hover:text-[var(--inv-ink)]"
           style={{
             opacity: isOpening ? 0 : 1,
             transform: isOpening ? "translateY(4px)" : "translateY(0)",
@@ -134,23 +99,20 @@ function EnvelopeScreen({
   );
 }
 
-function EnvelopeCard({ isOpening }: { isOpening: boolean }) {
+function EnvelopeCard({ isOpening, guestName }: { isOpening: boolean; guestName?: string }) {
   return (
-    /* Envelope outer — cream card with warm shadow */
     <div
-      className="relative w-full overflow-hidden rounded-3xl border-2 border-[#ddd0bc] bg-[#fdf9f2]"
+      className="relative w-full overflow-hidden rounded-[10px] border border-[#ddd2bf] bg-[#fbf7ef]"
       style={{
         aspectRatio: "1.6 / 1",
-        boxShadow:
-          "0 30px 80px -20px rgba(71,52,29,0.38), 0 4px 20px -8px rgba(71,52,29,0.18), inset 0 1px 0 rgba(255,255,255,0.7)",
-        transition: "box-shadow 0.4s ease",
+        boxShadow: "0 1px 2px rgba(34,27,23,0.06), 0 30px 60px -30px rgba(60,34,48,0.45)",
       }}
     >
       {/* Bottom-left fold triangle */}
       <div
         className="absolute bottom-0 left-0 h-0 w-0"
         style={{
-          borderLeft: "clamp(80px,40%,160px) solid #f0e4cc",
+          borderLeft: "clamp(80px,40%,160px) solid #f3ece0",
           borderTop: "clamp(60px,32%,120px) solid transparent",
         }}
         aria-hidden
@@ -159,17 +121,20 @@ function EnvelopeCard({ isOpening }: { isOpening: boolean }) {
       <div
         className="absolute bottom-0 right-0 h-0 w-0"
         style={{
-          borderRight: "clamp(80px,40%,160px) solid #f0e4cc",
+          borderRight: "clamp(80px,40%,160px) solid #f3ece0",
           borderTop: "clamp(60px,32%,120px) solid transparent",
         }}
         aria-hidden
       />
 
-      {/* Gold inner border line */}
-      <div
-        className="pointer-events-none absolute inset-[6px] rounded-2xl border border-[#d4aa6a]/30"
-        aria-hidden
-      />
+      {guestName ? (
+        <p
+          className="absolute inset-x-6 bottom-[14%] truncate text-center font-[family-name:var(--font-wedding-serif),Georgia,serif] text-[1.35rem] leading-tight text-[var(--inv-ink)]"
+          style={{ opacity: isOpening ? 0 : 1, transition: "opacity 0.3s ease" }}
+        >
+          {guestName}
+        </p>
+      ) : null}
 
       {/* Top flap — V shape, animates up on open */}
       <div
@@ -185,7 +150,8 @@ function EnvelopeCard({ isOpening }: { isOpening: boolean }) {
             height: "100%",
             width: "100%",
             clipPath: "polygon(0 0, 100% 0, 50% 100%)",
-            background: "linear-gradient(175deg, #fdf5e4 0%, #e8d4aa 100%)",
+            background: "#efe6d6",
+            boxShadow: "inset 0 -1px 0 #ddd2bf",
             transformOrigin: "top center",
             transform: isOpening
               ? "perspective(500px) rotateX(-180deg)"
@@ -214,10 +180,6 @@ function EnvelopeCard({ isOpening }: { isOpening: boolean }) {
         <WaxSeal />
       </div>
 
-      {/* Subtle inner lines (envelope back pattern) */}
-      <div className="absolute inset-0 flex items-end justify-center pb-3 opacity-20" aria-hidden>
-        <div className="h-px w-4/5 bg-gradient-to-r from-transparent via-[#c9a060] to-transparent" />
-      </div>
     </div>
   );
 }
@@ -225,10 +187,10 @@ function EnvelopeCard({ isOpening }: { isOpening: boolean }) {
 function WaxSeal() {
   return (
     <div
-      className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#c19a44]/60"
+      className="flex h-11 w-11 items-center justify-center rounded-full"
       style={{
-        background: "radial-gradient(circle at 35% 35%, #d4a843 0%, #9a6e22 100%)",
-        boxShadow: "0 3px 12px -4px rgba(120,80,20,0.6), inset 0 1px 0 rgba(255,220,120,0.35)",
+        background: "radial-gradient(circle at 38% 34%, #9a4683 0%, #7a2e63 55%, #5a1f48 100%)",
+        boxShadow: "0 4px 10px -3px rgba(90,31,72,0.55), inset 0 0 0 3px rgba(255,255,255,0.08)",
       }}
     >
       {/* Monogram / flourish */}

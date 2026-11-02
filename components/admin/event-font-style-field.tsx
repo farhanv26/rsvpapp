@@ -127,7 +127,7 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
             <span className="text-zinc-400">{open ? "▴" : "▾"}</span>
           </button>
           {open ? (
-            <div className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-[#dccfbb] bg-white p-1 shadow-lg">
+            <div className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-[var(--border-strong)] bg-white p-1 shadow-lg">
               {FONT_OPTIONS.map((option) => (
                 <button
                   key={option.id}
@@ -138,8 +138,8 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
                     setSelected(option.id);
                     setOpen(false);
                   }}
-                  className={`w-full rounded-lg px-3 py-2 text-left transition hover:bg-[#f7f1e6] ${
-                    selected === option.id ? "bg-[#f8f1e5]" : ""
+                  className={`w-full rounded-lg px-3 py-2 text-left transition hover:bg-[var(--surface-muted)] ${
+                    selected === option.id ? "bg-[var(--accent-soft)]" : ""
                   }`}
                 >
                   <p className={`text-zinc-900 ${headingPreviewClass(option.id)} ${option.className}`} style={option.style}>
@@ -161,7 +161,7 @@ export function EventFontStyleField({ defaultValue = "elegant_serif" }: { defaul
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-5 text-center">
+      <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-5 text-center">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-zinc-500">Live preview</p>
         <p className={`mt-3 text-zinc-900 ${headingPreviewClass(selected)} ${active.className}`} style={active.style}>
           {previewCoupleNames}

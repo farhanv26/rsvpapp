@@ -12,7 +12,7 @@ export type BudgetItemInput = {
   agreedMinor: number | null;
   perPersonMinor: number | null;
   perPersonBasis: string | null;
-  payments: { amountMinor: number }[];
+  payments: { amountMinor: number; deletedAt?: Date | string | null }[];
 };
 
 export type EventHeadcount = { invited: number; confirmed: number };
@@ -27,7 +27,7 @@ export type ItemFigures = {
 };
 
 export function itemFigures(item: BudgetItemInput, headcounts: Map<string, EventHeadcount>): ItemFigures {
-  const paidMinor = item.payments.reduce((s, p) => s + p.amountMinor, 0);
+  const paidMinor = item.payments.filter((p) => !p.deletedAt).reduce((s, p) => s + p.amountMinor, 0);
   let plannedMinor = item.estimateMinor;
   let source: ItemFigures["source"] = "estimate";
   let perPersonCount: number | null = null;
@@ -40,7 +40,7 @@ export function itemFigures(item: BudgetItemInput, headcounts: Map<string, Event
     plannedMinor = item.perPersonMinor * perPersonCount;
     source = "per_person";
   }
-  const balanceMinor = item.agreedMinor !== null ? Math.max(item.agreedMinor - paidMinor, 0) : null;
+  const balanceMinor = item.agreedMinor !== null ? item.agreedMinor - paidMinor : null;
   const overpaidMinor = item.agreedMinor !== null ? Math.max(paidMinor - item.agreedMinor, 0) : 0;
   return { plannedMinor, source, perPersonCount, paidMinor, balanceMinor, overpaidMinor };
 }
@@ -80,4 +80,12 @@ export function summarizeBudget(items: BudgetItemInput[], headcounts: Map<string
     byEvent.set(item.eventId, bucket);
   }
   return { total, byEvent, figures };
+}
+
+/** Expected cost uses the agreed cost when present; estimates remain uncommitted. */
+export function financeTotals(items: BudgetItemInput[], headcounts = new Map<string, EventHeadcount>(), budget: number | null = null) {
+  const figures = items.map((item) => itemFigures(item, headcounts));
+  const expectedMinor = figures.reduce((sum, f) => sum + f.plannedMinor, 0);
+  const paidMinor = figures.reduce((sum, f) => sum + f.paidMinor, 0);
+  return { expectedMinor, paidMinor, outstandingMinor: expectedMinor - paidMinor, agreedMinor: items.reduce((sum, i) => sum + (i.agreedMinor ?? 0), 0), remainingBudgetMinor: budget === null ? null : budget - expectedMinor };
 }

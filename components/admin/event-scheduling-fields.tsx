@@ -201,22 +201,6 @@ export function EventSchedulingFields({
     return () => form.removeEventListener("submit", onSubmit);
   }, [deadlineError, eventDateError, eventTimeError, hasError]);
 
-  useEffect(() => {
-    if (openPicker !== "eventTime") return;
-    const parsed = parseTimeParts(eventTime);
-    setTimeHour(parsed.hour12);
-    setTimeMinute(parsed.minute);
-    setTimePeriod(parsed.period);
-  }, [openPicker, eventTime]);
-
-  useEffect(() => {
-    if (!eventDate || isDeadlineTouched || rsvpDeadline || eventDate < today) return;
-    const suggestion = minusDays(eventDate, 3);
-    if (suggestion && suggestion >= today && suggestion <= eventDate) {
-      setRsvpDeadline(suggestion);
-    }
-  }, [eventDate, isDeadlineTouched, rsvpDeadline, today]);
-
   return (
     <>
 
@@ -242,7 +226,7 @@ export function EventSchedulingFields({
             </span>
           </button>
           {openPicker === "eventDate" ? (
-            <div className="absolute z-30 mt-2 rounded-2xl border border-[#e3d8c7] bg-[#fffdfa] p-3 shadow-xl">
+            <div className="absolute z-30 mt-2 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-3 shadow-xl">
               <DayPicker
                 mode="single"
                 selected={selectedEventDate}
@@ -251,6 +235,7 @@ export function EventSchedulingFields({
                   const iso = formatIsoFromDate(value);
                   setTouched((prev) => ({ ...prev, eventDate: true }));
                   setEventDate(iso);
+                  if (!isDeadlineTouched && !rsvpDeadline && iso >= today) { const suggestion = minusDays(iso, 3); if (suggestion >= today) setRsvpDeadline(suggestion); }
                   setOpenPicker(null);
                 }}
                 disabled={eventDateDisabled}
@@ -273,7 +258,7 @@ export function EventSchedulingFields({
             ref={eventTimeButtonRef}
             id="eventTime"
             type="button"
-            onClick={() => setOpenPicker((v) => (v === "eventTime" ? null : "eventTime"))}
+            onClick={() => { const parsed = parseTimeParts(eventTime); setTimeHour(parsed.hour12); setTimeMinute(parsed.minute); setTimePeriod(parsed.period); setOpenPicker((v) => (v === "eventTime" ? null : "eventTime")); }}
             onBlur={() => setTouched((prev) => ({ ...prev, eventTime: true }))}
             className={`input-luxe mt-0 pr-10 transition-all ${showEventTimeError ? "border-red-300 focus:border-red-400 focus:ring-red-200" : ""} ${attentionField === "eventTime" ? "ring-2 ring-red-200" : ""}`}
           >
@@ -286,7 +271,7 @@ export function EventSchedulingFields({
             </span>
           </button>
           {openPicker === "eventTime" ? (
-            <div className="absolute z-30 mt-2 w-full min-w-[16rem] rounded-2xl border border-[#e3d8c7] bg-[#fffdfa] p-3 shadow-xl">
+            <div className="absolute z-30 mt-2 w-full min-w-[16rem] rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-3 shadow-xl">
               <div className="grid grid-cols-3 gap-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                   Hour
@@ -328,7 +313,7 @@ export function EventSchedulingFields({
                   </select>
                 </label>
               </div>
-              <div className="mt-3 flex items-center justify-between border-t border-[#eee4d4] pt-3">
+              <div className="mt-3 flex items-center justify-between border-t border-[var(--border-soft)] pt-3">
                 <p className="text-xs text-zinc-500">15-minute increments for ceremony planning.</p>
                 <div className="flex gap-2">
                   <button
@@ -389,7 +374,7 @@ export function EventSchedulingFields({
             </span>
           </button>
           {openPicker === "rsvpDeadline" && eventDate ? (
-            <div className="absolute z-30 mt-2 rounded-2xl border border-[#e3d8c7] bg-[#fffdfa] p-3 shadow-xl">
+            <div className="absolute z-30 mt-2 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-3 shadow-xl">
               <DayPicker
                 mode="single"
                 selected={selectedDeadlineDate}

@@ -92,7 +92,7 @@ export function guestPrimaryStatus(g: GuestPanelGuest): GuestStatus {
 export function statusLabel(status: GuestStatus) {
   if (status === "attending") return "Attending";
   if (status === "declined") return "Declined";
-  if (status === "invited") return "No reply";
+  if (status === "invited") return "Awaiting reply";
   return "Not invited";
 }
 

@@ -12,7 +12,7 @@ export async function loadPlanningPage() {
   const wedding = workspace.activeWedding
     ? await prisma.wedding.findUnique({
         where: { id: workspace.activeWedding.id },
-        select: { id: true, name: true, currency: true, timezone: true, defaultGreeting: true },
+        select: { id: true, name: true, currency: true, plannedBudgetMinor: true, timezone: true, defaultGreeting: true },
       })
     : null;
   return {

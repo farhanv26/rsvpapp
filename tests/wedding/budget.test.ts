@@ -15,6 +15,8 @@ describe("money", () => {
     expect(parseMoneyToMinor("12,34", "USD")).toBeNull();
     expect(parseMoneyToMinor("-5", "USD")).toBeNull();
     expect(parseMoneyToMinor("", "USD")).toBeNull();
+    expect(parseMoneyToMinor("abc5", "CAD")).toBeNull();
+    expect(parseMoneyToMinor("1e3", "CAD")).toBeNull();
     expect(parseMoneyToMinor("1.5", "JPY")).toBeNull();
   });
   it("formats and round-trips", () => {
@@ -74,7 +76,7 @@ describe("budget", () => {
     expect(perEventSum).toBe(s.total.plannedMinor);
   });
 
-  it("never reports a negative balance when overpaid", () => {
-    expect(itemFigures(item({ id: "x", agreedMinor: 1000, payments: [{ amountMinor: 1500 }] }), headcounts)).toMatchObject({ balanceMinor: 0, overpaidMinor: 500 });
+  it("preserves the signed balance and explicitly reports overpayment", () => {
+    expect(itemFigures(item({ id: "x", agreedMinor: 1000, payments: [{ amountMinor: 1500 }] }), headcounts)).toMatchObject({ balanceMinor: -500, overpaidMinor: 500 });
   });
 });

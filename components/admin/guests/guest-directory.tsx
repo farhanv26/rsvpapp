@@ -5,12 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Ellipsis, Plus, Search, X } from "lucide-react";
 import { bulkDeleteGuestsAction, markGuestsInvitedAction, markGuestsUninvitedAction } from "@/app/admin/events/actions";
+import { BulkBar } from "@/components/admin/guests/bulk-bar";
+import { PhoneAddButton } from "@/components/admin/guests/phone-add-button";
 import { GuestFormDialog, type GuestFormGuest } from "@/components/admin/guests/guest-form-dialog";
 import { Menu, MenuItem, MenuSeparator } from "@/components/admin/ui/menu";
-import { EmptyState, PageHeader } from "@/components/admin/planning-ui";
+import { AllowanceRegister, EmptyState, PageHeader } from "@/components/admin/planning-ui";
 
 export type DirectoryEvent = { id: string; title: string; canAdd: boolean; allowance: { places: number; used: number } | null };
-export type DirectoryAllowance = { eventId: string; eventTitle: string; memberName: string; places: number; used: number };
+export type DirectoryAllowance = { eventId: string; eventTitle: string; memberName: string; places: number; used: number; declinedPlaces: number };
 export type DirectoryCell = {
   guestId: string;
   status: "attending" | "declined" | "waiting" | "not_invited";
@@ -32,7 +34,7 @@ type Filters = { q: string; event: string; status: string; member: string };
 
 const STATUS_FILTERS = [
   { value: "", label: "Any reply" },
-  { value: "waiting", label: "No reply yet" },
+  { value: "waiting", label: "Awaiting reply" },
   { value: "attending", label: "Attending" },
   { value: "declined", label: "Declined" },
   { value: "not_invited", label: "Not invited" },
@@ -40,9 +42,9 @@ const STATUS_FILTERS = [
 
 export function CellStatus({ cell }: { cell: DirectoryCell | undefined }) {
   if (!cell) return <span className="text-[var(--muted-text)]" aria-label="Not on this event">—</span>;
-  if (cell.status === "attending") return <span className="status status-success">Attending · {cell.attendingCount ?? 0}</span>;
+  if (cell.status === "attending") return <span className="status status-success tabular-nums">Attending · {cell.attendingCount ?? 0}</span>;
   if (cell.status === "declined") return <span className="status status-muted">Declined</span>;
-  if (cell.status === "waiting") return <span className="status status-warning">No reply</span>;
+  if (cell.status === "waiting") return <span className="status status-warning">Awaiting reply</span>;
   return <span className="status status-muted">Not invited</span>;
 }
 
@@ -178,36 +180,52 @@ export function GuestDirectory({
         meta={meta}
         actions={
           addableEvents.length > 0 ? (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                setFormNonce((n) => n + 1);
-                setAdding(true);
-              }}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              Add household
-            </button>
+            <>
+              <button
+                id="directory-add"
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  setFormNonce((n) => n + 1);
+                  setAdding(true);
+                }}
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Add household
+              </button>
+              <PhoneAddButton
+                watchId="directory-add"
+                hidden={selected.size > 0}
+                onClick={() => {
+                  setFormNonce((n) => n + 1);
+                  setAdding(true);
+                }}
+              />
+            </>
           ) : null
         }
       />
 
       {allowances.length > 0 ? (
-        <ul className="mb-4 flex flex-wrap gap-x-5 gap-y-1 text-sm" aria-label="Guest allowances">
-          {allowances.map((a) => {
-            const over = a.used > a.places;
-            return (
-              <li key={`${a.eventId}-${a.memberName}`} className="text-[var(--muted-text)]">
-                <span className="text-[var(--foreground)]">{a.memberName === "You" ? a.eventTitle : `${a.memberName} · ${a.eventTitle}`}</span>
-                {": "}
-                <span className={`tabular-nums ${over ? "font-medium text-[var(--danger)]" : a.used === a.places ? "font-medium text-[var(--warning)]" : ""}`}>
-                  {a.used} of {a.places} places allocated
-                </span>
+        <section aria-labelledby="allowances-heading" className="mb-6">
+          <h2 id="allowances-heading" className="field-name mb-2">
+            Allowances
+          </h2>
+          <ul className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            {allowances.map((a) => (
+              <li key={`${a.eventId}-${a.memberName}`}>
+                <AllowanceRegister
+                  compact
+                  name={a.memberName === "You" ? a.eventTitle : `${a.memberName} · ${a.eventTitle}`}
+                  href={`/admin/events/${a.eventId}`}
+                  used={a.used}
+                  places={a.places}
+                  declinedPlaces={a.declinedPlaces}
+                />
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        </section>
       ) : null}
 
       {events.length === 0 ? (
@@ -254,11 +272,11 @@ export function GuestDirectory({
               ))}
             </FilterSelect>
             {members.length > 1 ? (
-              <FilterSelect label="Added by" value={filters.member} onChange={(v) => navigate({ member: v, page: "1" })}>
-                <option value="">Anyone</option>
+              <FilterSelect label="Managed by" value={filters.member} onChange={(v) => navigate({ member: v, page: "1" })}>
+                <option value="">Everyone&apos;s lists</option>
                 {members.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name}
+                    {m.name === "You" ? "Your list" : `${m.name}'s list`}
                   </option>
                 ))}
               </FilterSelect>
@@ -315,7 +333,7 @@ export function GuestDirectory({
                     <li key={row.key} className={`flex gap-3 px-3 py-3 ${selected.has(row.key) ? "bg-[var(--accent-soft)]" : ""}`}>
                       <input
                         type="checkbox"
-                        className="mt-1 h-5 w-5 shrink-0 accent-[var(--foreground)]"
+                        className="mt-1 h-5 w-5 shrink-0"
                         checked={selected.has(row.key)}
                         onChange={(e) => toggle(row.key, e.target.checked)}
                         aria-label={`Select ${row.name}`}
@@ -327,6 +345,11 @@ export function GuestDirectory({
                         <p className="mt-0.5 text-xs break-words text-[var(--muted-text)]">
                           {[row.group, row.contact || "No contact details"].filter(Boolean).join(" · ")}
                         </p>
+                        {members.length > 1 && row.managers.length > 0 ? (
+                          <p className="mt-0.5 text-xs text-[var(--muted-text)]">
+                            Managed by <span className="font-medium text-[var(--foreground)]">{row.managers.join(", ")}</span>
+                          </p>
+                        ) : null}
                         <ul className="mt-2 space-y-1">
                           {events
                             .filter((e) => row.cells[e.id])
@@ -351,7 +374,7 @@ export function GuestDirectory({
                         <th scope="col" className="w-10">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 accent-[var(--foreground)]"
+                            className="h-4 w-4"
                             checked={allSelected}
                             onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.key)))}
                             aria-label="Select all households on this page"
@@ -366,7 +389,7 @@ export function GuestDirectory({
                         <th scope="col" className="text-right">
                           Places
                         </th>
-                        {members.length > 1 ? <th scope="col">Added by</th> : null}
+                        {members.length > 1 ? <th scope="col">Managed by</th> : null}
                         <th scope="col" className="w-10">
                           <span className="sr-only">Actions</span>
                         </th>
@@ -380,7 +403,7 @@ export function GuestDirectory({
                             <td>
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 accent-[var(--foreground)]"
+                                className="h-4 w-4"
                                 checked={selected.has(row.key)}
                                 onChange={(e) => toggle(row.key, e.target.checked)}
                                 aria-label={`Select ${row.name}`}
@@ -400,7 +423,9 @@ export function GuestDirectory({
                               </td>
                             ))}
                             <td className="text-right tabular-nums">{places}</td>
-                            {members.length > 1 ? <td className="text-[var(--muted-text)]">{row.managers.join(", ") || "—"}</td> : null}
+                            {members.length > 1 ? (
+                              <td className={row.managers.includes("You") ? "font-medium" : "text-[var(--muted-text)]"}>{row.managers.join(", ") || "—"}</td>
+                            ) : null}
                             <td className="text-right">
                               <RowMenu row={row} events={events} onEdit={openEdit} />
                             </td>
@@ -431,27 +456,35 @@ export function GuestDirectory({
       )}
 
       {selectedRows.length > 0 ? (
-        <div
-          role="region"
-          aria-label="Bulk actions"
-          className="fixed inset-x-3 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-white p-2 pl-4 shadow-lg lg:bottom-5 lg:left-[calc(15rem+1.5rem)]"
+        <BulkBar
+          count={selectedRows.length}
+          onClear={() => setSelected(new Set())}
+          scope={
+            bulkEventOptions.length > 1 ? (
+              <label className="inline-flex items-center gap-1.5">
+                <span>at</span>
+                <select
+                  value={effectiveBulkEvent}
+                  onChange={(e) => setBulkEventId(e.target.value)}
+                  className="min-h-9 rounded-md border border-white/25 bg-transparent px-2 text-sm font-medium text-white [&>option]:text-[var(--foreground)]"
+                >
+                  {bulkEventOptions.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : bulkEventOptions[0] ? (
+              `at ${bulkEventOptions[0].title}`
+            ) : null
+          }
+          footnote={
+            bulkGuestIds.length < selectedRows.length
+              ? `${selectedRows.length - bulkGuestIds.length} ${selectedRows.length - bulkGuestIds.length === 1 ? "isn't" : "aren't"} on this event or ${selectedRows.length - bulkGuestIds.length === 1 ? "is" : "are"} on someone else's list, and will be skipped.`
+              : null
+          }
         >
-          <span className="text-sm font-medium">{selectedRows.length} selected</span>
-          {bulkEventOptions.length > 1 ? (
-            <label className="flex items-center gap-1.5 text-sm text-[var(--muted-text)]">
-              <span>at</span>
-              <select value={effectiveBulkEvent} onChange={(e) => setBulkEventId(e.target.value)} className="input-luxe mt-0 w-auto py-1">
-                {bulkEventOptions.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : bulkEventOptions[0] ? (
-            <span className="text-sm text-[var(--muted-text)]">at {bulkEventOptions[0].title}</span>
-          ) : null}
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <Link
               href={`/admin/events/${effectiveBulkEvent}?tab=guests&invite=${bulkGuestIds.join(",")}`}
               className={`btn-primary btn-sm ${bulkGuestIds.length === 0 ? "pointer-events-none opacity-50" : ""}`}
@@ -471,17 +504,7 @@ export function GuestDirectory({
                 Remove from event
               </MenuItem>
             </Menu>
-            <button type="button" className="icon-btn" aria-label="Clear selection" onClick={() => setSelected(new Set())}>
-              <X className="h-4 w-4" aria-hidden />
-            </button>
-          </div>
-          {bulkGuestIds.length < selectedRows.length ? (
-            <p className="w-full text-xs text-[var(--muted-text)]">
-              {selectedRows.length - bulkGuestIds.length} selected {selectedRows.length - bulkGuestIds.length === 1 ? "isn't" : "aren't"} on this event or
-              {" "}managed by someone else, and will be skipped.
-            </p>
-          ) : null}
-        </div>
+        </BulkBar>
       ) : null}
 
       {adding ? (
@@ -513,7 +536,7 @@ function FilterSelect({ label, value, onChange, children }: { label: string; val
   return (
     <label className="min-w-0">
       <span className="sr-only">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={`input-luxe mt-0 truncate sm:w-auto ${value ? "border-[var(--foreground)]" : ""}`}>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={`input-luxe mt-0 truncate sm:w-auto ${value ? "border-[var(--accent)] font-medium" : ""}`}>
         {children}
       </select>
     </label>

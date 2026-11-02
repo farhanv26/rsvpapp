@@ -12,7 +12,7 @@ export function currencyDigits(currency: string): number {
 /** Parses "1,250.50" (or "1250") into minor units. Returns null for anything ambiguous or invalid. */
 export function parseMoneyToMinor(input: unknown, currency: string): number | null {
   if (typeof input !== "string" && typeof input !== "number") return null;
-  const raw = String(input).trim().replace(/[^\d.,-]/g, "");
+  const raw = String(input).trim().replace(/^(?:[$£€₹]|(?:USD|CAD|GBP|EUR|AUD|INR|PKR|BDT|AED|SAR|NZD|SGD)\s+)\s*/i, "");
   if (!raw) return null;
   if (!/^\d{1,3}(,\d{3})*(\.\d+)?$|^\d+(\.\d+)?$/.test(raw)) return null;
   const [whole, fraction = ""] = raw.replace(/,/g, "").split(".");

@@ -84,8 +84,8 @@ export function ReviewDuplicatesModal({
         aria-label="Close"
         onClick={onClose}
       />
-      <div className="relative z-10 flex max-h-[min(92vh,56rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffcf6] shadow-xl">
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#ebe4d6] px-5 py-4 sm:px-6">
+      <div className="relative z-10 flex max-h-[min(92vh,56rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] shadow-xl">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-soft)] px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Review duplicates</p>
             <h2 className="font-display text-xl font-semibold text-zinc-900">{eventTitle}</h2>
@@ -107,7 +107,7 @@ export function ReviewDuplicatesModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
           {clusters.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-4 py-8 text-center text-sm text-zinc-600">
+            <p className="rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)] px-4 py-8 text-center text-sm text-zinc-600">
               Your guest list looks clean — no matching names, phones, or emails within this event.
             </p>
           ) : (
@@ -122,7 +122,7 @@ export function ReviewDuplicatesModal({
                 return (
                   <section
                     key={[...cluster.guestIds].sort().join("-")}
-                    className="rounded-2xl border border-[#e7dccb] bg-white p-4 sm:p-5"
+                    className="rounded-2xl border border-[var(--border-soft)] bg-white p-4 sm:p-5"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -170,9 +170,9 @@ export function ReviewDuplicatesModal({
                       ) : null}
                     </div>
 
-                    <div className="mt-4 overflow-x-auto rounded-xl border border-[#efe4d4]">
+                    <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border-soft)]">
                       <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                        <thead className="bg-[#f7efe2] text-xs uppercase tracking-wide text-zinc-600">
+                        <thead className="bg-[var(--surface-muted)] text-xs uppercase tracking-wide text-zinc-600">
                           <tr>
                             <th className="px-3 py-2">Guest name</th>
                             <th className="px-3 py-2">Greeting</th>
@@ -192,7 +192,7 @@ export function ReviewDuplicatesModal({
                             return (
                               <tr
                                 key={g.id}
-                                className="border-t border-[#f0e7d9]"
+                                className="border-t border-[var(--border-soft)]"
                                 title={warns.length > 0 ? warns.join(" ") : undefined}
                               >
                                 <td className="px-3 py-2 font-medium">{g.guestName}</td>
@@ -253,7 +253,7 @@ export function ReviewDuplicatesModal({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-[#ebe4d6] px-5 py-3 sm:px-6">
+        <div className="shrink-0 border-t border-[var(--border-soft)] px-5 py-3 sm:px-6">
           <button
             type="button"
             className="btn-primary"

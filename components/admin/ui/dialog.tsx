@@ -43,7 +43,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className={`sheet ${width}`}
+      className={`sheet text-start ${width}`}
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
       onCancel={(e) => {

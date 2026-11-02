@@ -20,13 +20,8 @@ function todayLocalIso() {
 export function EventDateField({ id, name, label, defaultValue = "" }: Props) {
   const minDate = useMemo(() => todayLocalIso(), []);
   const [value, setValue] = useState(defaultValue);
-  const [error, setError] = useState<string | null>(null);
+  const error = value.trim().length > 0 && value < minDate ? "Event date cannot be in the past." : null;
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    const hasError = value.trim().length > 0 && value < minDate;
-    setError(hasError ? "Event date cannot be in the past." : null);
-  }, [value, minDate]);
 
   useEffect(() => {
     const form = inputRef.current?.form;

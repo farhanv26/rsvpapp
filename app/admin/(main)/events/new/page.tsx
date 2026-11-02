@@ -71,7 +71,7 @@ export default async function NewEventPage() {
                 placeholder="Aisha &amp; Omar"
                 className="input-luxe mt-0"
               />
-              <p className="mt-1.5 text-xs text-zinc-400">Shown as the large heading on the invitation page.</p>
+              <p className="mt-1.5 text-xs text-[var(--muted-text)]">Shown as the large heading on the invitation page.</p>
             </div>
             <div className="sm:col-span-2">
               <label htmlFor="eventSubtitle" className="form-label">
@@ -134,7 +134,7 @@ export default async function NewEventPage() {
                 className="input-luxe mt-0 h-24 resize-none"
               />
             </div>
-            <div className="border-t border-[#ece4d4] pt-4">
+            <div className="border-t border-[var(--border-soft)] pt-4">
               <p className="form-label mb-3">WhatsApp / iMessage invite overrides <Optional /></p>
               <div className="space-y-3">
                 <div>

@@ -5,9 +5,9 @@ import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
+  // No automatic seed: `prisma migrate dev/reset` must never create accounts or sample data.
   migrations: {
     path: "prisma/migrations",
-    seed: "tsx ./prisma/seed.ts",
   },
   datasource: {
     // Prisma CLI (migrate/introspect) should use the direct Postgres connection.

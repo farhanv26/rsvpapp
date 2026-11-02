@@ -11,15 +11,17 @@
  *   node scripts/local-db.mjs stop      stop the server
  *   node scripts/local-db.mjs status    show server and migration status
  *   node scripts/local-db.mjs migrate   apply committed migrations (prisma migrate deploy)
- *   node scripts/local-db.mjs seed      (re)load the synthetic demo wedding
- *   node scripts/local-db.mjs remove-demo   delete the demo accounts and everything tied to them
+ *   node scripts/local-db.mjs seed      (re)load the fictional demo wedding into the separate rsvp_demo database
+ *   node scripts/local-db.mjs remove-demo [--yes]   report (or, with --yes, back up and delete) demo rows
+ *                                            that an older version seeded into rsvp_dev
+ *   node scripts/local-db.mjs restore-snapshot <dir>   put back a data directory snapshot from remove-demo
  *   node scripts/local-db.mjs reset --yes   drop the local database and re-apply every migration
  *   node scripts/local-db.mjs import-users   copy sign-in accounts (names, roles, password hashes)
  *                                            from the database in .env.local; read-only there
  *   node scripts/local-db.mjs prisma <args>  run any Prisma CLI command against the local database
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, cpSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +34,17 @@ const ENV_FILE = path.join(ROOT, ".env.development.local");
 export const LOCAL_DB_PORT = Number(process.env.LOCAL_DB_PORT || 54330);
 export const LOCAL_DB_NAME = "rsvp_dev";
 export const LOCAL_DB_URL = `postgresql://postgres@127.0.0.1:${LOCAL_DB_PORT}/${LOCAL_DB_NAME}`;
+/** The fictional demo wedding lives in its own database so it never mixes with real local accounts. */
+export const LOCAL_DEMO_DB_NAME = "rsvp_demo";
+export const LOCAL_DEMO_DB_URL = `postgresql://postgres@127.0.0.1:${LOCAL_DB_PORT}/${LOCAL_DEMO_DB_NAME}`;
+const BACKUP_DIR = path.join(ROOT, ".local", "backups");
+
+/** Fixed identifiers written by scripts/seed-demo.ts. Cleanup matches these only, never display names. */
+const DEMO_FINGERPRINT = {
+  userIds: ["demo_aisha", "demo_omar", "demo_platform_admin"],
+  weddingBackfillKey: "demo-aisha-omar",
+  eventSlugs: ["demo-mehndi", "demo-nikkah", "demo-reception"],
+};
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 const bin = (name) => path.join(ROOT, "node_modules", "@embedded-postgres", `${process.platform}-${process.arch}`, "native", "bin", name);
@@ -52,12 +65,12 @@ function requireBinaries() {
   }
 }
 
-function prismaEnv() {
-  return { ...process.env, DATABASE_URL: LOCAL_DB_URL, DIRECT_URL: LOCAL_DB_URL };
+function prismaEnv(url = LOCAL_DB_URL) {
+  return { ...process.env, DATABASE_URL: url, DIRECT_URL: url };
 }
 
 function prisma(args, opts = {}) {
-  return run(path.join(ROOT, "node_modules", ".bin", "prisma"), args, { ...opts, env: prismaEnv() });
+  return run(path.join(ROOT, "node_modules", ".bin", "prisma"), args, { ...opts, env: prismaEnv(opts.url) });
 }
 
 export function isRunning() {
@@ -110,8 +123,8 @@ function stop() {
   console.log("Local PostgreSQL stopped.");
 }
 
-export function migrate({ quiet = false } = {}) {
-  const res = prisma(["migrate", "deploy"], { quiet });
+export function migrate({ quiet = false, url = LOCAL_DB_URL } = {}) {
+  const res = prisma(["migrate", "deploy"], { quiet, url });
   if (res.status !== 0) {
     if (quiet) console.error(res.stdout + res.stderr);
     console.error("Applying migrations to the local database failed.");
@@ -123,40 +136,117 @@ export function migrate({ quiet = false } = {}) {
   }
 }
 
-function seed() {
-  const res = run(path.join(ROOT, "node_modules", ".bin", "tsx"), ["scripts/seed-demo.ts"], { env: prismaEnv() });
+/** Creates the demo database if needed, applies migrations to it, and loads the fictional wedding there. */
+async function seedDemo() {
+  const { PrismaClient } = await import("@prisma/client");
+  const admin = new PrismaClient({ datasources: { db: { url: LOCAL_DB_URL } } });
+  try {
+    const rows = await admin.$queryRawUnsafe(`SELECT 1 FROM pg_database WHERE datname = '${LOCAL_DEMO_DB_NAME}'`);
+    if (rows.length === 0) {
+      await admin.$executeRawUnsafe(`CREATE DATABASE ${LOCAL_DEMO_DB_NAME}`);
+      console.log(`Created the separate demo database ${LOCAL_DEMO_DB_NAME}.`);
+    }
+  } finally {
+    await admin.$disconnect();
+  }
+  migrate({ quiet: true, url: LOCAL_DEMO_DB_URL });
+  const res = run(path.join(ROOT, "node_modules", ".bin", "tsx"), ["scripts/seed-demo.ts"], { env: prismaEnv(LOCAL_DEMO_DB_URL) });
   if (res.status !== 0) process.exit(res.status ?? 1);
+  console.log("Start the app on the demo database with `npm run dev:demo`.");
 }
 
-/** Deletes the synthetic demo accounts (ids `demo_*`), their weddings and events, and every row tied to them. */
-async function removeDemo() {
-  const { PrismaClient } = await import("@prisma/client");
-  const db = new PrismaClient({ datasources: { db: { url: LOCAL_DB_URL } } });
-  try {
-    const users = await db.user.findMany({ where: { id: { startsWith: "demo_" } }, select: { id: true, name: true } });
-    const userIds = users.map((u) => u.id);
-    const weddings = await db.wedding.findMany({
-      where: { OR: [{ backfillKey: { startsWith: "demo-" } }, { name: { startsWith: "[Demo]" } }] },
-      select: { id: true, name: true, memberships: { select: { userId: true } } },
-    });
-    const realMembers = weddings.filter((w) => w.memberships.some((m) => !userIds.includes(m.userId)));
-    if (realMembers.length) {
-      console.error(`Refusing: ${realMembers.map((w) => w.name).join(", ")} also has non-demo members.`);
-      process.exit(1);
-    }
-    const weddingIds = weddings.map((w) => w.id);
-    const events = await db.event.findMany({
-      where: { OR: [{ weddingId: { in: weddingIds } }, { ownerUserId: { in: userIds } }, { slug: { startsWith: "demo-" } }] },
-      select: { id: true, weddingId: true },
-    });
-    const foreign = events.filter((e) => e.weddingId && !weddingIds.includes(e.weddingId));
-    if (foreign.length) {
-      console.error(`Refusing: ${foreign.length} demo-owned event(s) belong to a non-demo wedding.`);
-      process.exit(1);
-    }
-    const eventIds = events.map((e) => e.id);
-    const byEventOrUser = { OR: [{ eventId: { in: eventIds } }, { userId: { in: userIds } }] };
+/** Every row the demo seed created, found by its fixed identifiers, plus anything that points at them. */
+async function demoInventory(db) {
+  const users = await db.user.findMany({ where: { id: { in: DEMO_FINGERPRINT.userIds } }, select: { id: true, name: true } });
+  const userIds = users.map((u) => u.id);
+  const wedding = await db.wedding.findUnique({
+    where: { backfillKey: DEMO_FINGERPRINT.weddingBackfillKey },
+    select: { id: true, name: true, memberships: { select: { userId: true } } },
+  });
+  const weddingIds = wedding ? [wedding.id] : [];
+  const events = await db.event.findMany({
+    where: { OR: [{ weddingId: { in: weddingIds } }, { slug: { in: DEMO_FINGERPRINT.eventSlugs } }, { ownerUserId: { in: userIds } }] },
+    select: { id: true, title: true, slug: true, weddingId: true },
+  });
+  const eventIds = events.map((e) => e.id);
+  const byEventOrUser = { OR: [{ eventId: { in: eventIds } }, { userId: { in: userIds } }] };
+  const blockers = [];
+  if (wedding?.memberships.some((m) => !userIds.includes(m.userId))) blockers.push(`wedding "${wedding.name}" has members who are not demo accounts`);
+  for (const e of events) {
+    if (!DEMO_FINGERPRINT.eventSlugs.includes(e.slug)) blockers.push(`event "${e.title}" (${e.slug}) was not created by the demo seed`);
+    if (e.weddingId && !weddingIds.includes(e.weddingId)) blockers.push(`event "${e.title}" belongs to a non-demo wedding`);
+  }
+  const realMemberships = await db.weddingMembership.count({ where: { userId: { in: userIds }, weddingId: { notIn: weddingIds } } });
+  if (realMemberships) blockers.push(`${realMemberships} demo account membership(s) in non-demo weddings`);
+  const guestsManagedByReal = await db.guest.count({ where: { eventId: { in: eventIds }, managedByUserId: { notIn: userIds, not: null } } });
+  if (guestsManagedByReal) blockers.push(`${guestsManagedByReal} household(s) in demo events are managed by non-demo accounts`);
 
+  const rows = {
+    users: await db.user.findMany({ where: { id: { in: userIds } } }),
+    weddings: await db.wedding.findMany({ where: { id: { in: weddingIds } } }),
+    weddingMemberships: await db.weddingMembership.findMany({ where: { weddingId: { in: weddingIds } } }),
+    events: await db.event.findMany({ where: { id: { in: eventIds } } }),
+    eventRoles: await db.eventRole.findMany({ where: { eventId: { in: eventIds } } }),
+    eventAllocations: await db.eventAllocation.findMany({ where: { eventId: { in: eventIds } } }),
+    guests: await db.guest.findMany({ where: { eventId: { in: eventIds } } }),
+    rsvpActivities: await db.rsvpActivity.findMany({ where: { eventId: { in: eventIds } } }),
+    guestCommunicationLogs: await db.guestCommunicationLog.findMany({ where: { eventId: { in: eventIds } } }),
+    vendors: await db.vendor.findMany({ where: { weddingId: { in: weddingIds } } }),
+    budgetItems: await db.budgetItem.findMany({ where: { weddingId: { in: weddingIds } } }),
+    budgetPayments: await db.budgetPayment.findMany({ where: { budgetItem: { weddingId: { in: weddingIds } } } }),
+    auditActivities: await db.auditActivity.findMany({ where: byEventOrUser }),
+    notifications: await db.notification.findMany({ where: byEventOrUser }),
+  };
+  // Audit rows written by real accounts about demo records (for example "moved Demo Aisha to trash") are kept.
+  const removedAuditIds = new Set(rows.auditActivities.map((a) => a.id));
+  const keptAudit = (await db.auditActivity.findMany({ where: { entityId: { in: [...userIds, ...eventIds] } }, select: { id: true } })).filter(
+    (a) => !removedAuditIds.has(a.id),
+  ).length;
+  return { users, wedding, events, userIds, weddingIds, eventIds, byEventOrUser, rows, blockers, keptAudit };
+}
+
+/** Dry run by default. With --yes: snapshot the data directory, export the rows as JSON, then delete them. */
+async function removeDemo({ apply }) {
+  const { PrismaClient } = await import("@prisma/client");
+  let db = new PrismaClient({ datasources: { db: { url: LOCAL_DB_URL } } });
+  let inv;
+  try {
+    inv = await demoInventory(db);
+  } finally {
+    await db.$disconnect();
+  }
+  console.log(`Demo data in ${LOCAL_DB_NAME} (matched by seed identifiers only):`);
+  for (const [k, list] of Object.entries(inv.rows)) console.log(`  ${k.padEnd(24)} ${list.length}`);
+  console.log(`  accounts: ${inv.users.map((u) => `${u.name} (${u.id})`).join(", ") || "none"}`);
+  console.log(`  wedding:  ${inv.wedding ? `${inv.wedding.name} (${inv.wedding.id})` : "none"}`);
+  console.log(`  kept: ${inv.keptAudit} audit entr${inv.keptAudit === 1 ? "y" : "ies"} written by non-demo accounts about demo records`);
+  if (inv.blockers.length) {
+    console.error(`Refusing to remove anything:\n  - ${inv.blockers.join("\n  - ")}`);
+    process.exit(1);
+  }
+  const total = Object.values(inv.rows).reduce((s, l) => s + l.length, 0);
+  if (total === 0) {
+    console.log("Nothing to remove.");
+    return;
+  }
+  if (!apply) {
+    console.log("Dry run only. Re-run with --yes to back up and remove these rows.");
+    return;
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  mkdirSync(BACKUP_DIR, { recursive: true });
+  const jsonFile = path.join(BACKUP_DIR, `demo-cleanup-${stamp}.json`);
+  writeFileSync(jsonFile, JSON.stringify({ database: LOCAL_DB_NAME, createdAt: new Date().toISOString(), rows: inv.rows }, null, 2));
+  const snapshotDir = path.join(BACKUP_DIR, `pgdata-before-demo-cleanup-${stamp}`);
+  stop();
+  cpSync(DATA_DIR, snapshotDir, { recursive: true });
+  start();
+  console.log(`Backed up to ${path.relative(ROOT, snapshotDir)} (full data directory) and ${path.relative(ROOT, jsonFile)} (removed rows).`);
+
+  db = new PrismaClient({ datasources: { db: { url: LOCAL_DB_URL } } });
+  try {
+    const { eventIds, weddingIds, userIds, byEventOrUser } = inv;
     const removed = await db.$transaction(async (tx) => ({
       auditEntries: (await tx.auditActivity.deleteMany({ where: byEventOrUser })).count,
       notifications: (await tx.notification.deleteMany({ where: byEventOrUser })).count,
@@ -168,11 +258,27 @@ async function removeDemo() {
       weddings: (await tx.wedding.deleteMany({ where: { id: { in: weddingIds } } })).count,
       users: (await tx.user.deleteMany({ where: { id: { in: userIds } } })).count,
     }));
-    console.log(`Removed demo data from the local database: ${users.map((u) => u.name).join(", ") || "no demo users"}.`);
-    console.log(Object.entries(removed).map(([k, n]) => `${k}: ${n}`).join(", "));
+    console.log(`Removed: ${Object.entries(removed).map(([k, n]) => `${k} ${n}`).join(", ")}.`);
+    console.log(`To undo: npm run db:local -- restore-snapshot ${path.relative(ROOT, snapshotDir)}`);
   } finally {
     await db.$disconnect();
   }
+}
+
+/** Replaces the live data directory with a snapshot taken by remove-demo (the current one is kept aside). */
+function restoreSnapshot(dir) {
+  const source = path.resolve(ROOT, dir ?? "");
+  if (!dir || !existsSync(path.join(source, "PG_VERSION"))) {
+    console.error("Pass a snapshot directory created by remove-demo, e.g. .local/backups/pgdata-before-demo-cleanup-…");
+    process.exit(1);
+  }
+  stop();
+  const aside = `${DATA_DIR}-replaced-${Date.now()}`;
+  renameSync(DATA_DIR, aside);
+  cpSync(source, DATA_DIR, { recursive: true });
+  rmSync(path.join(DATA_DIR, "postmaster.pid"), { force: true });
+  start();
+  console.log(`Restored ${path.relative(ROOT, source)}. The previous data directory is at ${path.relative(ROOT, aside)}.`);
 }
 
 /** Only SELECTs inside a READ ONLY transaction on the source; writes go to the local database only. */
@@ -283,8 +389,12 @@ async function main() {
       migrate();
       break;
     case "seed":
+    case "seed-demo":
       start();
-      seed();
+      await seedDemo();
+      break;
+    case "restore-snapshot":
+      restoreSnapshot(rest[0]);
       break;
     case "setup":
       start();
@@ -306,7 +416,7 @@ async function main() {
       break;
     case "remove-demo":
       start();
-      await removeDemo();
+      await removeDemo({ apply: rest.includes("--yes") });
       break;
     case "import-users":
       start();

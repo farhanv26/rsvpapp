@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 
-export const COOKIE_NAME = "admin_session";
+export const COOKIE_NAME = process.env.VOWPAL_DEMO === "1" ? "vowpal_demo_session" : "admin_session";
 type AdminSessionClaims = {
   role: "admin";
   userId: string;

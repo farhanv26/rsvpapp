@@ -1,19 +1,14 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Dancing_Script, Geist, Geist_Mono, Great_Vibes, Playfair_Display } from "next/font/google";
+import { Cormorant_Garamond, Dancing_Script, Geist_Mono, Great_Vibes, Public_Sans } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const uiSans = Public_Sans({
+  variable: "--font-ui",
+  subsets: ["latin", "latin-ext"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const displaySerif = Playfair_Display({
-  variable: "--font-display-serif",
+const uiMono = Geist_Mono({
+  variable: "--font-ui-mono",
   subsets: ["latin"],
 });
 
@@ -37,8 +32,8 @@ const weddingSerif = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "RSVP Event App",
-  description: "Mobile-first RSVP management for multi-event guest lists.",
+  title: { default: "VowPal", template: "%s · VowPal" },
+  description: "Guests, invitations, replies, budget and vendors for every event of your wedding.",
 };
 
 export default function RootLayout({
@@ -49,9 +44,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${displaySerif.variable} ${weddingScript.variable} ${weddingScriptAlt.variable} ${weddingSerif.variable} h-full antialiased`}
+      className={`${uiSans.variable} ${uiMono.variable} ${weddingScript.variable} ${weddingScriptAlt.variable} ${weddingSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-zinc-50 text-zinc-900 flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {process.env.VOWPAL_DEMO === "1" ? (
+          <aside role="status" className="bg-[var(--warning-soft)] px-4 py-3 text-center text-sm font-medium text-[var(--warning)]">
+            Demo environment · Fictional accounts and wedding data. Your normal local account is at 127.0.0.1:3000.
+          </aside>
+        ) : null}
+        {children}
+      </body>
     </html>
   );
 }

@@ -53,8 +53,8 @@ export default async function AdminUsersPage() {
   }));
 
   return (
-    <main className="min-h-screen">
-      <div className="app-shell space-y-8">
+    <main className="app-shell">
+      <div className="space-y-8">
         <UserManagementPanel initialUsers={initialUsers} trashUsers={trashUsers} />
       </div>
     </main>

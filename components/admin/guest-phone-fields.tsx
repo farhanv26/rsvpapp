@@ -186,7 +186,7 @@ export function GuestPhoneFields({
               placeholder={
                 resolvedDial === "+1" ? "(555) 555-5555" : resolvedDial === "+44" ? "7XXX XXXXXX" : "National number"
               }
-              className={`min-w-0 flex-1 border-0 bg-transparent text-zinc-900 outline-none placeholder:text-zinc-400 ${telMinH} ${telPad}`}
+              className={`min-w-0 flex-1 border-0 bg-transparent text-zinc-900 outline-none placeholder:text-[var(--faint)] ${telMinH} ${telPad}`}
               aria-label="Phone number"
             />
           </div>

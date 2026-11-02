@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { restoreEventAction } from "@/app/admin/events/actions";
+import { EmptyState, PageHeader } from "@/components/admin/planning-ui";
 import { requireCurrentAdminUser } from "@/lib/admin-auth";
 import { accessibleEventsWhere } from "@/lib/wedding-policy";
 import { prisma } from "@/lib/prisma";
@@ -26,45 +26,26 @@ export default async function DeletedEventsPage() {
   });
 
   return (
-    <main className="min-h-screen">
-      <div className="app-shell max-w-3xl space-y-6">
-        <div>
-          <Link href="/admin/events" className="text-sm font-medium text-zinc-600 hover:text-zinc-900">
-            ← Events
-          </Link>
-          <h1 className="headline-display mt-3 text-2xl text-zinc-900">Deleted events</h1>
-          <p className="mt-2 text-sm text-zinc-600">
-            Events you moved to trash stay here until you restore them. Guest data is retained while the event exists.
-          </p>
-        </div>
+    <main className="app-shell">
+      <div className="max-w-3xl">
+        <PageHeader title="Deleted events" back={{ href: "/admin/events", label: "Events" }} meta="Restoring an event makes its guests' invitation links work again." />
         {deleted.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-[#dccfbb] bg-[#fbf8f2] px-4 py-8 text-center text-sm text-zinc-600">
-            No deleted events.
-          </p>
+          <EmptyState title="No deleted events" />
         ) : (
-          <ul className="space-y-3">
+          <ul className="list-rows">
             {deleted.map((ev) => (
-              <li
-                key={ev.id}
-                className="flex flex-col gap-3 rounded-2xl border border-[#e7dccb] bg-[#fffdfa] px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-              >
+              <li key={ev.id} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="font-semibold text-zinc-900">{ev.coupleNames?.trim() || ev.title}</p>
-                  <p className="text-xs text-zinc-500">
-                    Deleted{" "}
-                    {ev.deletedAt
-                      ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
-                          ev.deletedAt,
-                        )
-                      : "—"}
-                    {ev.wedding?.name ? ` · ${ev.wedding.name}` : null}
-                    {ev.owner?.name ? ` · Owner: ${ev.owner.name}` : null}
+                  <p className="font-semibold break-words">{ev.title}</p>
+                  <p className="text-[13px] text-[var(--muted-text)]">
+                    Deleted {ev.deletedAt ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(ev.deletedAt) : "—"}
+                    {ev.wedding?.name ? ` · ${ev.wedding.name}` : ev.coupleNames?.trim() ? ` · ${ev.coupleNames.trim()}` : null}
+                    {ev.owner?.name ? ` · Created by ${ev.owner.name}` : null}
                   </p>
-                  <p className="mt-1 font-mono text-[11px] text-zinc-400">{ev.slug}</p>
                 </div>
                 <form action={restoreEventAction} className="shrink-0">
                   <input type="hidden" name="eventId" value={ev.id} />
-                  <button type="submit" className="btn-primary text-sm">
+                  <button type="submit" className="btn-secondary btn-sm">
                     Restore
                   </button>
                 </form>

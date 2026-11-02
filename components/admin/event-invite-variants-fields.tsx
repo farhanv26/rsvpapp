@@ -16,7 +16,7 @@ type Props = {
 export function EventInviteVariantsFields({ initials }: Props) {
   const i = initials ?? {};
   return (
-    <details className="group rounded-2xl border border-[#e3d8c7] bg-[#fbf8f2] p-4 sm:p-5">
+    <details className="group rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-muted)] p-4 sm:p-5">
       <summary className="cursor-pointer list-none text-sm font-semibold text-zinc-900 marker:content-none [&::-webkit-details-marker]:hidden">
         <span className="inline-flex items-center gap-2">
           <span className="inline-block text-zinc-500 transition-transform duration-200 group-open:rotate-90">▸</span>

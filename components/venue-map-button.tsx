@@ -7,7 +7,7 @@ export function VenueMapButton({ venue }: { venue: string }) {
   const embedUrl = `https://maps.google.com/maps?q=${encoded}&output=embed&z=15`;
 
   return (
-    <div className="mx-auto max-w-md overflow-hidden rounded-2xl border border-[#e7dccb] shadow-[0_2px_12px_rgba(63,47,31,0.08)]">
+    <div className="overflow-hidden rounded-[10px] border border-[var(--inv-rule,#e3d9c8)]">
       {/* Real map preview — lazy loaded, no API key */}
       <div className="relative h-44 overflow-hidden bg-[#e8dfd0]">
         <iframe
@@ -21,18 +21,10 @@ export function VenueMapButton({ venue }: { venue: string }) {
       </div>
 
       {/* Venue + single native CTA */}
-      <div className="bg-[#fbf8f2] px-5 py-4">
-        <p className="text-[0.56rem] font-semibold uppercase tracking-[0.28em] text-zinc-400">
-          Location
-        </p>
-        <p className="mt-1.5 text-[0.95rem] font-semibold leading-snug text-zinc-900">{venue}</p>
+      <div className="bg-[var(--inv-sheet,#fffdf8)] px-5 py-4">
+        <p className="text-[0.95rem] font-semibold leading-snug break-words text-[var(--inv-ink,#221b17)]">{venue}</p>
 
-        <a
-          href={mapsUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border border-[#3f2f1f] bg-[#3f2f1f] px-4 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_-6px_rgba(63,47,31,0.45)] transition hover:bg-[#352618] active:scale-[0.99] touch-manipulation"
-        >
+        <a href={mapsUrl} target="_blank" rel="noreferrer noopener" className="invite-btn mt-3">
           <DirectionsIcon />
           Get directions
         </a>

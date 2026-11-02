@@ -131,59 +131,54 @@ function ItemIcon({ name, title }: { name?: string; title: string }) {
   return <Icon size={15} strokeWidth={1.6} aria-hidden />;
 }
 
-export function ItineraryTimeline({ items }: { items: ItineraryItem[] }) {
+/** `planner` shows "Planners only" items and planning notes; never set it on a guest page. */
+export function ItineraryTimeline({ items, planner = false }: { items: ItineraryItem[]; planner?: boolean }) {
+  const heading = planner ? null : "Schedule";
   if (!items.length) return null;
 
   return (
-    <div className="mx-auto max-w-md overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2]">
-      {/* Header */}
-      <div className="border-b border-[#ece4d4] px-5 py-5 text-center">
-        <div
-          className="mx-auto mb-3 h-px w-16 bg-gradient-to-r from-transparent via-[#c9a227]/40 to-transparent"
-          aria-hidden
-        />
-        <p className="text-[0.56rem] font-semibold uppercase tracking-[0.28em] text-zinc-400">
-          Schedule
-        </p>
-        <p className={`mt-1 text-base leading-snug text-zinc-800 ${serif}`}>
-          Event Timeline
-        </p>
-      </div>
-
-      {/* Items */}
-      <div className="divide-y divide-[#ece4d4]">
+    <div className="overflow-hidden rounded-[10px] border border-[var(--inv-rule,#e2dcd0)] bg-[var(--inv-sheet,#fffefb)]">
+      {heading ? (
+        <h2 className={`border-b border-[var(--inv-rule,#e2dcd0)] px-5 py-4 text-center text-xl leading-snug text-[var(--inv-ink,#1c1915)] ${serif}`}>{heading}</h2>
+      ) : null}
+      <ol className="divide-y divide-[var(--inv-rule,#e2dcd0)]">
         {items.map((item, i) => {
           const displayTime = getDisplayTime(item);
           return (
-            <div key={i} className="flex items-center gap-4 px-5 py-4">
-              {/* Icon bubble */}
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#b28944]/10 text-[#b28944]">
-                <ItemIcon name={item.icon} title={item.title} />
-              </div>
-
-              {/* Title */}
-              <p className={`flex-1 text-sm font-semibold leading-snug text-zinc-900 ${serif}`}>
-                {item.title}
-              </p>
-
-              {/* Time range */}
-              {displayTime ? (
-                <p className="shrink-0 text-right text-[0.7rem] font-medium leading-snug text-[#8b6a34]">
-                  {displayTime.includes("–") ? (
+            <li key={i} className="grid grid-cols-[4.75rem_minmax(0,1fr)] items-start gap-4 px-5 py-3.5 sm:grid-cols-[6rem_minmax(0,1fr)]">
+              <p className="pt-0.5 text-[13px] font-semibold leading-snug text-[var(--inv-accent,#7a2e63)] tabular-nums">
+                {displayTime ? (
+                  displayTime.includes("–") ? (
                     <>
                       {displayTime.split("–")[0].trim()}
-                      <br />
-                      <span className="font-normal text-zinc-400">→ {displayTime.split("–")[1].trim()}</span>
+                      <span className="block font-normal text-[var(--inv-muted,#5e574d)]">to {displayTime.split("–")[1].trim()}</span>
                     </>
                   ) : (
                     displayTime
-                  )}
-                </p>
-              ) : null}
-            </div>
+                  )
+                ) : null}
+              </p>
+              <div className="flex min-w-0 items-start gap-2.5">
+                <span className="mt-0.5 shrink-0 text-[var(--inv-muted,#5e574d)]">
+                  <ItemIcon name={item.icon} title={item.title} />
+                </span>
+                <div className="min-w-0">
+                  <p className={`text-[1.05rem] leading-snug break-words text-[var(--inv-ink,#1c1915)] ${serif}`}>
+                    {item.title}
+                    {planner && item.visibility === "private" ? (
+                      <span className="ml-2 align-middle font-sans text-xs font-semibold text-[var(--accent)]">Planners only</span>
+                    ) : null}
+                  </p>
+                  {item.description && (!planner || item.visibility !== "private") ? (
+                    <p className="mt-0.5 text-sm leading-relaxed text-[var(--inv-muted,#5e574d)]">{item.description}</p>
+                  ) : null}
+                  {planner && item.privateNotes ? <p className="mt-0.5 text-[13px] text-[var(--muted-text)]">Note: {item.privateNotes}</p> : null}
+                </div>
+              </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </div>
   );
 }

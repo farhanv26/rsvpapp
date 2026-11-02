@@ -77,7 +77,7 @@ export function EventImageUploadField({
   return (
     <div className="space-y-4">
       <input type="hidden" name={inputName} value={uploadedPath ?? ""} />
-      <div className="rounded-2xl border border-dashed border-[#dccfbb] bg-[#fffdfa] p-4">
+      <div className="rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-4">
         <label htmlFor={fileInputId} className="mb-2 block text-sm font-semibold text-zinc-800">
           {label}
         </label>
@@ -89,7 +89,7 @@ export function EventImageUploadField({
           accept=".png,.jpg,.jpeg,image/png,image/jpeg"
           onChange={onFileChange}
           disabled={isUploading}
-          className="w-full rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-base file:mr-3 file:rounded-xl file:border-0 file:bg-[#efe3d2] file:px-3 file:py-2 file:text-sm disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-2xl border border-[var(--border-strong)] bg-white px-4 py-3 text-base file:mr-3 file:rounded-xl file:border-0 file:bg-[var(--surface-muted)] file:px-3 file:py-2 file:text-sm disabled:cursor-not-allowed disabled:opacity-60"
         />
         <p className="mt-3 text-xs text-zinc-500">
           Max file size {EVENT_IMAGE_MAX_SIZE_LABEL}. Larger files should be compressed before upload.
@@ -107,7 +107,7 @@ export function EventImageUploadField({
       ) : null}
 
       {hasImage ? (
-        <div className="rounded-2xl border border-[#e3d8c7] bg-[#f7f2e9] p-3">
+        <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-muted)] p-3">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Preview</p>
             <button
@@ -125,7 +125,7 @@ export function EventImageUploadField({
             </button>
           </div>
           <div
-            className={`relative w-full overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fffdfa] ${previewHeightClassName}`}
+            className={`relative w-full overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] ${previewHeightClassName}`}
           >
             <SafeEventImage
               src={safeImageSrc ?? ""}

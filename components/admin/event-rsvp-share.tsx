@@ -92,7 +92,7 @@ export function EventRsvpShare({
       width: 560,
       margin: 2,
       errorCorrectionLevel: "M",
-      color: { dark: "#1d1b18", light: "#fffcf6" },
+      color: { dark: "#172b2b", light: "#ffffff" },
     })
       .then((url) => setQrDataUrl(url))
       .catch((e: unknown) => setQrError(e instanceof Error ? e.message : "Could not generate QR code."));

@@ -38,6 +38,7 @@ export function GuestRowActions({
   onHistory,
   onDelete,
   onNotice,
+  onComposerOpened,
 }: {
   g: GuestPanelGuest;
   eventId: string;
@@ -50,6 +51,8 @@ export function GuestRowActions({
   onHistory: () => void;
   onDelete: (() => void) | null;
   onNotice: (message: string) => void;
+  /** Called when a WhatsApp or text composer opens for a household that isn't marked invited yet. */
+  onComposerOpened?: (channel: "whatsapp" | "imessage") => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -74,8 +77,11 @@ export function GuestRowActions({
         router.refresh();
       });
     } else {
-      void triggerGuestSendAction(eventId, g.id, channel);
-      if (!g.invitedAt) onNotice(`Opened ${channel === "whatsapp" ? "WhatsApp" : "Messages"} for ${g.guestName}. Mark them invited once you've sent it.`);
+      void triggerGuestSendAction(eventId, g.id, channel).then(() => router.refresh());
+      if (!g.invitedAt) {
+        if (onComposerOpened) onComposerOpened(channel);
+        else onNotice(`Opened ${channel === "whatsapp" ? "WhatsApp" : "Messages"} for ${g.guestName}. Mark them invited once you've sent it.`);
+      }
     }
   }
 

@@ -109,8 +109,8 @@ export function CommunicationPreviewModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <button type="button" className="absolute inset-0 bg-black/50" aria-label="Close" onClick={onClose} />
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fffdfa] shadow-xl">
-        <div className="border-b border-[#efe4d4] px-5 py-4">
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] shadow-xl">
+        <div className="border-b border-[var(--border-soft)] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Message preview</p>
@@ -167,7 +167,7 @@ export function CommunicationPreviewModal({
                 )}
               </div>
 
-              <div className="rounded-xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
+              <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted)] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Guest</p>
                 <p className="mt-1 font-medium text-zinc-900">{preview.guestName}</p>
                 <p className="mt-1 text-sm text-zinc-700">
@@ -179,7 +179,7 @@ export function CommunicationPreviewModal({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
+              <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted)] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Event</p>
                 <p className="mt-1 font-medium text-zinc-900">{preview.eventTitle}</p>
                 {preview.coupleNames?.trim() ? (
@@ -190,7 +190,7 @@ export function CommunicationPreviewModal({
                 ) : null}
               </div>
 
-              <div className="rounded-xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3">
+              <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted)] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Message structure</p>
                 <ul className="mt-2 space-y-1 text-sm text-zinc-700">
                   <li>
@@ -208,7 +208,7 @@ export function CommunicationPreviewModal({
                 </ul>
               </div>
 
-              <div className="flex gap-1 rounded-xl border border-[#e7dccb] bg-[#f4f0e8] p-1">
+              <div className="flex gap-1 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted)] p-1">
                 <button
                   type="button"
                   onClick={() => setTab("whatsapp")}
@@ -237,7 +237,7 @@ export function CommunicationPreviewModal({
 
               {tab === "whatsapp" ? (
                 <div className="space-y-3">
-                  <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[#e7dccb] bg-white px-4 py-3 font-sans text-sm leading-relaxed text-zinc-800">
+                  <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border-soft)] bg-white px-4 py-3 font-sans text-sm leading-relaxed text-zinc-800">
                     {preview.whatsappMessage}
                   </pre>
                   <div className="flex flex-wrap gap-2">
@@ -286,7 +286,7 @@ export function CommunicationPreviewModal({
                   </div>
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Body</p>
-                    <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[#e7dccb] bg-white px-4 py-3 font-sans text-sm leading-relaxed text-zinc-800">
+                    <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--border-soft)] bg-white px-4 py-3 font-sans text-sm leading-relaxed text-zinc-800">
                       {preview.emailBody}
                     </pre>
                   </div>
@@ -301,10 +301,10 @@ export function CommunicationPreviewModal({
           ) : null}
         </div>
         {onViewCommunicationHistory ? (
-          <div className="shrink-0 border-t border-[#efe4d4] px-5 py-3">
+          <div className="shrink-0 border-t border-[var(--border-soft)] px-5 py-3">
             <button
               type="button"
-              className="text-xs font-medium text-[#6a5434] underline-offset-2 hover:text-zinc-900 hover:underline"
+              className="text-xs font-medium text-[var(--muted-text)] underline-offset-2 hover:text-zinc-900 hover:underline"
               onClick={() => {
                 onViewCommunicationHistory();
                 onClose();

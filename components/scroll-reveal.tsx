@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 export function ScrollReveal({
   children,
@@ -12,18 +12,16 @@ export function ScrollReveal({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) { setVisible(true); return; }
-    if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setVisible(true); return; }
+    if (!el || typeof IntersectionObserver === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.classList.add("reveal-pending");
 
     const obs = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setVisible(true);
+          el.classList.remove("reveal-pending");
           obs.disconnect();
         }
       },
@@ -37,13 +35,10 @@ export function ScrollReveal({
   return (
     <div
       ref={ref}
-      className={className}
+      className={`scroll-reveal ${className ?? ""}`}
       style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "none" : "translateY(10px)",
-        // Snappier 0.5s with a spring-like exit — feels natural, not mechanical
-        transition: `opacity 0.5s ease ${delay}ms, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
-        willChange: visible ? "auto" : "opacity, transform",
+        transitionDelay: `${delay}ms`,
+
       }}
     >
       {children}

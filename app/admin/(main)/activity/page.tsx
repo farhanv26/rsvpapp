@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@/components/admin/planning-ui";
 import { requireSuperAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -75,31 +76,19 @@ export default async function AdminActivityPage({ searchParams }: Props) {
     "event_ownership_transferred",
   ];
 
-  return (
-    <main className="min-h-screen">
-      <div className="app-shell space-y-6">
-        <section className="app-card p-6 sm:p-8">
-          <p className="section-title">Audit Trail</p>
-          <h1 className="headline-display mt-2">System activity</h1>
-          <p className="mt-2 text-sm text-zinc-600">
-            Review who performed key actions across users, events, guests, and RSVP updates.
-          </p>
-          <p className="mt-3 rounded-xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-3 text-xs text-zinc-600">
-            Per-guest <span className="font-medium text-zinc-800">communication history</span> (WhatsApp prepared,
-            email send/skip/fail, manual invite marks, reminders) is stored separately from this audit list. Open an
-            event → guest list → <span className="font-medium text-zinc-800">Comm history</span> on a row to see the
-            full timeline for that guest.
-          </p>
-        </section>
+  const filtered = userFilter !== "all" || actionFilter !== "all" || eventFilter !== "all" || Boolean(q);
 
-        <section className="app-card p-5">
-          <form method="get" className="grid gap-3 md:grid-cols-4">
-            <input
-              name="q"
-              defaultValue={q}
-              placeholder="Search activity text..."
-              className="input-luxe mt-0 md:col-span-4"
-            />
+  return (
+    <main className="app-shell">
+      <PageHeader title="Activity" meta={`${activities.length} most recent${filtered ? " matching" : ""} · newest first`} />
+
+      <form method="get" className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))_auto]">
+        <label className="sm:col-span-2 lg:col-span-1">
+          <span className="sr-only">Search activity</span>
+          <input name="q" defaultValue={q} placeholder="Search activity" className="input-luxe mt-0" />
+        </label>
+        <label>
+          <span className="sr-only">User</span>
             <select name="user" defaultValue={userFilter} className="input-luxe mt-0">
               <option value="all">All users</option>
               {users.map((user) => (
@@ -108,6 +97,9 @@ export default async function AdminActivityPage({ searchParams }: Props) {
                 </option>
               ))}
             </select>
+        </label>
+        <label>
+          <span className="sr-only">Action</span>
             <select name="action" defaultValue={actionFilter} className="input-luxe mt-0">
               <option value="all">All actions</option>
               {actionOptions.map((action) => (
@@ -116,6 +108,9 @@ export default async function AdminActivityPage({ searchParams }: Props) {
                 </option>
               ))}
             </select>
+        </label>
+        <label>
+          <span className="sr-only">Event</span>
             <select name="event" defaultValue={eventFilter} className="input-luxe mt-0">
               <option value="all">All events</option>
               {events.map((event) => (
@@ -124,41 +119,39 @@ export default async function AdminActivityPage({ searchParams }: Props) {
                 </option>
               ))}
             </select>
-            <div className="flex gap-2">
-              <button type="submit" className="btn-primary w-full">
-                Apply
-              </button>
-              <a href="/admin/activity" className="btn-secondary w-full text-center">
-                Reset
-              </a>
-            </div>
-          </form>
-        </section>
+        </label>
+        <div className="flex gap-2">
+          <button type="submit" className="btn-secondary flex-1">
+            Filter
+          </button>
+          {filtered ? (
+            <a href="/admin/activity" className="btn-ghost">
+              Clear
+            </a>
+          ) : null}
+        </div>
+      </form>
 
-        <section className="app-card overflow-hidden">
-          <div className="border-b border-[#ebe4d6] px-5 py-4 text-sm text-zinc-600">{activities.length} recent items</div>
-          {activities.length === 0 ? (
-            <p className="px-5 py-8 text-sm text-zinc-600">No activity matched your filters.</p>
-          ) : (
-            <ul className="divide-y divide-[#ebe4d6]">
-              {activities.map((activity) => (
-                <li key={activity.id} className="px-5 py-4">
-                  <p className="text-sm font-medium text-zinc-900">{activity.message}</p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {activity.userName} · {formatActionLabel(activity.actionType)} · {activity.entityType}
-                    {activity.entityName ? ` · ${activity.entityName}` : ""}
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
-                      activity.createdAt,
-                    )}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
+      {activities.length === 0 ? (
+        <EmptyState title={filtered ? "No activity matches these filters" : "No activity yet"} />
+      ) : (
+        <ul className="list-rows">
+          {activities.map((activity) => (
+            <li key={activity.id} className="grid gap-x-6 gap-y-0.5 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
+              <div className="min-w-0">
+                <p className="text-sm break-words">{activity.message}</p>
+                <p className="mt-0.5 text-[13px] text-[var(--muted-text)]">
+                  {activity.userName} · {formatActionLabel(activity.actionType)}
+                  {activity.entityName ? ` · ${activity.entityName}` : ""}
+                </p>
+              </div>
+              <p className="text-[13px] text-[var(--muted-text)] tabular-nums sm:text-right">
+                {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(activity.createdAt)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }

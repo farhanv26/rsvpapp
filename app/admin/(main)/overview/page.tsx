@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { EmptyState, NoWeddingSelected, PageHeader, Stat, StatStrip } from "@/components/admin/planning-ui";
+import { ChevronRight } from "lucide-react";
+import { EmptyState, NoWeddingSelected, PageHeader, PlaceRegister, Stat, StatStrip } from "@/components/admin/planning-ui";
 import { summarizeEventAttendance } from "@/lib/attendance";
 import { summarizeBudget } from "@/lib/budget";
 import { formatMinor } from "@/lib/money";
@@ -45,7 +46,7 @@ export default async function OverviewPage() {
     }),
     prisma.budgetItem.findMany({
       where: { weddingId: wedding.id, deletedAt: null },
-      select: { id: true, label: true, eventId: true, estimateMinor: true, agreedMinor: true, perPersonMinor: true, perPersonBasis: true, nextPaymentDueAt: true, payments: { select: { amountMinor: true } } },
+      select: { id: true, label: true, eventId: true, estimateMinor: true, agreedMinor: true, perPersonMinor: true, perPersonBasis: true, nextPaymentDueAt: true, payments: { where: { deletedAt: null }, select: { amountMinor: true } } },
     }),
     prisma.weddingMembership.count({ where: { weddingId: wedding.id } }),
   ]);
@@ -66,20 +67,20 @@ export default async function OverviewPage() {
   if (events.length === 0) actions.push({ text: "Add your first event (Mehndi, Nikkah, reception…)", href: "/admin/events/new" });
   for (const { event, a } of perEvent) {
     if (a.households === 0) actions.push({ text: `Add guests to ${event.title}`, href: `/admin/events/${event.id}` });
-    if (a.notInvitedHouseholds > 0) actions.push({ text: `${plural(a.notInvitedHouseholds, "household")} at ${event.title} haven't been sent an invitation`, href: `/admin/events/${event.id}?tab=invitation` });
+    if (a.notInvitedHouseholds > 0) actions.push({ text: `${plural(a.notInvitedHouseholds, "household")} at ${event.title} ${a.notInvitedHouseholds === 1 ? "hasn't" : "haven't"} been sent an invitation`, href: `/admin/events/${event.id}?tab=invitation` });
     const deadline = getRsvpDeadlineMeta(event.rsvpDeadline);
     if (a.awaitingReplyHouseholds > 0 && deadline && (deadline.status === "closing_soon" || deadline.status === "closes_today")) {
-      actions.push({ text: `${plural(a.awaitingReplyHouseholds, "household")} haven't replied to ${event.title}; RSVPs close ${deadline.status === "closes_today" ? "today" : `in ${plural(deadline.daysRemaining, "day")}`}`, href: `/admin/events/${event.id}?tab=invitation`, tone: "warn" });
+      actions.push({ text: `${plural(a.awaitingReplyHouseholds, "household")} ${a.awaitingReplyHouseholds === 1 ? "hasn't" : "haven't"} replied to ${event.title}; replies close ${deadline.status === "closes_today" ? "today" : `in ${plural(deadline.daysRemaining, "day")}`}`, href: `/admin/events/${event.id}?tab=invitation`, tone: "warn" });
     }
-    if (a.needsReview > 0) actions.push({ text: `${plural(a.needsReview, "household")} at ${event.title} need a counting decision`, href: `/admin/events/${event.id}?tab=guests`, tone: "warn" });
+    if (a.needsReview > 0) actions.push({ text: `${plural(a.needsReview, "household")} at ${event.title} ${a.needsReview === 1 ? "needs" : "need"} a counting decision`, href: `/admin/events/${event.id}?tab=guests`, tone: "warn" });
     if (!event.eventDate || !event.venue) actions.push({ text: `Add the ${!event.eventDate ? "date" : "venue"} for ${event.title}`, href: `/admin/events/${event.id}/edit` });
   }
   for (const item of budgetItems) {
     const f = budget.figures.get(item.id)!;
     if (!item.nextPaymentDueAt || f.balanceMinor === 0) continue;
     const days = Math.round((item.nextPaymentDueAt.getTime() - startOfToday) / 86400000);
-    if (days < 0) actions.push({ text: `Payment for ${item.label} was due ${dateFmt.format(item.nextPaymentDueAt)}`, href: "/admin/budget", tone: "warn" });
-    else if (days <= 14) actions.push({ text: `Payment for ${item.label} due ${days === 0 ? "today" : dateFmt.format(item.nextPaymentDueAt)}`, href: "/admin/budget" });
+    if (days < 0) actions.push({ text: `Review the payment reminder for ${item.label} (${dateFmt.format(item.nextPaymentDueAt)})`, href: `/admin/budget/${item.id}` });
+    else if (days <= 14) actions.push({ text: `Payment reminder for ${item.label}: ${days === 0 ? "today" : dateFmt.format(item.nextPaymentDueAt)}`, href: `/admin/budget/${item.id}` });
   }
 
   const upcomingRows = upcoming.length > 0 ? upcoming : perEvent;
@@ -96,19 +97,21 @@ export default async function OverviewPage() {
               : undefined
         }
         actions={
-          <Link href="/admin/events/new" className="btn-secondary">
-            Add event
-          </Link>
+          events.length > 0 ? (
+            <Link href="/admin/events/new" className="btn-secondary">
+              Add event
+            </Link>
+          ) : null
         }
       />
 
       {events.length > 0 ? (
         <StatStrip columns={4}>
-          <Stat label="Households" value={wide.uniqueHouseholds} hint={wide.householdsInMultipleEvents ? `${wide.householdsInMultipleEvents} at more than one event` : undefined} />
-          <Stat label="People coming" value={wide.uniqueConfirmedAttendees} hint={`${wide.confirmedAcrossEvents} across all events`} />
-          <Stat label="Waiting for a reply" value={awaiting} hint="households" />
+          <Stat label="households" value={wide.uniqueHouseholds} hint={wide.householdsInMultipleEvents ? `${wide.householdsInMultipleEvents} at more than one event` : undefined} />
+          <Stat label="people coming" value={wide.uniqueConfirmedAttendees} hint={`${wide.confirmedAcrossEvents} across all events`} />
+          <Stat label={awaiting === 1 ? "household awaiting reply" : "households awaiting reply"} value={awaiting} />
           <Stat
-            label="Budget paid"
+            label="paid"
             value={formatMinor(budget.total.paidMinor, wedding.currency)}
             hint={budget.total.balanceDueMinor > 0 ? `${formatMinor(budget.total.balanceDueMinor, wedding.currency)} still due` : undefined}
           />
@@ -125,11 +128,9 @@ export default async function OverviewPage() {
           <ul className="list-rows mt-3">
             {actions.slice(0, 10).map((a, i) => (
               <li key={i}>
-                <Link href={a.href} className="flex min-h-12 items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-[var(--surface-muted)]">
-                  <span className={`status ${a.tone === "warn" ? "status-warning" : "status-muted"} whitespace-normal text-[var(--foreground)]`}>{a.text}</span>
-                  <span aria-hidden className="text-[var(--muted-text)]">
-                    →
-                  </span>
+                <Link href={a.href} className="group flex min-h-12 items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--surface-muted)]">
+                  <span className={a.tone === "warn" ? "status status-warning font-medium whitespace-normal" : ""}>{a.text}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted-text)] transition-transform group-hover:translate-x-0.5" aria-hidden />
                 </Link>
               </li>
             ))}
@@ -171,9 +172,18 @@ export default async function OverviewPage() {
                     <span className="block text-[var(--muted-text)]">
                       {event.eventDate ? `${dateFmt.format(event.eventDate)}${event.eventTime ? ` · ${event.eventTime}` : ""}` : "Date not set"}
                     </span>
-                    <span className="mt-1 block">
-                      {a.confirmedPeople} of {a.invitedPeople} coming · {a.awaitingReplyHouseholds} waiting
+                    <span className="mt-1.5 block tabular-nums">
+                      <span className="font-semibold">{a.confirmedPeople}</span> of {a.invitedPeople} coming · {a.awaitingReplyHouseholds} awaiting reply
                     </span>
+                    {a.invitedPeople > 0 ? (
+                      <div className="mt-1.5">
+                        <PlaceRegister
+                          total={a.invitedPeople}
+                          segments={[{ places: a.confirmedPeople, tone: "ink", label: "Coming" }]}
+                          label={`${a.confirmedPeople} of ${a.invitedPeople} coming`}
+                        />
+                      </div>
+                    ) : null}
                   </Link>
                 </li>
               ))}
@@ -188,9 +198,9 @@ export default async function OverviewPage() {
                       Replied
                     </th>
                     <th scope="col" className="text-right">
-                      Waiting
+                      Awaiting reply
                     </th>
-                    <th scope="col" className="text-right">
+                    <th scope="col" className="w-56">
                       Coming
                     </th>
                   </tr>
@@ -211,8 +221,17 @@ export default async function OverviewPage() {
                         {a.respondedHouseholds} of {a.households}
                       </td>
                       <td className="text-right tabular-nums">{a.awaitingReplyHouseholds}</td>
-                      <td className="text-right tabular-nums">
-                        {a.confirmedPeople} of {a.invitedPeople}
+                      <td className="tabular-nums">
+                        <span className="font-semibold">{a.confirmedPeople}</span> of {a.invitedPeople}
+                        {a.invitedPeople > 0 ? (
+                          <div className="mt-1.5">
+                            <PlaceRegister
+                              total={a.invitedPeople}
+                              segments={[{ places: a.confirmedPeople, tone: "ink", label: "Coming" }]}
+                              label={`${a.confirmedPeople} of ${a.invitedPeople} coming`}
+                            />
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   ))}

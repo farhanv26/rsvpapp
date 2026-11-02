@@ -1,7 +1,8 @@
 /**
  * Fictional demo wedding for local visual and flow testing. Every name is invented and every
- * record is labelled "[Demo]". Refuses to run unless DATABASE_URL points at localhost.
- *   npm run db:local:seed
+ * record is labelled "[Demo]". Runs only against a local database whose name contains "demo"
+ * (normally rsvp_demo), so demo accounts never mix with real local accounts.
+ *   npm run db:demo:seed
  */
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
@@ -10,6 +11,10 @@ import { randomBytes } from "node:crypto";
 const url = new URL(process.env.DATABASE_URL ?? "postgresql://invalid@invalid/invalid");
 if (!["localhost", "127.0.0.1"].includes(url.hostname)) {
   console.error(`Refusing to seed demo data into ${url.hostname}. Use a local database.`);
+  process.exit(1);
+}
+if (!url.pathname.replace(/^\//, "").includes("demo")) {
+  console.error(`Refusing to seed demo data into "${url.pathname.slice(1)}". Demo data goes only into a database named like rsvp_demo.`);
   process.exit(1);
 }
 

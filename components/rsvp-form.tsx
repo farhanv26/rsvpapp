@@ -16,7 +16,6 @@ type RsvpFormProps = {
 };
 
 const serif = "font-[family-name:var(--font-wedding-serif),Georgia,serif]";
-const script = "font-[family-name:var(--font-wedding-script),cursive]";
 
 export function RsvpForm({
   token,
@@ -85,208 +84,139 @@ export function RsvpForm({
     <>
       <form
         onSubmit={handleSubmit}
-        className={`tap-highlight-none relative w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-5 py-7 shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)] sm:px-8 sm:py-9 ${serif} ${isPending ? "opacity-[0.92]" : ""}`}
-        style={{ fontFamily: "var(--font-wedding-sans), sans-serif" }}
+        className={`invite-sheet tap-highlight-none relative w-full px-5 pt-7 pb-6 sm:px-8 sm:pt-9 sm:pb-8 ${isPending ? "opacity-[0.92]" : ""}`}
         aria-busy={isPending}
       >
         <input type="hidden" name="token" value={token} />
         {previewMode && <input type="hidden" name="previewMode" value="1" readOnly />}
 
-        <div className="text-center">
-          <p className="text-[0.6rem] font-semibold uppercase tracking-[0.28em] text-zinc-400">RSVP</p>
+        <fieldset disabled={disabled} className="min-w-0">
+          <legend className={`block w-full text-center text-[1.75rem] leading-tight text-[var(--inv-ink)] ${serif}`}>Will you be attending?</legend>
           {previewMode ? (
-            <p className="mt-2 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-center text-xs text-amber-950">
-              Preview only. Replies are turned off.
-            </p>
+            <p className="mx-auto mt-3 w-fit rounded-md bg-[#f7eedb] px-3 py-1.5 text-center text-xs font-medium text-[#5f3d00]">Preview only. Replies are turned off.</p>
           ) : null}
-          <p className={`mt-2 text-[1.7rem] text-zinc-900 ${script}`}>Will you be attending?</p>
-        </div>
 
-        {/* Attend / Decline choice */}
-        <div className="mt-7 grid gap-3 sm:grid-cols-2">
-          {(["yes", "no"] as const).map((val) => {
-            const isYes = val === "yes";
-            const selected = attending === val;
-            return (
-              <label
-                key={val}
-                className={`block touch-manipulation ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-              >
-                <input
-                  type="radio"
-                  name="attending"
-                  value={val}
-                  checked={selected}
-                  onChange={() => {
-                    setAttending(val);
-                  }}
-                  disabled={disabled}
-                  className="sr-only"
-                />
-                <div
-                  className={`rsvp-choice-card rounded-2xl border-2 px-5 py-4 text-left ${
-                    selected
-                      ? isYes
-                        ? "border-emerald-300 bg-emerald-50/70 shadow-[0_8px_24px_-16px_rgba(16,120,80,0.4)]"
-                        : "border-rose-300 bg-rose-50/70 shadow-[0_8px_24px_-16px_rgba(190,40,60,0.35)]"
-                      : "border-[#e8dcc4] bg-white hover:border-[#d4c4a8] hover:bg-[#faf7f2]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className={`block text-[1.1rem] text-zinc-900 ${serif}`}>
-                        {isYes ? "Yes, we'll be there" : "Sorry, can't make it"}
-                      </span>
-                    </div>
-                    {/* Selection indicator */}
-                    <div
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-200 ${
-                        selected
-                          ? isYes
-                            ? "border-emerald-500 bg-emerald-500"
-                            : "border-rose-400 bg-rose-400"
-                          : "border-[#ccc0aa]"
+          <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
+            {(["yes", "no"] as const).map((val) => {
+              const selected = attending === val;
+              return (
+                <label key={val} className={`block touch-manipulation ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                  <input type="radio" name="attending" value={val} checked={selected} onChange={() => setAttending(val)} className="peer sr-only" />
+                  <span
+                    className={`rsvp-choice-card flex min-h-14 items-center justify-between gap-3 rounded-md border px-4 py-3 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--inv-accent)] ${
+                      selected
+                        ? "border-[var(--inv-accent)] bg-[var(--inv-accent-soft)] shadow-[inset_0_0_0_1px_var(--inv-accent)]"
+                        : "border-[var(--inv-rule)] bg-[var(--inv-sheet)] hover:border-[#cbbfa9]"
+                    }`}
+                  >
+                    <span className={`text-[1.15rem] text-[var(--inv-ink)] ${serif}`}>{val === "yes" ? "Yes, we'll be there" : "Sorry, can't make it"}</span>
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors ${
+                        selected ? "border-[var(--inv-accent)] bg-[var(--inv-accent)]" : "border-[#c3b6a0]"
                       }`}
+                      aria-hidden
                     >
-                      {selected && (
-                        <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 text-white" fill="none" aria-hidden>
-                          <path d="M1.5 5.5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </label>
-            );
-          })}
-        </div>
-
-        {/* Guest count stepper */}
-        {attending === "yes" ? (
-          <div className="mt-6 rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5">
-            <input type="hidden" name="attendingCount" value={attendingCount} />
-            <p className="text-center text-base font-medium text-zinc-800">How many of you are coming?</p>
-            <p className="mt-0.5 text-center text-xs text-zinc-500">
-              Your invitation is for up to {maxGuests} {maxGuests === 1 ? "person" : "people"}
-            </p>
-            {attendingCount === 0 ? (
-              <p className="mt-1 text-center text-xs font-medium text-amber-800">Tap + to choose</p>
-            ) : null}
-            <div className="mt-5 flex items-center justify-center gap-4">
-              <StepButton
-                onClick={() => step(-1)}
-                disabled={attendingCount <= 1 || disabled}
-                aria-label="Decrease guest count"
-              >
-                −
-              </StepButton>
-              <div
-                className={`flex min-w-[5rem] flex-col items-center justify-center rounded-2xl border border-[#ddd0bc] bg-white px-4 py-2.5 ${serif}`}
-              >
-                <span className="text-[2rem] leading-none tabular-nums text-zinc-900">{attendingCount}</span>
-                <span className="mt-0.5 text-[0.6rem] uppercase tracking-widest text-zinc-400">
-                  {attendingCount === 1 ? "guest" : "guests"}
-                </span>
-              </div>
-              <StepButton
-                onClick={() => step(1)}
-                disabled={attendingCount >= maxGuests || disabled}
-                aria-label="Increase guest count"
-              >
-                +
-              </StepButton>
-            </div>
+                      {selected ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
           </div>
-        ) : null}
 
-        {/* Optional message to host */}
-        <div className="mt-5 rounded-2xl border border-[#e7dccb] bg-white px-4 py-4">
-          <label htmlFor="rsvp-host-message" className="block text-center text-sm font-medium text-zinc-800">
-            A note for the hosts <span className="font-normal text-zinc-500">(optional)</span>
-          </label>
-          <textarea
-            id="rsvp-host-message"
-            value={hostMessage}
-            onChange={(e) => setHostMessage(e.target.value)}
-            maxLength={500}
-            rows={3}
-            disabled={disabled}
-            className="mt-3 w-full resize-none rounded-2xl border border-[#dccfbb] bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#b28944] focus:ring-2 focus:ring-[#b28944]/20 disabled:cursor-not-allowed disabled:bg-zinc-50"
-            placeholder="Congratulations…"
-          />
-          <p className="mt-1.5 text-right text-[11px] text-zinc-500">{hostMessage.length}/500</p>
-        </div>
+          {attending === "yes" ? (
+            <div className="mt-6 border-t border-[var(--inv-rule)] pt-6 text-center">
+              <input type="hidden" name="attendingCount" value={attendingCount} />
+              <p className="text-base font-semibold text-[var(--inv-ink)]">How many of you are coming?</p>
+              <p className="mt-0.5 text-sm text-[var(--inv-muted)]">
+                Your invitation is for up to {maxGuests} {maxGuests === 1 ? "person" : "people"}
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <StepButton onClick={() => step(-1)} disabled={attendingCount <= 1 || disabled} aria-label="Decrease guest count">
+                  −
+                </StepButton>
+                <div className="flex min-w-[5.5rem] flex-col items-center justify-center rounded-md border border-[var(--inv-rule)] bg-[var(--inv-sheet)] px-4 py-2" aria-live="polite">
+                  <span className={`text-[2.25rem] leading-none tabular-nums text-[var(--inv-ink)] ${serif}`}>{attendingCount}</span>
+                  <span className="mt-1 text-[11px] font-semibold tracking-[0.14em] text-[var(--inv-muted)] uppercase">{attendingCount === 1 ? "guest" : "guests"}</span>
+                </div>
+                <StepButton onClick={() => step(1)} disabled={attendingCount >= maxGuests || disabled} aria-label="Increase guest count">
+                  +
+                </StepButton>
+              </div>
+              {attendingCount === 0 ? <p className="mt-3 text-sm font-semibold text-[var(--inv-accent)]">Tap + to choose</p> : null}
+            </div>
+          ) : null}
+
+          <div className="mt-6 border-t border-[var(--inv-rule)] pt-6">
+            <label htmlFor="rsvp-host-message" className="block text-sm font-semibold text-[var(--inv-ink)]">
+              A note for the hosts <span className="font-normal text-[var(--inv-muted)]">(optional)</span>
+            </label>
+            <textarea
+              id="rsvp-host-message"
+              value={hostMessage}
+              onChange={(e) => setHostMessage(e.target.value)}
+              maxLength={500}
+              rows={3}
+              className="mt-2 w-full resize-none rounded-md border border-[var(--inv-rule)] bg-[var(--inv-sheet)] px-3.5 py-3 text-base text-[var(--inv-ink)] outline-none transition placeholder:text-[#767064] focus:border-[var(--inv-accent)] focus:ring-2 focus:ring-[var(--inv-accent)]/15 disabled:cursor-not-allowed disabled:bg-[#f6f2ea] sm:text-sm"
+              placeholder="Congratulations…"
+            />
+            <p className="mt-1 text-right text-xs text-[var(--inv-muted)] tabular-nums">{hostMessage.length}/500</p>
+          </div>
+        </fieldset>
 
         {error ? (
-          <p
-            className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-sm text-red-700"
-            role="alert"
-          >
+          <p className="mt-4 rounded-md border border-[#ecc9c1] bg-[#f8e8e4] px-3 py-2 text-center text-sm text-[#7d2416]" role="alert">
             {error}
           </p>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={isPending || !canSubmit || previewMode}
-          className={`mt-8 w-full rounded-2xl border border-[#3f2f1f] bg-[#3f2f1f] py-4 text-sm font-semibold tracking-[0.07em] text-white shadow-[0_14px_40px_-18px_rgba(50,40,20,0.55)] transition hover:bg-[#352618] active:scale-[0.99] disabled:opacity-60 touch-manipulation ${serif}`}
-        >
-          {previewMode
-            ? "Preview only"
-            : isPending
-              ? "Sending…"
-              : "Continue"}
+        <button type="submit" disabled={isPending || !canSubmit || previewMode} className="invite-btn mt-6">
+          {previewMode ? "Preview only" : isPending ? "Sending…" : "Continue"}
         </button>
 
         {onCancelEdit ? (
-          <button
-            type="button"
-            onClick={onCancelEdit}
-            disabled={previewMode}
-            className="btn-secondary mt-3 w-full disabled:opacity-50"
-          >
+          <button type="button" onClick={onCancelEdit} disabled={previewMode} className="invite-btn-quiet mt-2.5 w-full">
             Keep my earlier reply
           </button>
         ) : null}
       </form>
 
-      {/* Confirm modal */}
       {showConfirm ? (
         <div
           className="modal-backdrop"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowConfirm(false); }}
-          onKeyDown={(e) => { if (e.key === "Escape") setShowConfirm(false); }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowConfirm(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setShowConfirm(false);
+          }}
         >
           <div className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="rsvp-confirm-title" aria-describedby="rsvp-confirm-body">
-            <p id="rsvp-confirm-title" className="text-[0.6rem] font-semibold uppercase tracking-[0.26em] text-zinc-500">Check your reply</p>
-            <p id="rsvp-confirm-body" className={`mt-3 text-xl leading-snug text-zinc-900 ${serif}`}>
-              {attending === "yes"
-                ? attendingCount === 1
-                  ? "1 person is coming."
-                  : `${attendingCount} of you are coming.`
-                : "You can't make it this time."}
+            <p id="rsvp-confirm-title" className="text-[11px] font-semibold tracking-[0.14em] text-[var(--muted-text)] uppercase">
+              Check your reply
+            </p>
+            <p id="rsvp-confirm-body" className={`mt-3 text-[1.4rem] leading-snug text-[var(--foreground)] ${serif}`}>
+              {attending === "yes" ? (attendingCount === 1 ? "1 person is coming." : `${attendingCount} of you are coming.`) : "You can't make it this time."}
             </p>
             {attending === "yes" && hostMessage.trim() ? (
-              <p className="mt-2 text-sm text-zinc-600">
+              <p className="mt-2 text-sm text-[var(--muted-text)]">
                 Your message: <em>&ldquo;{hostMessage.trim()}&rdquo;</em>
               </p>
             ) : null}
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 flex gap-2.5">
               <button
                 type="button"
-                onClick={() => { setShowConfirm(false); submitRsvp(); }}
-                className="btn-primary flex-1 py-3.5"
+                onClick={() => {
+                  setShowConfirm(false);
+                  submitRsvp();
+                }}
+                className="invite-btn flex-1"
                 disabled={isPending}
                 autoFocus
               >
                 Send reply
               </button>
-              <button
-                type="button"
-                onClick={() => setShowConfirm(false)}
-                className="btn-secondary flex-1"
-                disabled={isPending}
-              >
+              <button type="button" onClick={() => setShowConfirm(false)} className="invite-btn-quiet min-h-12 flex-1" disabled={isPending}>
                 Go back
               </button>
             </div>
@@ -314,7 +244,7 @@ function StepButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
-      className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-2xl border border-[#d9ccb7] bg-white text-xl font-light text-zinc-700 shadow-sm transition hover:border-[#c4b49a] hover:bg-[#faf6ef] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-md border border-[var(--inv-rule)] bg-[var(--inv-sheet)] text-2xl leading-none text-[var(--inv-ink)] transition-colors hover:border-[#cbbfa9] hover:bg-[#faf6ee] active:bg-[#f3ede2] disabled:cursor-not-allowed disabled:opacity-35"
     >
       {children}
     </button>

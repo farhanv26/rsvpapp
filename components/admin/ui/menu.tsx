@@ -63,7 +63,7 @@ export function Menu({
         {trigger}
       </summary>
       <div
-        className={`absolute z-[100] rounded-xl border border-[var(--border-soft)] bg-white p-1 shadow-lg ring-1 ring-black/[0.03] ${PLACEMENT[placement]} ${panelClassName}`}
+        className={`absolute z-[100] rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] p-1 shadow-[0_8px_24px_rgba(28,25,21,0.14)] ${PLACEMENT[placement]} ${panelClassName}`}
       >
         {children}
       </div>
@@ -86,8 +86,8 @@ export function MenuItem({
   disabled?: boolean;
   external?: boolean;
 }) {
-  const cls = `flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm transition-colors sm:min-h-9 disabled:opacity-50 ${
-    tone === "danger" ? "text-[var(--danger)] hover:bg-rose-50" : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+  const cls = `flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm transition-colors sm:min-h-9 disabled:cursor-not-allowed disabled:opacity-50 ${
+    tone === "danger" ? "text-[var(--danger)] hover:bg-[var(--danger-soft)]" : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
   }`;
   if (href) {
     return (

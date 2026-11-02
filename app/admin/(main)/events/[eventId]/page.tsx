@@ -8,9 +8,10 @@ import { EventGuestsPanel } from "@/components/admin/event-guests-panel";
 import { normalizeGuestNameKey } from "@/lib/csv-guests";
 import { EventDashboardScrollReset } from "@/components/admin/event-dashboard-scroll-reset";
 import { RsvpPreviewModal } from "@/components/admin/rsvp-preview-modal";
-import { AllowanceSummary, GuestListAccess, type GuestListMember, type HeldDeclinedGuest } from "@/components/admin/guest-list-access";
+import { GuestListAccess, type GuestListMember, type HeldDeclinedGuest } from "@/components/admin/guest-list-access";
 import { Menu, MenuItem } from "@/components/admin/ui/menu";
-import { EmptyState, Stat, StatStrip } from "@/components/admin/planning-ui";
+import { AllowanceRegister, EmptyState } from "@/components/admin/planning-ui";
+import { EventRegister } from "@/components/admin/event-register";
 import { ItineraryTimeline, type ItineraryItem } from "@/components/itinerary-timeline";
 import { requireCurrentAdminUser } from "@/lib/admin-auth";
 import { getEventAccess } from "@/lib/wedding-access";
@@ -25,7 +26,8 @@ import type { InviteCardEventInput } from "@/lib/invite-card-resolution";
 
 const TABS = [
   { id: "guests", label: "Guests" },
-  { id: "invitation", label: "Invitation" },
+  { id: "invitation", label: "Invitations" },
+  { id: "allowances", label: "Allowances" },
   { id: "schedule", label: "Schedule" },
   { id: "settings", label: "Settings" },
 ] as const;
@@ -79,10 +81,6 @@ const ACTIVITY_ACTIONS = [
   "guest_count_owner_changed",
 ];
 
-function daysAgo(days: number) {
-  return new Date(Date.now() - days * 86400000);
-}
-
 function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -91,7 +89,8 @@ export default async function EventDashboardPage({ params, searchParams }: Props
   const admin = await requireCurrentAdminUser();
   const { eventId } = await params;
   const sp = searchParams ? await searchParams : {};
-  const tab: TabId = TABS.some((t) => t.id === sp.tab) ? (sp.tab as TabId) : "guests";
+  const requestedTab: TabId = TABS.some((t) => t.id === sp.tab) ? (sp.tab as TabId) : "guests";
+  const tab: TabId = requestedTab === "settings" && (sp.gl_ok || sp.gl_error) ? "allowances" : requestedTab;
   const activityQ = sp.activityQ?.trim() || "";
   const activityAction = sp.activityAction?.trim() || "all";
 
@@ -191,7 +190,6 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     take: 8000,
     select: { guestId: true, channel: true, createdAt: true, actionKey: true },
   });
-  const weekAgo = daysAgo(7);
   const eventReminderSentGuestIds = [...new Set(commLogs.filter((l) => l.actionKey === "event_reminder_sent").map((l) => l.guestId))];
   const communicationLastByGuest: Record<string, { channel: string; at: string }> = {};
   for (const row of commLogs) {
@@ -264,16 +262,26 @@ export default async function EventDashboardPage({ params, searchParams }: Props
     : null;
   const tabHref = (id: TabId) => `/admin/events/${event.id}${id === "guests" ? "" : `?tab=${id}`}`;
   const contributors = guestListMembers.filter((m) => m.allocation && m.role === "contributor");
+  const visibleTabs = TABS.filter((t) => t.id !== "allowances" || event.weddingId);
+  let awaitingPlaces = 0;
+  let notInvitedPlaces = 0;
+  for (const g of event.guests) {
+    const places = countedBreakdown(g).total;
+    if (places <= 0) continue;
+    if (!g.invitedAt) notInvitedPlaces += places;
+    else if (!g.respondedAt) awaitingPlaces += places;
+  }
+  const showRegister = attendance.households > 0 && (tab === "guests" || tab === "invitation");
 
   return (
     <main className="app-shell">
       <EventDashboardScrollReset eventId={event.id} />
 
       <header>
-        <Link href="/admin/events" className="mb-1 inline-flex min-h-8 items-center gap-1 text-sm text-[var(--muted-text)] hover:text-[var(--foreground)]">
+        <Link href="/admin/events" className="mb-1.5 inline-flex min-h-8 items-center gap-1 text-sm text-[var(--muted-text)] hover:text-[var(--foreground)]">
           <span aria-hidden>←</span> Events
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <h1 className="page-title">{event.title}</h1>
             <p className="page-meta">{dateLine || "Date and venue not set"}</p>
@@ -283,27 +291,13 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             <Menu label="More event actions" summaryClassName="btn-secondary px-2.5" trigger={<Ellipsis className="h-4 w-4" aria-hidden />}>
               {isOrganizer ? <MenuItem href={`/admin/events/${event.id}/edit`}>Edit event</MenuItem> : null}
               <MenuItem href={`/admin/events/${event.id}/report`}>Host summary</MenuItem>
-              <MenuItem href={tabHref("settings")}>Settings and activity</MenuItem>
             </Menu>
           </div>
         </div>
-
-        {attendance.households > 0 ? (
-          <div className="mt-4">
-            <StatStrip columns={4}>
-              <Stat label="Coming" value={`${attendance.confirmedPeople} of ${attendance.invitedPeople}`} hint="people confirmed" />
-              <Stat label="Replied" value={`${attendance.respondedHouseholds} of ${countedGuests.length}`} hint="households" />
-              <Stat label="No reply yet" value={attendance.awaitingReplyHouseholds} hint={deadlineText ?? "households"} />
-              <Stat label="Not invited" value={attendance.notInvitedHouseholds} hint="households" />
-            </StatStrip>
-          </div>
-        ) : deadlineText ? (
-          <p className="mt-1 text-sm text-[var(--muted-text)]">{deadlineText}</p>
-        ) : null}
       </header>
 
-      <nav className="tab-list mt-6" aria-label="Event sections">
-        {TABS.map((t) => (
+      <nav className="tab-list mt-5" aria-label="Event sections">
+        {visibleTabs.map((t) => (
           <Link key={t.id} href={tabHref(t.id)} scroll={false} className="tab" aria-current={tab === t.id ? "page" : undefined}>
             {t.label}
           </Link>
@@ -311,30 +305,56 @@ export default async function EventDashboardPage({ params, searchParams }: Props
       </nav>
 
       <div className="pt-5">
+        {showRegister ? (
+          <div className="mb-6">
+            <EventRegister
+              placesOnList={attendance.invitedPeople}
+              coming={attendance.confirmedPeople}
+              awaitingPlaces={awaitingPlaces}
+              notInvitedPlaces={notInvitedPlaces}
+              repliedHouseholds={attendance.respondedHouseholds}
+              households={countedGuests.length}
+              deadline={deadlineText ? { text: deadlineText, urgent: deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" } : null}
+            />
+          </div>
+        ) : null}
+
         {tab === "guests" ? (
           <>
             {perm.level === "contributor" ? (
-              <p className="mb-4 text-sm">
-                Your allowance:{" "}
-                {myAllocation ? <AllowanceSummary used={myAllocation.used} places={myAllocation.places} /> : <span className="text-[var(--muted-text)]">not set yet — ask an organizer</span>}
-              </p>
+              <div className="mb-6">
+                {myAllocation ? (
+                  <AllowanceRegister name="Your allowance" used={myAllocation.used} places={myAllocation.places} declinedPlaces={myAllocation.declinedPlaces} />
+                ) : (
+                  <p className="notice-warning">You don&apos;t have an allowance for this event yet. Ask an organizer to set one before adding households.</p>
+                )}
+              </div>
             ) : contributors.length > 0 ? (
-              <ul className="mb-4 flex flex-wrap gap-x-5 gap-y-1 text-sm" aria-label="Contributor allowances">
-                {contributors.map((m) => (
-                  <li key={m.userId}>
-                    {m.name}: <AllowanceSummary used={m.allocation!.used} places={m.allocation!.places} />
-                  </li>
-                ))}
-                <li>
-                  <Link href={`${tabHref("settings")}#guest-list-access`} className="text-link">
-                    Manage
+              <section aria-label="Allowances" className="mb-6">
+                <ul className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {contributors.map((m) => (
+                    <li key={m.userId}>
+                      <AllowanceRegister
+                        compact
+                        name={m.name}
+                        href={`${tabHref("guests")}?managedBy=${encodeURIComponent(m.userId)}`}
+                        used={m.allocation!.used}
+                        places={m.allocation!.places}
+                        declinedPlaces={m.allocation!.declinedPlaces}
+                      />
+                    </li>
+                  ))}
+                </ul>
+                {isOrganizer ? (
+                  <Link href={tabHref("allowances")} className="text-link mt-2 inline-block text-sm">
+                    Manage allowances
                   </Link>
-                </li>
-              </ul>
+                ) : null}
+              </section>
             ) : null}
             {managedByFilter ? (
               <p className="notice-info mb-4">
-                Showing {memberNameById.get(managedByFilter) ?? "one member"}&apos;s households only.{" "}
+                Showing {memberNameById.get(managedByFilter) ?? "one member"}&apos;s list only.{" "}
                 <Link href={tabHref("guests")} className="text-link">
                   Show everyone
                 </Link>
@@ -342,8 +362,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             ) : null}
             {attendance.legacyAutomaticIgnored > 0 ? (
               <p className="mb-4 text-xs text-[var(--muted-text)]">
-                {plural(attendance.legacyAutomaticIgnored, "household")} {attendance.legacyAutomaticIgnored === 1 ? "was" : "were"} once left out of these totals because{" "}
-                {attendance.legacyAutomaticIgnored === 1 ? "it was" : "they were"} also invited to another event. Every household now counts at each event it&apos;s invited to.
+                {plural(attendance.legacyAutomaticIgnored, "household")} also invited to another event now {attendance.legacyAutomaticIgnored === 1 ? "counts" : "count"} here too.
               </p>
             ) : null}
             <EventGuestsPanel
@@ -368,6 +387,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
               }
               defaultGreeting={defaultGreeting}
               managers={perm.rolesConfigured ? weddingMembers.map((m) => ({ id: m.userId, name: m.user.name })) : []}
+              currentUserId={admin.id}
               existingGuestNameKeys={event.guests.map((g) => normalizeGuestNameKey(g.guestName))}
               emailConfigured={emailConfigured}
               initialQuery={sp.q?.slice(0, 80) ?? ""}
@@ -387,28 +407,13 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             awaiting={attendance.awaitingReplyHouseholds}
             replied={attendance.respondedHouseholds}
             emailConfigured={emailConfigured}
-            messageActionsThisWeek={commLogs.filter((l) => l.createdAt >= weekAgo).length}
-            householdsWithHistory={new Set(commLogs.map((l) => l.guestId)).size}
             shareGuests={guestsSerialized.map((g) => ({ id: g.id, guestName: g.guestName, token: g.token, greeting: g.greeting, phone: g.phone, phoneCountryCode: g.phoneCountryCode }))}
             tabHref={tabHref}
           />
         ) : null}
 
         {tab === "schedule" ? (
-          <section className="grid gap-8 lg:grid-cols-[18rem_minmax(0,1fr)]">
-            <dl className="list-rows h-fit text-sm">
-              {[
-                ["Date", event.eventDate ? dateFmt.format(event.eventDate) : "Not set"],
-                ["Time", event.eventTime || "Not set"],
-                ["Venue", event.venue || "Not set"],
-                ["Replies close", deadlineText ? deadlineText.replace(/^Replies (close|closed) /, "") : "No deadline"],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-4 px-4 py-3">
-                  <dt className="text-[var(--muted-text)]">{k}</dt>
-                  <dd className="text-right">{v}</dd>
-                </div>
-              ))}
-            </dl>
+          <section className="max-w-3xl">
             <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="section-heading">Running order</h2>
@@ -419,9 +424,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
                 ) : null}
               </div>
               {itinerary.length > 0 ? (
-                <div className="app-card p-4 sm:p-5">
-                  <ItineraryTimeline items={itinerary} />
-                </div>
+                <ItineraryTimeline items={itinerary} planner />
               ) : (
                 <EmptyState title="No running order yet">Add timings so guests know when to arrive. Private items stay hidden from guests.</EmptyState>
               )}
@@ -429,33 +432,37 @@ export default async function EventDashboardPage({ params, searchParams }: Props
           </section>
         ) : null}
 
-        {tab === "settings" ? (
-          <div className="max-w-4xl space-y-10">
-            {event.weddingId ? (
-              <GuestListAccess
-                eventId={event.id}
-                perm={perm}
-                members={guestListMembers}
-                unallocatedPlaces={usage.unallocatedPlaces}
-                declinedHolding={isOrganizer ? declinedHolding : []}
-                managedByFilter={managedByFilter}
-                message={sp.gl_ok ?? null}
-                error={sp.gl_error ?? null}
-              />
-            ) : null}
+        {tab === "allowances" && event.weddingId ? (
+          <div className="max-w-4xl">
+            <GuestListAccess
+              eventId={event.id}
+              perm={perm}
+              members={guestListMembers}
+              unallocatedPlaces={usage.unallocatedPlaces}
+              declinedHolding={isOrganizer ? declinedHolding : []}
+              managedByFilter={managedByFilter}
+              message={sp.gl_ok ?? null}
+              error={sp.gl_error ?? null}
+            />
+          </div>
+        ) : null}
 
+        {tab === "settings" ? (
+          <div className="max-w-3xl space-y-10">
             {isOrganizer ? (
-              <section aria-labelledby="details-heading">
-                <h2 id="details-heading" className="section-heading">
-                  Event details
-                </h2>
-                <p className="mt-1 text-sm text-[var(--muted-text)]">Date, venue, invitation wording, cards and running order.</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Link href={`/admin/events/${event.id}/edit`} className="btn-secondary">
-                    Edit event
-                  </Link>
+              <section aria-labelledby="details-heading" className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 id="details-heading" className="section-heading">
+                    Event details
+                  </h2>
+                  <p className="mt-0.5 text-sm text-[var(--muted-text)]">Date, venue, invitation wording, cards and running order</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <Link href={`/admin/events/${event.id}/report`} className="btn-ghost">
                     Host summary
+                  </Link>
+                  <Link href={`/admin/events/${event.id}/edit`} className="btn-secondary">
+                    Edit event
                   </Link>
                 </div>
               </section>
@@ -464,7 +471,7 @@ export default async function EventDashboardPage({ params, searchParams }: Props
             <ActivitySection eventId={event.id} adminId={admin.id} seesAll={canSeeAllGuests(perm)} q={activityQ} action={activityAction} />
 
             {isOrganizer ? (
-              <section aria-labelledby="danger-heading" className="border-t border-[var(--border-soft)] pt-6">
+              <section aria-labelledby="danger-heading" className="mt-16 border-t border-[var(--border-strong)] pt-6">
                 <h2 id="danger-heading" className="section-heading">
                   Delete event
                 </h2>
@@ -488,8 +495,6 @@ function InvitationTab({
   awaiting,
   replied,
   emailConfigured,
-  messageActionsThisWeek,
-  householdsWithHistory,
   shareGuests,
   tabHref,
 }: {
@@ -510,81 +515,43 @@ function InvitationTab({
   awaiting: number;
   replied: number;
   emailConfigured: boolean;
-  messageActionsThisWeek: number;
-  householdsWithHistory: number;
   shareGuests: { id: string; guestName: string; token: string; greeting: string; phone: string | null; phoneCountryCode: string | null }[];
   tabHref: (id: TabId) => string;
 }) {
   const imageSrc = getSafeImageSrc(event.imagePath);
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <section aria-labelledby="inv-preview-heading">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 id="inv-preview-heading" className="section-heading">
-            What guests see
-          </h2>
-          <div className="flex gap-2">
-            <RsvpPreviewModal eventId={event.id} triggerClassName="btn-secondary btn-sm" />
-            {isOrganizer ? (
-              <Link href={`/admin/events/${event.id}/edit`} className="btn-ghost btn-sm">
-                Edit
-              </Link>
-            ) : null}
-          </div>
-        </div>
-        <div className="app-card overflow-hidden">
-          {imageSrc ? (
-            <div className="bg-[var(--surface-muted)] p-4">
-              <EventImageLightbox src={imageSrc} alt={`${event.title} invitation`} hintText="View full size" previewHeightClassName="h-64 sm:h-80" />
-            </div>
-          ) : null}
-          <div className="px-6 py-8 text-center">
-            {event.coupleNames ? <p className="font-[family-name:var(--font-wedding-serif)] text-3xl leading-tight text-zinc-900">{event.coupleNames}</p> : null}
-            <p className="mt-2 text-sm font-medium tracking-wide text-[var(--muted-text)]">{event.eventSubtitle || event.title}</p>
-            {dateLine ? <p className="mt-1 text-sm text-[var(--muted-text)]">{dateLine}</p> : null}
-            {event.welcomeMessage ? <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed">{event.welcomeMessage}</p> : null}
-            {!imageSrc && !event.welcomeMessage ? (
-              <p className="mt-4 text-sm text-[var(--muted-text)]">No invitation card or welcome message yet.</p>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section aria-labelledby="inv-send-heading">
+    <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <section aria-labelledby="inv-send-heading" className="lg:order-2">
         <h2 id="inv-send-heading" className="section-heading mb-3">
-          Sending
+          Send
         </h2>
         <ul className="list-rows text-sm">
-          <li className="flex items-center justify-between gap-3 px-4 py-3">
-            <span>
-              <span className="font-medium tabular-nums">{notInvited}</span> not invited yet
-            </span>
+          <SendRow count={notInvited} label="not invited yet">
             {notInvited > 0 ? (
               <Link href={`${tabHref("guests")}?send=invite`} className="btn-primary btn-sm">
                 Send invitations
               </Link>
             ) : null}
-          </li>
-          <li className="flex items-center justify-between gap-3 px-4 py-3">
-            <span>
-              <span className="font-medium tabular-nums">{awaiting}</span> invited, no reply
-            </span>
+          </SendRow>
+          <SendRow count={awaiting} label="awaiting reply">
             {awaiting > 0 ? (
               <Link href={`${tabHref("guests")}?send=remind`} className="btn-secondary btn-sm">
                 Send reminders
               </Link>
             ) : null}
-          </li>
-          <li className="px-4 py-3">
-            <span className="font-medium tabular-nums">{replied}</span> replied
-          </li>
+          </SendRow>
+          <SendRow count={replied} label="replied" />
           {readiness.missingContact > 0 ? (
-            <li className="px-4 py-3 text-[var(--warning)]">
+            <li className="px-4 py-2.5 text-[13px] text-[var(--warning)]">
               {plural(readiness.missingContact, "household")} not yet invited {readiness.missingContact === 1 ? "has" : "have"} no phone or email
             </li>
           ) : null}
         </ul>
-        <div className="mt-3">
+        <p className="mt-3 text-xs leading-relaxed text-[var(--muted-text)]">
+          WhatsApp and text messages open on your phone and you press send. Mark households invited afterwards so the counts stay right.
+          {emailConfigured ? "" : " Email sending isn't set up."}
+        </p>
+        <div className="mt-4 border-t border-[var(--border-soft)] pt-4">
           <EventRsvpShare
             eventTitle={event.title}
             eventCoupleNames={event.coupleNames}
@@ -594,20 +561,48 @@ function InvitationTab({
             triggerClassName="btn-sm"
           />
         </div>
-        <div className="mt-6 space-y-2 text-xs text-[var(--muted-text)]">
-          <p>
-            WhatsApp and text messages are sent from your phone, so a household counts as invited only after you mark it.{" "}
-            {emailConfigured ? "Email is sent by the app." : "Email sending isn't set up for this app."}
-          </p>
-          {householdsWithHistory > 0 ? (
-            <p>
-              {plural(messageActionsThisWeek, "message action")} in the last 7 days · {plural(householdsWithHistory, "household")} with message history. Open a household&apos;s
-              menu for its full history.
-            </p>
+      </section>
+
+      <section aria-labelledby="inv-preview-heading" className="lg:order-1">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 id="inv-preview-heading" className="section-heading">
+            What guests see
+          </h2>
+          {isOrganizer ? (
+            <Link href={`/admin/events/${event.id}/edit`} className="btn-secondary btn-sm">
+              Edit wording
+            </Link>
           ) : null}
+        </div>
+        <div className="paper-sheet overflow-hidden">
+          {imageSrc ? (
+            <div className="border-b border-[var(--border-soft)] bg-[var(--surface-muted)] p-4">
+              <EventImageLightbox src={imageSrc} alt={`${event.title} invitation`} hintText="View full size" previewHeightClassName="h-64 sm:h-80" />
+            </div>
+          ) : null}
+          <div className="px-6 py-9 text-center">
+            {event.coupleNames ? (
+              <p className="font-[family-name:var(--font-wedding-serif)] text-[2rem] leading-tight text-[var(--foreground)]">{event.coupleNames}</p>
+            ) : null}
+            <p className="mt-2 text-sm font-medium tracking-wide text-[var(--muted-text)]">{event.eventSubtitle || event.title}</p>
+            {dateLine ? <p className="mt-1 text-sm text-[var(--muted-text)]">{dateLine}</p> : null}
+            {event.welcomeMessage ? <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed whitespace-pre-line">{event.welcomeMessage}</p> : null}
+            {!imageSrc && !event.welcomeMessage ? <p className="mt-4 text-sm text-[var(--muted-text)]">No invitation card or welcome message yet.</p> : null}
+          </div>
         </div>
       </section>
     </div>
+  );
+}
+
+function SendRow({ count, label, children }: { count: number; label: string; children?: React.ReactNode }) {
+  return (
+    <li className="flex min-h-14 items-center justify-between gap-3 px-4 py-2.5">
+      <span className="tabular-nums">
+        <span className="text-base font-bold">{count}</span> <span className="text-[var(--muted-text)]">{count === 1 ? "household" : "households"}</span> {label}
+      </span>
+      {children}
+    </li>
   );
 }
 
@@ -656,7 +651,7 @@ async function ActivitySection({ eventId, adminId, seesAll, q, action }: { event
         </button>
       </form>
       {rows.length === 0 ? (
-        <p className="mt-3 text-sm text-[var(--muted-text)]">No activity matches.</p>
+        <p className="mt-3 text-sm text-[var(--muted-text)]">{q || action !== "all" ? "No activity matches these filters." : "No activity yet."}</p>
       ) : (
         <ul className="list-rows mt-3 max-h-[32rem] overflow-y-auto">
           {rows.map((a) => (

@@ -28,20 +28,19 @@ const serif = "font-[family-name:var(--font-wedding-serif),Georgia,serif]";
  */
 export function CountdownTimer({ eventStartISO }: { eventStartISO: string }) {
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const target = new Date(eventStartISO);
     if (isNaN(target.getTime())) return;
-    setMounted(true);
-    setTimeLeft(getTimeLeft(target));
-    const id = setInterval(() => setTimeLeft(getTimeLeft(target)), 1_000);
-    return () => clearInterval(id);
+    const update = () => setTimeLeft(getTimeLeft(target));
+    const initial = setTimeout(update, 0);
+    const id = setInterval(update, 1_000);
+    return () => { clearTimeout(initial); clearInterval(id); };
   }, [eventStartISO]);
 
   // SSR renders nothing — client hydrates without mismatch
   // Also hides gracefully once the event has passed
-  if (!mounted || !timeLeft) return null;
+  if (!timeLeft) return null;
 
   const units = [
     { label: "days", value: timeLeft.days },
@@ -51,37 +50,19 @@ export function CountdownTimer({ eventStartISO }: { eventStartISO: string }) {
   ];
 
   return (
-    <div className="mx-auto max-w-xs">
-      <p className="mb-4 text-center text-[0.52rem] font-semibold uppercase tracking-[0.36em] text-zinc-400">
-        Event begins in
-      </p>
-      <div className="flex items-center justify-center gap-1">
-        {units.map(({ label, value }, i) => (
-          <div key={label} className="flex items-center gap-1">
-            <div className="flex flex-col items-center">
-              <div
-                className={`flex h-[4.6rem] w-[4.6rem] items-center justify-center rounded-[1.1rem] border border-[#e2d5c0] bg-[#fbf8f2] shadow-[0_1px_4px_rgba(63,47,31,0.07),inset_0_1px_0_rgba(255,255,255,0.85)] ${serif}`}
-              >
-                <span
-                  key={`${label}-${value}`}
-                  className={`text-[2rem] font-semibold leading-none tabular-nums text-[#1d1208] ${label === "sec" ? "countdown-tick" : ""}`}
-                  aria-label={`${value} ${label}`}
-                >
-                  {pad(value)}
-                </span>
-              </div>
-              <span className="mt-1.5 text-[0.44rem] font-semibold uppercase tracking-[0.26em] text-zinc-400">
-                {label}
-              </span>
-            </div>
-            {i < units.length - 1 && (
-              <span
-                className="mb-6 select-none px-0.5 text-sm font-light text-[#c8b78e]"
-                aria-hidden
-              >
-                ·
-              </span>
-            )}
+    <div className="mx-auto max-w-sm py-3 text-center">
+      <p className="sr-only">Time until the event begins</p>
+      <div className="grid grid-cols-4 divide-x divide-[var(--inv-rule,#e3d9c8)]">
+        {units.map(({ label, value }) => (
+          <div key={label} className="flex flex-col items-center px-2">
+            <span
+              key={`${label}-${value}`}
+              className={`text-[2.1rem] leading-none tabular-nums text-[var(--inv-ink,#221b17)] ${serif}`}
+              aria-label={`${value} ${label}`}
+            >
+              {pad(value)}
+            </span>
+            <span className="mt-1 text-xs text-[var(--inv-muted,#6b6157)]">{label}</span>
           </div>
         ))}
       </div>

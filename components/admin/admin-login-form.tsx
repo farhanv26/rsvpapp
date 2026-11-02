@@ -1,18 +1,8 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { loginAdminAction } from "@/app/admin/login/actions";
-
-const MRU_STORAGE_KEY = "rsvp_admin_user_mru_v1";
-const subscribeToNothing = () => () => {};
-function readMru() {
-  try {
-    return localStorage.getItem(MRU_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -26,67 +16,32 @@ function SubmitButton() {
 export function AdminLoginForm({
   errorMessage,
   initialUser,
-  users,
 }: {
   errorMessage: string | null;
   initialUser?: string;
-  users: Array<{ name: string; role: string }>;
 }) {
-  const [selectedUser, setSelectedUser] = useState(() =>
-    initialUser && users.some((u) => u.name === initialUser) ? initialUser : "",
-  );
   const [showPassword, setShowPassword] = useState(false);
-  const mruRaw = useSyncExternalStore(subscribeToNothing, readMru, () => null);
-
-  const orderedUsers = useMemo(() => {
-    const validNames = new Set(users.map((u) => u.name));
-    let mru: string[] = [];
-    try {
-      const parsed = mruRaw ? JSON.parse(mruRaw) : [];
-      if (Array.isArray(parsed)) {
-        mru = parsed.filter((name): name is string => typeof name === "string" && validNames.has(name));
-      }
-    } catch {
-      mru = [];
-    }
-    const orderIndex = new Map<string, number>(mru.map((name, idx) => [name, idx]));
-    return [...users].sort((a, b) => {
-      const ai = orderIndex.get(a.name) ?? Number.MAX_SAFE_INTEGER;
-      const bi = orderIndex.get(b.name) ?? Number.MAX_SAFE_INTEGER;
-      if (ai !== bi) return ai - bi;
-      return a.name.localeCompare(b.name);
-    });
-  }, [mruRaw, users]);
-
-  if (users.length === 0) {
-    return (
-      <p className="notice-info mt-5" role="status">
-        No accounts are set up yet. Ask your account administrator to add you.
-      </p>
-    );
-  }
 
   return (
     <form action={loginAdminAction} className="mt-5 space-y-4">
       <div>
         <label className="form-label" htmlFor="adminUser">
-          Account
+          Account name
         </label>
-        <select
+        <input
           id="adminUser"
           name="adminUser"
-          value={selectedUser}
-          onChange={(e) => setSelectedUser(e.target.value)}
+          type="text"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          defaultValue={initialUser ?? ""}
+          maxLength={80}
           className="input-luxe"
           required
-        >
-          <option value="">Choose your name</option>
-          {orderedUsers.map((user) => (
-            <option key={user.name} value={user.name}>
-              {user.name}
-            </option>
-          ))}
-        </select>
+          aria-invalid={errorMessage ? true : undefined}
+          aria-describedby={errorMessage ? "login-error" : undefined}
+        />
       </div>
 
       <div>

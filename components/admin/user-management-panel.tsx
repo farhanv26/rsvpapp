@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import {
   createUserAction,
   deactivateUserAction,
@@ -12,6 +12,7 @@ import {
   type UserManageResult,
 } from "@/lib/admin-user-management-actions";
 import { formatAdminRoleLabel } from "@/lib/admin-roles";
+import { Dialog } from "@/components/admin/ui/dialog";
 
 export type UserRowSerialized = {
   id: string;
@@ -28,7 +29,7 @@ export type UserRowSerialized = {
 function SoleOwnerNotice({ user }: { user: UserRowSerialized }) {
   if (!user.soleOwnerOf?.length) return null;
   return (
-    <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="status">
+    <p className="notice-warning" role="status">
       {user.name} is the only owner of {user.soleOwnerOf.map((n) => `"${n}"`).join(", ")}. Make another member an owner
       first, or this will be refused.
     </p>
@@ -39,7 +40,7 @@ function WeddingAccessNote({ user }: { user: UserRowSerialized }) {
   const count = user.weddingCount ?? 0;
   if (count === 0) return null;
   return (
-    <p className="text-sm text-zinc-600">
+    <p className="text-sm text-[var(--muted-text)]">
       {user.name} belongs to {count} wedding{count === 1 ? "" : "s"}. Those events stay with the wedding and its other
       members keep their access.
     </p>
@@ -64,34 +65,15 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[2px]"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 max-h-[min(90vh,720px)] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#e7dccb] bg-[#fffcf6] p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="font-display text-lg font-semibold text-zinc-900">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800"
-            aria-label="Close dialog"
-          >
-            ×
-          </button>
-        </div>
-        <div className="mt-5">{children}</div>
-      </div>
-    </div>
+    <Dialog open onClose={onClose} title={title}>
+      {children}
+    </Dialog>
   );
 }
 
 function FieldError({ messages }: { messages?: string[] }) {
   if (!messages?.length) return null;
-  return <p className="mt-1 text-xs text-rose-700">{messages[0]}</p>;
+  return <p className="mt-1 text-xs text-[var(--danger)]">{messages[0]}</p>;
 }
 
 export function UserManagementPanel({
@@ -108,49 +90,14 @@ export function UserManagementPanel({
   const [deactivateUser, setDeactivateUser] = useState<UserRowSerialized | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserRowSerialized | null>(null);
 
-  const [createState, createAction] = useActionState(createUserAction, undefined as UserManageResult | undefined);
-  const [updateState, updateAction] = useActionState(updateUserAction, undefined as UserManageResult | undefined);
-  const [transferState, transferAction] = useActionState(transferEventsAction, undefined as UserManageResult | undefined);
+  const [createState, createAction] = useActionState(async (previous: UserManageResult | undefined, form: FormData) => { const result = await createUserAction(previous, form); if (result?.ok) { setCreateOpen(false); router.refresh(); } return result; }, undefined as UserManageResult | undefined);
+  const [updateState, updateAction] = useActionState(async (previous: UserManageResult | undefined, form: FormData) => { const result = await updateUserAction(previous, form); if (result?.ok) { setEditUser(null); router.refresh(); } return result; }, undefined as UserManageResult | undefined);
+  const [transferState, transferAction] = useActionState(async (previous: UserManageResult | undefined, form: FormData) => { const result = await transferEventsAction(previous, form); if (result?.ok) { setTransferUser(null); router.refresh(); } return result; }, undefined as UserManageResult | undefined);
   const [deactivateState, deactivateAction] = useActionState(
-    deactivateUserAction,
+    async (previous: UserManageResult | undefined, form: FormData) => { const result = await deactivateUserAction(previous, form); if (result?.ok) { setDeactivateUser(null); router.refresh(); } return result; },
     undefined as UserManageResult | undefined,
   );
-  const [deleteState, deleteAction] = useActionState(deleteUserAction, undefined as UserManageResult | undefined);
-
-  useEffect(() => {
-    if (createState?.ok) {
-      router.refresh();
-      setCreateOpen(false);
-    }
-  }, [createState, router]);
-
-  useEffect(() => {
-    if (updateState?.ok) {
-      router.refresh();
-      setEditUser(null);
-    }
-  }, [updateState, router]);
-
-  useEffect(() => {
-    if (transferState?.ok) {
-      router.refresh();
-      setTransferUser(null);
-    }
-  }, [transferState, router]);
-
-  useEffect(() => {
-    if (deactivateState?.ok) {
-      router.refresh();
-      setDeactivateUser(null);
-    }
-  }, [deactivateState, router]);
-
-  useEffect(() => {
-    if (deleteState?.ok) {
-      router.refresh();
-      setDeleteTarget(null);
-    }
-  }, [deleteState, router]);
+  const [deleteState, deleteAction] = useActionState(async (previous: UserManageResult | undefined, form: FormData) => { const result = await deleteUserAction(previous, form); if (result?.ok) { setDeleteTarget(null); router.refresh(); } return result; }, undefined as UserManageResult | undefined);
 
   const activeUsers = useMemo(() => initialUsers.filter((u) => u.active), [initialUsers]);
   const totalEventsOwned = useMemo(
@@ -218,7 +165,7 @@ export function UserManagementPanel({
                   </button>
                   <button
                     type="button"
-                    className="btn-ghost btn-sm text-[var(--danger)]"
+                    className="btn-ghost btn-sm text-[var(--danger)] sm:ml-4"
                     onClick={() => setDeleteTarget(u)}
                   >
                     Delete
@@ -234,17 +181,17 @@ export function UserManagementPanel({
         <Modal title="Add user" onClose={() => setCreateOpen(false)}>
           <form action={createAction} className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-zinc-700" htmlFor="create-name">
+              <label className="form-label" htmlFor="create-name">
                 Name
               </label>
               <input id="create-name" name="name" required className="input-luxe mt-1.5 w-full" placeholder="Unique display name" />
               <FieldError messages={createState && !createState.ok ? createState.fieldErrors?.name : undefined} />
             </div>
-            <p className="rounded-xl border border-[#ebe4d6] bg-[#f9f4eb]/70 px-3 py-2 text-xs text-zinc-600">
+            <p className="rounded-md border border-[var(--border-soft)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--muted-text)]">
               Password is auto-set to this user&apos;s lowercase first name (for example, Aisha → aisha).
             </p>
             <div>
-              <label className="text-sm font-medium text-zinc-700" htmlFor="create-role">
+              <label className="form-label" htmlFor="create-role">
                 Role
               </label>
               <select id="create-role" name="role" className="input-luxe mt-1.5 w-full" required>
@@ -253,7 +200,7 @@ export function UserManagementPanel({
               </select>
             </div>
             {createState && !createState.ok && createState.error ? (
-              <p className="text-sm text-rose-700">{createState.error}</p>
+              <p className="text-sm text-[var(--danger)]">{createState.error}</p>
             ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="btn-secondary" onClick={() => setCreateOpen(false)}>
@@ -272,7 +219,7 @@ export function UserManagementPanel({
           <form action={updateAction} className="space-y-4">
             <input type="hidden" name="id" value={editUser.id} />
             <div>
-              <label className="text-sm font-medium text-zinc-700" htmlFor="edit-name">
+              <label className="form-label" htmlFor="edit-name">
                 Name
               </label>
               <input
@@ -285,7 +232,7 @@ export function UserManagementPanel({
               <FieldError messages={updateState && !updateState.ok ? updateState.fieldErrors?.name : undefined} />
             </div>
             <div>
-              <label className="text-sm font-medium text-zinc-700" htmlFor="edit-role">
+              <label className="form-label" htmlFor="edit-role">
                 Role
               </label>
               <select
@@ -299,7 +246,7 @@ export function UserManagementPanel({
                 <option value="super_admin">Super Admin</option>
               </select>
             </div>
-            <p className="rounded-xl border border-[#ebe4d6] bg-[#f9f4eb]/70 px-3 py-2 text-xs text-zinc-600">
+            <p className="rounded-md border border-[var(--border-soft)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--muted-text)]">
               Passwords use lowercase first-name format.
             </p>
             <button
@@ -311,7 +258,7 @@ export function UserManagementPanel({
               Reset password to lowercase first name
             </button>
             {updateState && !updateState.ok && updateState.error ? (
-              <p className="text-sm text-rose-700">{updateState.error}</p>
+              <p className="text-sm text-[var(--danger)]">{updateState.error}</p>
             ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="btn-secondary" onClick={() => setEditUser(null)}>
@@ -329,17 +276,17 @@ export function UserManagementPanel({
         <Modal title={`Transfer events from ${transferUser.name}`} onClose={() => setTransferUser(null)}>
           <form action={transferAction} className="space-y-4">
             <input type="hidden" name="fromUserId" value={transferUser.id} />
-            <p className="text-sm text-zinc-600">
+            <p className="text-sm text-[var(--muted-text)]">
               {transferUser._count.events === 0
                 ? `${transferUser.name} has no unassigned events to move.`
                 : `Moves ${transferUser._count.events} unassigned event${transferUser._count.events === 1 ? "" : "s"} (not in any wedding) to the account you choose. Guests and RSVPs stay with each event.`}
             </p>
-            <p className="text-sm text-zinc-600">
+            <p className="text-sm text-[var(--muted-text)]">
               This doesn&apos;t give anyone access to a wedding. To share a wedding, add the person as a member of that
               wedding instead.
             </p>
             <div>
-              <label className="text-sm font-medium text-zinc-700" htmlFor="transfer-to">
+              <label className="form-label" htmlFor="transfer-to">
                 Destination user
               </label>
               <select id="transfer-to" name="toUserId" className="input-luxe mt-1.5 w-full" required>
@@ -353,7 +300,7 @@ export function UserManagementPanel({
                   ))}
               </select>
             </div>
-            {transferState && !transferState.ok ? <p className="text-sm text-rose-700">{transferState.error}</p> : null}
+            {transferState && !transferState.ok ? <p className="text-sm text-[var(--danger)]">{transferState.error}</p> : null}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="btn-secondary" onClick={() => setTransferUser(null)}>
                 Cancel
@@ -370,12 +317,12 @@ export function UserManagementPanel({
         <Modal title={`Deactivate ${deactivateUser.name}`} onClose={() => setDeactivateUser(null)}>
           <form action={deactivateAction} className="space-y-4">
             <input type="hidden" name="userId" value={deactivateUser.id} />
-            <p className="text-sm text-zinc-600">Inactive accounts can&apos;t sign in.</p>
+            <p className="text-sm text-[var(--muted-text)]">Inactive accounts can&apos;t sign in.</p>
             <WeddingAccessNote user={deactivateUser} />
             <SoleOwnerNotice user={deactivateUser} />
             {deactivateUser._count.events > 0 ? (
               <div>
-                <label className="text-sm font-medium text-zinc-700" htmlFor="deactivate-transfer">
+                <label className="form-label" htmlFor="deactivate-transfer">
                   Move {deactivateUser._count.events} unassigned event{deactivateUser._count.events === 1 ? "" : "s"} to
                 </label>
                 <select
@@ -396,7 +343,7 @@ export function UserManagementPanel({
               </div>
             ) : null}
             {deactivateState && !deactivateState.ok ? (
-              <p className="text-sm text-rose-700">{deactivateState.error}</p>
+              <p className="text-sm text-[var(--danger)]">{deactivateState.error}</p>
             ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="btn-secondary" onClick={() => setDeactivateUser(null)}>
@@ -413,10 +360,10 @@ export function UserManagementPanel({
       {trashUsers.length > 0 ? (
         <div className="mt-8">
           <h2 className="section-heading">Deleted users</h2>
-          <p className="mt-2 text-sm text-zinc-600">
+          <p className="mt-2 text-sm text-[var(--muted-text)]">
             Restoring an account lets it sign in again and brings back the unassigned events deleted with it.
           </p>
-          <ul className="mt-4 divide-y divide-[#ebe4d6] rounded-2xl border border-[#ebe4d6]">
+          <ul className="mt-4 divide-y divide-[var(--border-soft)] rounded-2xl border border-[var(--border-soft)]">
             {trashUsers.map((u) => (
               <li key={u.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -461,7 +408,7 @@ export function UserManagementPanel({
                 I understand this deletes a super admin account.
               </label>
             ) : null}
-            {deleteState && !deleteState.ok ? <p className="text-sm text-rose-700">{deleteState.error}</p> : null}
+            {deleteState && !deleteState.ok ? <p className="text-sm text-[var(--danger)]">{deleteState.error}</p> : null}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="btn-secondary" onClick={() => setDeleteTarget(null)}>
                 Cancel

@@ -1,5 +1,5 @@
 import { RsvpForm } from "@/components/rsvp-form";
-import { EventImageLightbox } from "@/components/event-image-lightbox";
+import { InvitationDetails, InvitationSheet, inviteSerif } from "@/components/invitation/invitation-parts";
 import { RsvpResponsePanel } from "@/components/rsvp-response-panel";
 import { EnvelopeReveal } from "@/components/envelope-reveal";
 import { CountdownTimer } from "@/components/countdown-timer";
@@ -16,9 +16,6 @@ import { resolveInviteCardImage } from "@/lib/invite-card-resolution";
 import { buildRsvpOgRouteUrl, resolveRsvpPreviewCardSource } from "@/lib/rsvp-share-preview";
 import { formatDateTime, getPublicSiteUrl, getRsvpDeadlineMeta, getSafeImageSrc } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
-
-const script = "font-[family-name:var(--font-wedding-script),cursive]";
-const serif = "font-[family-name:var(--font-wedding-serif),Georgia,serif]";
 
 type Props = {
   params: Promise<{ token: string }>;
@@ -167,43 +164,6 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   };
 }
 
-function DateCard({ eventDate }: { eventDate: Date }) {
-  const dayName = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(eventDate);
-  const fullDate = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(eventDate);
-  return (
-    <div className={`flex h-full flex-col justify-center overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
-      <div className="mb-3 h-0.5 bg-gradient-to-r from-transparent via-[#b28944]/40 to-transparent" aria-hidden />
-      <p className="text-[0.55rem] font-semibold uppercase tracking-[0.3em] text-zinc-400">Date</p>
-      <p className="mt-2 text-xl leading-tight text-zinc-900">{dayName}</p>
-      <p className="mt-1 text-sm leading-snug text-zinc-500">{fullDate}</p>
-    </div>
-  );
-}
-
-function TimeCard({ eventTime }: { eventTime: string }) {
-  const display = formatEventTime(eventTime);
-  return (
-    <div className={`flex h-full flex-col justify-center overflow-hidden rounded-2xl border border-[#e7dccb] bg-[#fbf8f2] px-4 py-5 text-center ${serif}`}>
-      <div className="mb-3 h-0.5 bg-gradient-to-r from-transparent via-[#b28944]/40 to-transparent" aria-hidden />
-      <p className="text-[0.55rem] font-semibold uppercase tracking-[0.3em] text-zinc-400">Time</p>
-      <p className="mt-2 text-xl leading-tight text-zinc-900">{display ?? eventTime}</p>
-    </div>
-  );
-}
-
-function formatEventTime(raw: string | null) {
-  if (!raw) return null;
-  const t = raw.trim();
-  const m = /^(\d{1,2}):(\d{2})$/.exec(t);
-  if (!m) return t;
-  const h24 = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h24) || !Number.isFinite(min)) return t;
-  const period = h24 >= 12 ? "PM" : "AM";
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h12}:${String(min).padStart(2, "0")} ${period}`;
-}
-
 function buildCalendarPayload(input: {
   eventTitle: string;
   eventSubtitle: string | null;
@@ -293,9 +253,10 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   if (!guest) {
     return (
       <main className="flex min-h-dvh items-center justify-center px-5 py-10">
-        <div className="w-full max-w-md rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-8 py-10 text-center shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]">
-          <h1 className={`text-3xl leading-tight text-zinc-900 ${serif}`}>We couldn&apos;t find this invitation</h1>
-          <p className="mt-4 text-base leading-relaxed text-zinc-600">
+        <div className="invite-sheet w-full max-w-md px-8 py-10 text-center">
+          <div className="invite-rule" aria-hidden />
+          <h1 className={`mt-6 text-3xl leading-tight text-[var(--inv-ink)] ${inviteSerif}`}>We couldn&apos;t find this invitation</h1>
+          <p className="mt-4 text-base leading-relaxed text-[var(--inv-muted)]">
             The link may be incomplete or no longer active. Please ask your hosts to send it again.
           </p>
         </div>
@@ -330,29 +291,6 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   const displayNames = ev.coupleNames?.trim() || ev.title;
   const hasCoupleNames = Boolean(ev.coupleNames?.trim());
   const inviteCapacity = (guest.menCount ?? 0) + (guest.womenCount ?? 0) + (guest.kidsCount ?? 0) || guest.maxGuests;
-  const headingClass =
-    ev.inviteFontStyle === "romantic_script"
-      ? `${script} text-[2.6rem] sm:text-[3rem]`
-      : ev.inviteFontStyle === "soft_script"
-        ? "text-[2.5rem] sm:text-[2.9rem] [font-family:var(--font-wedding-script-alt),cursive]"
-      : ev.inviteFontStyle === "modern_clean"
-        ? "font-sans text-4xl tracking-wide"
-        : ev.inviteFontStyle === "classic_formal"
-          ? "font-serif text-4xl uppercase tracking-[0.14em]"
-          : `${serif} text-4xl`;
-  const salutationClass =
-    ev.inviteFontStyle === "romantic_script"
-      ? `${script} text-2xl sm:text-[2rem]`
-      : ev.inviteFontStyle === "soft_script"
-        ? "text-[2rem] sm:text-[2.15rem] [font-family:var(--font-wedding-script-alt),cursive]"
-        : ev.inviteFontStyle === "modern_clean"
-          ? "font-sans text-2xl tracking-wide"
-          : ev.inviteFontStyle === "classic_formal"
-            ? "font-serif text-2xl uppercase tracking-[0.1em]"
-            : `${serif} text-2xl`;
-  const panelClass = "border-[#e7dccb] bg-[#fffdfa] shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]";
-  const detailClass = "border-[#e7dccb] bg-[#fbf8f2]";
-
   const calendarPayload = buildCalendarPayload({
     eventTitle: ev.title,
     eventSubtitle: ev.eventSubtitle,
@@ -389,132 +327,75 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   const invitationContent = (
     <main className="flex min-h-dvh flex-col justify-center px-4 py-8 sm:px-6">
       {previewMode ? (
-        <div className="fixed inset-x-0 top-0 z-50 border-b border-amber-200/90 bg-amber-50/95 px-4 py-3 text-center shadow-sm backdrop-blur-sm">
-          <p className="text-sm font-medium text-amber-950">
-            Previewing RSVP as <span className="font-semibold">{guest.guestName}</span>
-            <span className="mx-2 text-amber-800/80">·</span>
-            <Link
-              href={`/admin/events/${ev.id}`}
-              className="font-medium text-amber-900 underline decoration-amber-700/50 underline-offset-2 hover:text-amber-950"
-            >
+        <div className="fixed inset-x-0 top-0 z-50 border-b border-[#ead8b0] bg-[#f7eedb]/95 px-4 py-2.5 text-center backdrop-blur-sm">
+          <p className="text-sm font-medium text-[#5f3d00]">
+            Previewing as <span className="font-semibold">{guest.guestName}</span>. Replies are turned off.
+            <span className="mx-2 opacity-60">·</span>
+            <Link href={`/admin/events/${ev.id}`} className="font-semibold underline underline-offset-2">
               Back to event
             </Link>
           </p>
-          <p className="mt-1 text-xs text-amber-900/85">Preview only. Replies are turned off so this household&apos;s answer can&apos;t change.</p>
         </div>
       ) : null}
 
-      <div className={`mx-auto w-full max-w-xl space-y-5 ${previewMode ? "pt-[4.5rem]" : ""}`}>
-
-        {/* ── 1. Hero: image + names + dear guest ── */}
+      <div className={`mx-auto w-full max-w-xl space-y-4 ${previewMode ? "pt-14" : ""}`}>
         <ScrollReveal>
-          <section className={`rounded-3xl border p-5 sm:p-8 ${panelClass}`}>
-            <div className="space-y-7 text-center">
-
-              {safeImageSrc ? (
-                <div className="mx-auto w-full max-w-[30rem]">
-                  <EventImageLightbox src={safeImageSrc} alt={ev.title} hintText="Tap to enlarge invitation" />
-                </div>
-              ) : null}
-
-              <div className="space-y-2">
-                <h1 className={`leading-[1.15] text-zinc-900 ${headingClass}`}>{displayNames}</h1>
-                {hasCoupleNames ? (
-                  <p className={`text-base text-zinc-500 ${serif}`}>{ev.title}</p>
-                ) : null}
-                {ev.eventSubtitle ? (
-                  <p className="mx-auto max-w-sm text-sm leading-relaxed text-zinc-500">{ev.eventSubtitle}</p>
-                ) : null}
-              </div>
-
-              <div className="mx-auto h-px w-24 bg-gradient-to-r from-transparent via-[#c9a227]/50 to-transparent" aria-hidden />
-
-              <div className={`mx-auto max-w-md rounded-2xl border px-5 py-5 text-center ${detailClass}`}>
-                <p className={`text-zinc-900 ${salutationClass}`}>Dear {guest.guestName.replace(/^the\s+/i, "")},</p>
-                <p className="mt-3 text-base leading-relaxed text-zinc-700">
-                  {hasResponded && guest.attending === false ? (
-                    "We'll miss you, and we completely understand."
-                  ) : (
-                    <>
-                      {ev.welcomeMessage ? null : <span className="block">We would be honored to celebrate with you.</span>}
-                      <span className={ev.welcomeMessage ? "block" : "mt-2 block"}>
-                        This invitation is for up to{" "}
-                        <span className="font-semibold text-zinc-900">{inviteCapacity}</span>{" "}
-                        {inviteCapacity === 1 ? "person" : "people"}.
-                      </span>
-                    </>
-                  )}
-                </p>
-                {ev.welcomeMessage ? (
-                  <p className="mt-3 text-sm leading-relaxed text-zinc-700">{ev.welcomeMessage}</p>
-                ) : null}
-                {ev.description ? (
-                  <p className="mt-3 text-sm leading-relaxed text-zinc-600">{ev.description}</p>
-                ) : null}
-              </div>
-            </div>
-          </section>
+          <InvitationSheet
+            imageSrc={safeImageSrc}
+            imageAlt={ev.title}
+            names={displayNames}
+            eventTitle={hasCoupleNames ? ev.title : null}
+            subtitle={ev.eventSubtitle}
+            fontStyle={ev.inviteFontStyle}
+            greeting={`Dear ${guest.guestName.replace(/^the\s+/i, "")},`}
+          >
+            {hasResponded && guest.attending === false ? (
+              <p>We&apos;ll miss you, and we completely understand.</p>
+            ) : !ev.welcomeMessage ? (
+              <p>We would be honored to celebrate with you.</p>
+            ) : null}
+            {ev.welcomeMessage ? <p className="whitespace-pre-line">{ev.welcomeMessage}</p> : null}
+            {hasResponded && guest.attending === false ? null : (
+              <p>
+                This invitation is for up to <span className="font-semibold text-[var(--inv-ink)]">{inviteCapacity}</span>{" "}
+                {inviteCapacity === 1 ? "person" : "people"}.
+              </p>
+            )}
+            {ev.description ? <p className="text-sm text-[var(--inv-muted)] whitespace-pre-line">{ev.description}</p> : null}
+          </InvitationSheet>
         </ScrollReveal>
 
-        {/* ── 2. Date + Time ── */}
-        {(ev.eventDate || ev.eventTime) ? (
-          <div className={ev.eventDate && ev.eventTime ? "grid grid-cols-2 items-stretch gap-3" : ""}>
-            {ev.eventDate ? (
-              <ScrollReveal delay={60} className="h-full">
-                <DateCard eventDate={ev.eventDate} />
-              </ScrollReveal>
-            ) : null}
-            {ev.eventTime ? (
-              <ScrollReveal delay={100} className="h-full">
-                <TimeCard eventTime={ev.eventTime} />
-              </ScrollReveal>
-            ) : null}
-          </div>
-        ) : null}
+        <ScrollReveal delay={60}>
+          <InvitationDetails
+            eventDate={ev.eventDate}
+            eventTime={ev.eventTime}
+            venue={ev.venue}
+            replyBy={ev.rsvpDeadline}
+            replyUrgent={deadlineMeta?.status === "closes_today" || (deadlineMeta?.status === "closing_soon" && deadlineMeta.daysRemaining <= 3)}
+            replyNote={
+              deadlineMeta?.status === "closed"
+                ? "Replies have closed"
+                : deadlineMeta?.status === "closes_today"
+                  ? "Last day to reply"
+                  : deadlineMeta?.status === "closing_soon"
+                    ? `${deadlineMeta.daysRemaining} day${deadlineMeta.daysRemaining === 1 ? "" : "s"} left to reply`
+                    : null
+            }
+          />
+        </ScrollReveal>
 
-        {/* ── 3. Countdown (shows while event is in the future) ── */}
         {eventStartISO ? (
           <ScrollReveal delay={40}>
             <CountdownTimer eventStartISO={eventStartISO} />
           </ScrollReveal>
         ) : null}
 
-        {/* ── 4. RSVP deadline notice ── */}
-        {ev.rsvpDeadline ? (
-          <ScrollReveal delay={40}>
-            <div className="space-y-2 text-center">
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-600">
-                Please reply by{" "}
-                {new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", timeZone: "UTC" }).format(ev.rsvpDeadline)}
-              </p>
-              {deadlineMeta?.status === "closing_soon" || deadlineMeta?.status === "closes_today" ? (
-                <p
-                  className={`mx-auto w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-                    deadlineMeta.status === "closes_today"
-                      ? "bg-rose-100 text-rose-800"
-                      : deadlineMeta.daysRemaining <= 3
-                        ? "bg-amber-100 text-amber-900"
-                        : "bg-zinc-100 text-zinc-700"
-                  }`}
-                >
-                  {deadlineMeta.status === "closes_today"
-                    ? "Last day to reply"
-                    : `${deadlineMeta.daysRemaining} day${
-                        deadlineMeta.daysRemaining === 1 ? "" : "s"
-                      } left to reply`}
-                </p>
-              ) : null}
-            </div>
-          </ScrollReveal>
-        ) : null}
-
-        {/* ── 5. RSVP ── */}
         <ScrollReveal delay={60}>
           <section>
             {isRsvpClosed && !hasResponded ? (
-              <div className="w-full rounded-3xl border border-[#e7dccb] bg-[#fffdfa] px-6 py-9 text-center shadow-[0_20px_55px_-40px_rgba(71,52,29,0.4)]">
-                <h2 className={`text-2xl text-zinc-900 ${serif}`}>Replies have closed</h2>
-                <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-zinc-600">
+              <div className="invite-sheet w-full px-6 py-9 text-center">
+                <h2 className={`text-2xl text-[var(--inv-ink)] ${inviteSerif}`}>Replies have closed</h2>
+                <p className="mx-auto mt-3 max-w-md text-base leading-relaxed text-[var(--inv-muted)]">
                   If you&apos;d still like to come, please contact your hosts directly.
                 </p>
               </div>
@@ -568,10 +449,7 @@ export default async function RsvpTokenPage({ params, searchParams }: Props) {
   );
 
   return (
-    <EnvelopeReveal
-      skip={previewMode}
-      guestName={guest.guestName}
-    >
+    <EnvelopeReveal skip={previewMode || hasResponded} guestName={guest.guestName}>
       {invitationContent}
     </EnvelopeReveal>
   );

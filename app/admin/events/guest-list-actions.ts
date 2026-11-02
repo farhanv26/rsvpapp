@@ -28,7 +28,7 @@ async function isWeddingMember(weddingId: string | null, userId: string) {
 function finish(eventId: string, outcome: Outcome): never {
   revalidatePath(`/admin/events/${eventId}`);
   const qs = outcome.ok ? `gl_ok=${encodeURIComponent(outcome.message)}` : `gl_error=${encodeURIComponent(outcome.error)}`;
-  redirect(`/admin/events/${eventId}?tab=settings&${qs}#guest-list-access`);
+  redirect(`/admin/events/${eventId}?tab=allowances&${qs}`);
 }
 
 async function run(eventId: string, fn: () => Promise<string>): Promise<never> {

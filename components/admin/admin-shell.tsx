@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { Activity, CalendarDays, Ellipsis, House, Settings, ShieldCheck, Store, Users, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarDays, Ellipsis, House, Users, Wallet, Store, Settings, ShieldCheck, Activity, type LucideIcon } from "lucide-react";
 import { AdminAccountMenu } from "@/components/admin/admin-account-menu";
 import { AdminNotificationBell } from "@/components/admin/admin-notification-bell";
 import { WeddingSwitcher, type WeddingSwitcherOption } from "@/components/admin/wedding-switcher";
@@ -14,7 +14,7 @@ type ShellUser = {
   role: string;
 };
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavItem = { href: string; label: string; icon?: LucideIcon };
 
 const PLANNING_NAV: NavItem[] = [
   { href: "/admin/overview", label: "Overview", icon: House },
@@ -78,34 +78,34 @@ export function AdminShell({
     );
 
   return (
-    <div className="lg:pl-60">
+    <div className="lg:pl-56">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-[var(--surface)] focus:px-3 focus:py-2 focus:text-sm focus:shadow"
       >
         Skip to content
       </a>
 
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-[var(--border-soft)] bg-[var(--surface)] lg:flex">
-        <div className="flex h-14 items-center justify-between gap-2 pl-5 pr-3">
-          <Link href="/admin/overview" className="text-sm font-semibold tracking-tight">
-            Wedding planner
+      {/* Desktop rail */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-r border-[var(--border-strong)] bg-[var(--rail)] lg:flex">
+        <div className="flex h-20 items-center justify-between gap-2 pl-5 pr-2.5">
+          <Link href="/admin/overview" className="text-xl font-bold tracking-[-0.03em] text-[var(--accent-ink)] hover:text-[var(--foreground)]">
+            VowPal
           </Link>
           <AdminNotificationBell placement="bottom-start" />
         </div>
         <div className="px-3">{switcherEl}</div>
-        <nav aria-label="Planning" className="mt-4 flex flex-col gap-0.5 px-3">
+        <nav aria-label="Planning" className="mt-6 flex flex-col gap-1 px-3">
           {PLANNING_NAV.map((item) => (
-            <SideLink key={item.href} item={item} active={isActive(item.href)} />
+            <RailLink key={item.href} item={item} active={isActive(item.href)} />
           ))}
         </nav>
         {isPlatformAdmin ? (
-          <div className="mt-6 px-3">
-            <p className="px-2.5 pb-1 text-xs font-medium text-[var(--muted-text)]">Platform admin</p>
-            <nav aria-label="Platform admin" className="flex flex-col gap-0.5">
+          <div className="mt-6 border-t border-[var(--border-soft)] px-3 pt-4">
+            <p className="field-name px-2.5 pb-1.5">Platform</p>
+            <nav aria-label="Platform admin" className="flex flex-col gap-px">
               {PLATFORM_NAV.map((item) => (
-                <SideLink key={item.href} item={item} active={isActive(item.href)} />
+                <RailLink key={item.href} item={item} active={isActive(item.href)} />
               ))}
             </nav>
           </div>
@@ -116,7 +116,7 @@ export function AdminShell({
       </aside>
 
       {/* Phone top bar */}
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-1 border-b border-[var(--border-soft)] bg-[var(--background)]/95 px-3 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-1 border-b border-[var(--border-strong)] bg-[var(--rail)]/95 px-3 backdrop-blur-sm lg:hidden">
         <div className="min-w-0 flex-1">{switcherEl}</div>
         <AdminNotificationBell />
         <AdminAccountMenu user={user} />
@@ -127,7 +127,7 @@ export function AdminShell({
       {/* Phone tab bar */}
       <nav
         aria-label="Planning"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[var(--border-soft)] bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[var(--border-strong)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm lg:hidden"
       >
         {MOBILE_TABS.map((item) => (
           <TabLink key={item.href} item={item} active={isActive(item.href)} />
@@ -138,7 +138,7 @@ export function AdminShell({
           className="flex"
           panelClassName="w-56"
           summaryClassName={`flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
-            moreActive ? "text-[var(--foreground)]" : "text-[var(--muted-text)]"
+            moreActive ? "text-[var(--accent)]" : "text-[var(--muted-text)]"
           }`}
           trigger={
             <>
@@ -153,7 +153,7 @@ export function AdminShell({
           {isPlatformAdmin ? (
             <>
               <div className="my-1 h-px bg-[var(--border-soft)]" role="separator" />
-              <p className="px-2.5 py-1 text-xs font-medium text-[var(--muted-text)]">Platform admin</p>
+              <p className="field-name px-2.5 py-1">Platform</p>
               {PLATFORM_NAV.map((item) => (
                 <MenuLink key={item.href} item={item} active={isActive(item.href)} />
               ))}
@@ -165,48 +165,48 @@ export function AdminShell({
   );
 }
 
-function SideLink({ item, active }: { item: NavItem; active: boolean }) {
-  const Icon = item.icon;
+function RailLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon ?? House;
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors ${
-        active ? "bg-[var(--surface-muted)] font-medium text-[var(--foreground)]" : "text-[var(--muted-text)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+      className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
+        active
+          ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]"
+          : "text-[var(--muted-text)] hover:bg-[var(--surface)]/60 hover:text-[var(--foreground)]"
       }`}
     >
-      <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--accent)]" : ""}`} aria-hidden />
+      <Icon className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
       {item.label}
     </Link>
   );
 }
 
 function TabLink({ item, active }: { item: NavItem; active: boolean }) {
-  const Icon = item.icon;
+  const Icon = item.icon ?? House;
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
-        active ? "text-[var(--foreground)]" : "text-[var(--muted-text)]"
+        active ? "text-[var(--accent)]" : "text-[var(--muted-text)]"
       }`}
     >
-      <Icon className={`h-5 w-5 ${active ? "text-[var(--accent)]" : ""}`} aria-hidden />
+      <Icon className="h-5 w-5" strokeWidth={active ? 2.25 : 1.75} aria-hidden />
       {item.label}
     </Link>
   );
 }
 
 function MenuLink({ item, active }: { item: NavItem; active: boolean }) {
-  const Icon = item.icon;
   return (
     <Link
       href={item.href}
       data-menu-close
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 text-sm hover:bg-[var(--surface-muted)] ${active ? "font-medium" : ""}`}
+      className={`flex min-h-11 items-center rounded-md px-2.5 text-sm hover:bg-[var(--surface-muted)] ${active ? "font-semibold text-[var(--accent)]" : ""}`}
     >
-      <Icon className={`h-4 w-4 ${active ? "text-[var(--accent)]" : "text-[var(--muted-text)]"}`} aria-hidden />
       {item.label}
     </Link>
   );

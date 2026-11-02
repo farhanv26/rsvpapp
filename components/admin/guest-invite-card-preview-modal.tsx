@@ -25,7 +25,7 @@ export function GuestInviteCardPreviewModal({ open, onClose, safeSrc, usingLine,
         aria-label="Close"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-[#e7dccb] bg-[#fffdfa] p-5 shadow-xl">
+      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-5 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p id="invite-card-preview-title" className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
@@ -38,7 +38,7 @@ export function GuestInviteCardPreviewModal({ open, onClose, safeSrc, usingLine,
             Close
           </button>
         </div>
-        <div className="mt-4 overflow-hidden rounded-xl border border-[#e7dccb] bg-[#fbf8f2]">
+        <div className="mt-4 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted)]">
           {safeSrc ? (
             <div className="relative h-80 w-full sm:h-[28rem]">
               <SafeEventImage

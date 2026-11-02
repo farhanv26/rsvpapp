@@ -89,8 +89,9 @@ export function SendInvitesModal({
   const [channel, setChannel] = useState<Channel>(waReady.length > 0 ? "whatsapp" : withEmail.length > 0 && emailConfigured ? "email" : "copy");
   const [previewId, setPreviewId] = useState(sorted[0]?.id ?? "");
   const [opened, setOpened] = useState<string[]>([]);
+  const [marked, setMarked] = useState<string[]>([]);
   const [status, setStatus] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(null);
-  const [recorded, setRecorded] = useState(false);
+  const openedNotMarked = opened.filter((id) => !marked.includes(id));
 
   const build = isReminder ? buildGuestRsvpReminderMessage : buildGuestWhatsAppInviteMessage;
   const messageFor = (g: SendInvitesGuest) =>
@@ -118,19 +119,19 @@ export function SendInvitesModal({
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
     setOpened((o) => [...o, nextWa.id]);
-    setRecorded(false);
   }
 
   function recordOpened() {
+    const ids = openedNotMarked;
     startTransition(async () => {
       if (isReminder) {
-        const r = await recordGuestRemindersSentAction(eventId, opened, "whatsapp");
+        const r = await recordGuestRemindersSentAction(eventId, ids, "whatsapp");
         refreshWith(`Recorded a reminder for ${r.updated} ${r.updated === 1 ? "household" : "households"}.`);
       } else {
-        const r = await markGuestsInvitedAction(eventId, opened, "whatsapp");
+        const r = await markGuestsInvitedAction(eventId, ids, "whatsapp");
         refreshWith(`Marked ${r.updated} ${r.updated === 1 ? "household" : "households"} as invited.`);
       }
-      setRecorded(true);
+      setMarked((m) => [...m, ...ids]);
     });
   }
 
@@ -184,19 +185,36 @@ export function SendInvitesModal({
 
   const n = sorted.length;
   const noun = n === 1 ? "household" : "households";
+  const unmarked = openedNotMarked.length;
+
+  function requestClose() {
+    if (unmarked > 0 && !confirm(`${unmarked} opened in WhatsApp but not ${isReminder ? "recorded as reminded" : "marked invited"}. Close anyway?`)) return;
+    onClose();
+  }
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={requestClose}
       size="lg"
       dismissible={!isPending}
       title={isReminder ? "Send reply reminders" : "Send invitations"}
       description={eventTitle}
       footer={
-        <button type="button" className="btn-secondary" onClick={onClose} disabled={isPending}>
-          Done
-        </button>
+        unmarked > 0 ? (
+          <>
+            <button type="button" className="btn-ghost" onClick={onClose} disabled={isPending}>
+              Close without marking
+            </button>
+            <button type="button" className="btn-primary" onClick={recordOpened} disabled={isPending}>
+              {isReminder ? `Record ${unmarked} reminded` : `Mark ${unmarked} invited`}
+            </button>
+          </>
+        ) : (
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={isPending}>
+            Done
+          </button>
+        )
       }
     >
       {n === 0 ? (
@@ -207,7 +225,7 @@ export function SendInvitesModal({
         <div className="space-y-6">
           {/* Who */}
           <section aria-labelledby="inv-to">
-            <h3 id="inv-to" className="text-xs font-medium text-[var(--muted-text)]">
+            <h3 id="inv-to" className="field-name">
               To
             </h3>
             <details className="mt-1 group">
@@ -237,7 +255,7 @@ export function SendInvitesModal({
               </ul>
             </details>
             <p className="mt-1 text-xs text-[var(--muted-text)]">
-              {waReady.length} can be reached on WhatsApp · {withEmail.length} by email
+              {waReady.length} can be reached on WhatsApp{emailConfigured ? ` · ${withEmail.length} by email` : ""}
               {noContact ? ` · ${noContact} have no contact details` : ""}
               {alreadyInvited ? ` · ${alreadyInvited} were already invited` : ""}
             </p>
@@ -247,7 +265,7 @@ export function SendInvitesModal({
           {previewGuest ? (
             <section aria-labelledby="inv-msg">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 id="inv-msg" className="text-xs font-medium text-[var(--muted-text)]">
+                <h3 id="inv-msg" className="field-name">
                   Message
                 </h3>
                 {n > 1 ? (
@@ -263,8 +281,8 @@ export function SendInvitesModal({
                   </label>
                 ) : null}
               </div>
-              <div className="mt-2 rounded-xl bg-[#f0ede6] p-3">
-                <p className="ml-auto max-w-[34rem] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-lg rounded-tr-sm bg-white px-3.5 py-2.5 text-sm leading-relaxed shadow-[0_1px_1px_rgba(0,0,0,0.06)]">
+              <div className="mt-2 rounded-lg bg-[var(--surface-muted)] p-3">
+                <p className="ml-auto max-w-[34rem] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-lg rounded-tr-sm bg-[var(--surface)] px-3.5 py-2.5 text-sm leading-relaxed shadow-[0_1px_2px_rgba(28,25,21,0.08)]">
                   {messageFor(previewGuest)}
                 </p>
               </div>
@@ -274,22 +292,24 @@ export function SendInvitesModal({
 
           {/* How */}
           <section aria-labelledby="inv-how">
-            <h3 id="inv-how" className="text-xs font-medium text-[var(--muted-text)]">
+            <h3 id="inv-how" className="field-name">
               Send with
             </h3>
             <div className="segmented mt-1.5" role="group" aria-label="Channel">
               <button type="button" aria-pressed={channel === "whatsapp"} onClick={() => setChannel("whatsapp")}>
                 WhatsApp
               </button>
-              <button type="button" aria-pressed={channel === "email"} onClick={() => setChannel("email")}>
-                Email
-              </button>
+              {emailConfigured ? (
+                <button type="button" aria-pressed={channel === "email"} onClick={() => setChannel("email")}>
+                  Email
+                </button>
+              ) : null}
               <button type="button" aria-pressed={channel === "copy"} onClick={() => setChannel("copy")}>
                 Copy or export
               </button>
             </div>
 
-            <div className="mt-3 rounded-xl border border-[var(--border-soft)] p-4">
+            <div className="mt-3 rounded-lg border border-[var(--border-soft)] p-4">
               {channel === "whatsapp" ? (
                 waReady.length === 0 ? (
                   <p className="text-sm text-[var(--muted-text)]">
@@ -298,29 +318,43 @@ export function SendInvitesModal({
                 ) : (
                   <div className="space-y-3">
                     <p className="text-sm">
-                      Opens WhatsApp on this device with the message filled in, one household at a time. <strong className="font-medium">You press send in WhatsApp</strong>, so
-                      the app can&apos;t confirm delivery.
+                      Opens WhatsApp with the message filled in, one household at a time. <strong className="font-semibold">You press send in WhatsApp</strong>; the app
+                      can&apos;t see whether it was delivered.
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       {nextWa ? (
-                        <button type="button" className="btn-primary" onClick={openNextWhatsApp}>
+                        <button type="button" className="btn-primary max-w-full" onClick={openNextWhatsApp}>
                           <WhatsAppGlyph />
-                          Open WhatsApp for {nextWa.guestName}
+                          <span className="truncate">Open WhatsApp for {nextWa.guestName}</span>
                         </button>
                       ) : (
-                        <span className="text-sm font-medium">All {waReady.length} opened.</span>
+                        <span className="text-sm font-semibold">All {waReady.length} opened.</span>
                       )}
-                      <span className="text-sm tabular-nums text-[var(--muted-text)]">
-                        {opened.length} of {waReady.length} opened
-                      </span>
                     </div>
-                    {opened.length > 0 && !recorded ? (
-                      <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border-soft)] pt-3">
+                    <ul className="max-h-48 divide-y divide-[var(--border-soft)] overflow-y-auto rounded-md border border-[var(--border-soft)] text-sm" aria-label="WhatsApp progress">
+                      {waReady.map((g) => {
+                        const state = marked.includes(g.id) ? "marked" : opened.includes(g.id) ? "opened" : "waiting";
+                        return (
+                          <li key={g.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                            <span className="min-w-0 truncate">{g.guestName}</span>
+                            <span
+                              className={`shrink-0 text-[13px] ${
+                                state === "marked" ? "status status-success" : state === "opened" ? "status status-warning" : "text-[var(--muted-text)]"
+                              }`}
+                            >
+                              {state === "marked" ? (isReminder ? "Reminder recorded" : "Marked invited") : state === "opened" ? "Opened, not marked" : "Not opened"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {openedNotMarked.length > 0 ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-[var(--warning-soft)] px-3 py-2.5">
                         <p className="text-sm">
-                          Sent {opened.length === 1 ? "it" : "them"}? {isReminder ? "Record the reminder" : "Mark as invited"} so your list stays accurate.
+                          Sent {openedNotMarked.length === 1 ? "it" : "them"}? {isReminder ? "Record the reminder" : "Mark as invited"} so your counts stay right.
                         </p>
                         <button type="button" className="btn-secondary btn-sm" disabled={isPending} onClick={recordOpened}>
-                          {isReminder ? `Record ${opened.length} reminded` : `Mark ${opened.length} invited`}
+                          {isReminder ? `Record ${openedNotMarked.length} reminded` : `Mark ${openedNotMarked.length} invited`}
                         </button>
                       </div>
                     ) : null}

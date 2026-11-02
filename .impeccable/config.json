@@ -1,0 +1,45 @@
+{
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "http://localhost:3000/**"
+        ],
+        "createdAt": "2026-11-02T04:20:50.173Z",
+        "reason": "User brief pins warm neutral surfaces (planning ground #f5f2ec, invitation ground #f2ede4)"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "app/**"
+        ],
+        "createdAt": "2026-11-02T04:20:50.189Z",
+        "reason": "User brief pins warm neutral surfaces"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "http://localhost:3000/**"
+        ],
+        "createdAt": "2026-11-02T04:21:49.008Z",
+        "reason": "Place register signature: ticks mark place cells and hatching marks declined-but-held places; it encodes data, not decoration"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "app/globals.css"
+        ],
+        "createdAt": "2026-11-02T04:21:49.024Z",
+        "reason": "Place register signature (.register-strip)"
+      }
+    ]
+  }
+}

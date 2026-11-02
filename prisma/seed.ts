@@ -1,84 +1,30 @@
+/**
+ * Bootstrap only: creates the first platform administrator on an empty database.
+ * It never changes existing accounts and never creates sample events or guests.
+ *   BOOTSTRAP_ADMIN_PASSWORD='…' npm run db:seed
+ * Not registered as Prisma's automatic seed, so `prisma migrate` never runs it implicitly.
+ */
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
-import { generateSecureToken } from "../lib/security";
 import { BOOTSTRAP_SUPER_ADMIN } from "../lib/admin-identities";
 
 const prisma = new PrismaClient();
 
-function firstNamePassword(name: string) {
-  const first = name.trim().split(/\s+/)[0] ?? "";
-  return first.toLowerCase();
-}
-
 async function main() {
-  const identity = BOOTSTRAP_SUPER_ADMIN;
-  const passwordHash = await hash(firstNamePassword(identity.name), 12);
-  const existingUser = await prisma.user.findFirst({
-    where: { name: identity.name, deletedAt: null },
+  const existing = await prisma.user.count();
+  if (existing > 0) {
+    console.log(`This database already has ${existing} account(s); nothing was changed.`);
+    return;
+  }
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "";
+  if (password.length < 12) {
+    console.error("Set BOOTSTRAP_ADMIN_PASSWORD (at least 12 characters) to create the first administrator.");
+    process.exit(1);
+  }
+  const user = await prisma.user.create({
+    data: { name: BOOTSTRAP_SUPER_ADMIN.name, role: BOOTSTRAP_SUPER_ADMIN.role, active: true, passwordHash: await hash(password, 12) },
   });
-  const farhan = existingUser
-    ? await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          role: identity.role,
-          active: true,
-          passwordHash,
-        },
-      })
-    : await prisma.user.create({
-        data: {
-          name: identity.name,
-          role: identity.role,
-          active: true,
-          passwordHash,
-        },
-      });
-
-  await prisma.$executeRawUnsafe(
-    `UPDATE "Event" SET "ownerUserId" = $1 WHERE "ownerUserId" IS NULL`,
-    farhan.id,
-  );
-
-  const slug = "spring-garden-party";
-  const existingEvent = await prisma.event.findFirst({
-    where: { slug, deletedAt: null },
-  });
-  const event = existingEvent
-    ? await prisma.event.update({
-        where: { id: existingEvent.id },
-        data: { ownerUserId: farhan.id },
-      })
-    : await prisma.event.create({
-        data: {
-          ownerUserId: farhan.id,
-          coupleNames: "Ava & Noah",
-          title: "Spring Garden Party",
-          slug,
-          eventSubtitle: "Together with their families",
-          eventDate: new Date("2026-05-16"),
-          eventTime: "4:30 PM",
-          venue: "Rosewood Estate, Napa Valley",
-          welcomeMessage: "Your presence will make our day even more meaningful.",
-          description: "Join us for an evening of food, music, and celebration.",
-          guests: {
-            create: [
-              {
-                guestName: "The Valli Family",
-                maxGuests: 4,
-                group: "Family",
-                token: generateSecureToken(),
-              },
-              {
-                guestName: "Jordan & Alex",
-                maxGuests: 2,
-                token: generateSecureToken(),
-              },
-            ],
-          },
-        },
-      });
-
-  console.log(`Seeded event: ${event.title}`);
+  console.log(`Created the first administrator "${user.name}".`);
 }
 
 main()
