@@ -6,7 +6,7 @@ const config = {
         proxyExternalRequest: "fetch",
       },
     },
-    buildCommand: "npm run build:next", // 👈 Add this line here
+    buildCommand: "npm run build:next",
   };
   
   export default config;
