@@ -7,7 +7,7 @@
     "dev:demo": "node scripts/dev.mjs --demo",
     "dev:next": "next dev",
     "postinstall": "prisma generate",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && opennextjs-cloudflare build", 
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -46,6 +46,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.15",
+    "wrangler": "^4.156.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
