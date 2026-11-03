@@ -1,7 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "rsvpapp",
+  "main": ".open-next/worker.js", // 👈 Tells wrangler where the server script is
   "compatibility_date": "2026-11-02",
+  "assets": {
+    "directory": ".open-next/assets", // 👈 Tells wrangler where the images/css/fonts live
+    "binding": "ASSETS"
+  },
   "observability": {
     "enabled": true
   }
