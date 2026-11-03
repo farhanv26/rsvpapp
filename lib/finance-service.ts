@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getWeddingAccess } from '@/lib/wedding-access';
 import { parseMoneyToMinor } from '@/lib/money';
 import { summarizeEventAttendance } from '@/lib/attendance';
+import { paymentToday } from '@/lib/finance-date';
 import type { Prisma } from '@prisma/client';
 import type { AccessActor } from '@/lib/wedding-policy';
 
@@ -136,7 +137,7 @@ export async function mutateFinance(actor:AccessActor,input:Input) {
         const amountMinor=amount(input,'amount',currency,true);
         if(!amountMinor)throw new FinanceError('Payment must be above zero.');
         const paidAt=dateOnly(str(input,'paidAt',10));
-        const today=new Intl.DateTimeFormat('en-CA',{timeZone:wedding.timezone??'UTC',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+        const today=paymentToday(wedding.timezone??'UTC');
         if(str(input,'paidAt',10)>today)throw new FinanceError('Record money already paid. The payment date cannot be in the future.');
         const paid=item.payments.reduce((sum,p)=>sum+(p.id===id?0:p.amountMinor),0)+amountMinor;
         const expected=await expectedCost(tx,item);

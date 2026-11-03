@@ -1,5 +1,6 @@
 import type { BudgetItem,BudgetPayment,Vendor } from '@prisma/client';
 import { minorToInput } from '@/lib/money';
+import { paymentToday } from '@/lib/finance-date';
 export function VendorFields({vendor,currency}:{vendor?:Vendor;currency:string}){
  return <>
   <label className="form-label">Vendor name<input name="name" autoFocus required maxLength={120} defaultValue={vendor?.name} className="input-luxe" placeholder="Vogue" /></label>
@@ -27,9 +28,10 @@ export function ExpenseFields({item,currency,vendors,events,vendorId,label,confi
   </div></details>
  </>;
 }
-export function PaymentFields({currency,payment}:{currency:string;payment?:BudgetPayment}){
+export function PaymentFields({currency,payment,timezone}:{currency:string;payment?:BudgetPayment;timezone:string}){
+ const today=paymentToday(timezone);
  return <>
-  <div className="grid gap-4 sm:grid-cols-2"><label className="form-label">Amount ({currency})<input name="amount" autoFocus required inputMode="decimal" defaultValue={minorToInput(payment?.amountMinor,currency)} className="input-luxe" placeholder="0.00" /></label><label className="form-label">Date paid<input name="paidAt" type="date" required defaultValue={(payment?.paidAt??new Date()).toISOString().slice(0,10)} className="input-luxe" /></label></div>
+  <div className="grid gap-4 sm:grid-cols-2"><label className="form-label">Amount ({currency})<input name="amount" autoFocus required inputMode="decimal" defaultValue={minorToInput(payment?.amountMinor,currency)} className="input-luxe" placeholder="0.00" /></label><label className="form-label">Date paid<input name="paidAt" type="date" required max={today} defaultValue={payment?payment.paidAt.toISOString().slice(0,10):today} className="input-luxe" /></label></div>
   <details className="finance-options"><summary>Method, reference and notes <span className="font-normal text-[var(--muted-text)]">· optional</span></summary><div className="mt-4 space-y-4">
    <label className="form-label">Method<input name="method" maxLength={60} defaultValue={payment?.method??''} className="input-luxe" placeholder="Bank transfer, cash…" /></label>
    <label className="form-label">Reference<input name="reference" maxLength={120} defaultValue={payment?.reference??''} className="input-luxe" /></label>

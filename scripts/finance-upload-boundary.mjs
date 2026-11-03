@@ -1,5 +1,5 @@
 /** Full HTTP 10 MB limit test on a fresh isolated local database and server. */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { spawn,spawnSync } from 'node:child_process';
 import { randomBytes,randomUUID,createHash } from 'node:crypto';
 import { SignJWT } from 'jose';

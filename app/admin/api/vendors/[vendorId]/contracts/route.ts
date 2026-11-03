@@ -34,16 +34,22 @@ export async function POST(request: Request, {params}: {params: Promise<{vendorI
   if (!/^[a-f0-9-]{36}$/i.test(requestKey)) return Response.json({error:'Choose the file again before uploading.'},{status:400});
   const result = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Vendor" WHERE id = ${vendorId} FOR UPDATE`;
-    const previous = await tx.vendorContract.findFirst({where:{vendorId,OR:[{digest},{requestKey}]},select:{id:true,digest:true,deletedAt:true}});
+    const previous = await tx.vendorContract.findFirst({where:{vendorId,OR:[{digest},{requestKey}]},select:{id:true,digest:true,deletedAt:true,requestKey:true}});
     if (previous) {
       if (previous.digest !== digest) return {error:'This upload key was already used for a different file.',status:409};
-      if (previous.deletedAt) await tx.vendorContract.update({where:{id:previous.id},data:{deletedAt:null}});
-      return {id:previous.id,status:200};
+      if (previous.deletedAt) {
+        if (previous.requestKey === requestKey) return {error:'This upload was removed. Choose the file again to restore it deliberately.',status:409};
+        const count = await tx.vendorContract.count({where:{vendorId,deletedAt:null}});
+        if (count >= 20) return {error:'This vendor already has 20 contracts. Remove one before uploading another.',status:400};
+        await tx.vendorContract.update({where:{id:previous.id},data:{deletedAt:null,requestKey}});
+        return {id:previous.id,status:200,restored:true};
+      }
+      return {id:previous.id,status:200,reused:true};
     }
     const count = await tx.vendorContract.count({where:{vendorId,deletedAt:null}});
     if (count >= 20) return {error:'This vendor already has 20 contracts. Remove one before uploading another.',status:400};
     const contract = await tx.vendorContract.create({data:{vendorId,name:safeContractName(file.name),contentType:file.type,size:bytes.length,content:bytes,digest,requestKey},select:{id:true}});
     return {id:contract.id,status:201};
   });
-  return Response.json(result.error ? {error:result.error} : {id:result.id},{status:result.status,headers:{'Cache-Control':'private, no-store'}});
+  return Response.json(result.error ? {error:result.error} : {id:result.id,reused:result.reused??false,restored:result.restored??false},{status:result.status,headers:{'Cache-Control':'private, no-store'}});
 }

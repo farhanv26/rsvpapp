@@ -55,3 +55,18 @@ sign-in awaits the user-chosen local password and has not been claimed successfu
 ## Connected finance update — 2026-11-02
 
 See VOWPAL-FINANCE-STATUS.md for the current focused implementation and evidence. Canonical port 3000/rsvp_dev now has connected vendor/expense/payment pages, coral/neutral shared tokens and 10 MB private contracts. Additive migration applied locally; all 30 migrations replayed, 149 tests passed, TypeScript/lint/build passed (two existing lint warnings). Fifty pre-existing rows remained unchanged. Synthetic CAD scenario and real file-byte operations passed. Visual acceptance remains recapture: Chrome control times out and alternative browser automation permission is unanswered. No current finance before/after captures exist. Older teal direction and older completion claims above are historical, superseded for this scope. No push/deploy/production access.
+
+
+## Rendered finance completion — explicit browser permission received
+
+The focused Vendors/Budget/Payments continuation is now rendered and tested on canonical port 3000/rsvp_dev
+at 1440×1000 and 390×844. Phone money overflow/wrapping, irrelevant Event filter, native dialog focus/Tab
+and 44px mobile disclosures were corrected. Independent reviewer requested two final fixes and then
+returned ship for both resolved fixes; DESIGN.md/sidecar reflect current evidence. Before captures are
+explicit reconstructions, not historical screenshots. Final evidence in .impeccable/review/finance/final
+and interaction. Browser tests confirmed live cross-tab cost/payment edits, error retry, recoverable
+removal, long-name uploads/deduplication, actual PDF preview/download and cross-wedding denials.
+All CAD fixture amounts restored. 129 tests passed, 32 truncating DB tests intentionally skipped; types,
+lint and OpenNext build passed (four existing lint warnings). See VOWPAL-FINANCE-STATUS.md final section.
+Prisma Worker compatibility edits remain preserved and uncommitted. No new migration/reset, password
+change, push, deployment or real message. Optional baseline server on port 3004 stopped; canonical port 3000 left running.

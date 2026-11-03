@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
+import { runtimeSecret } from './runtime-env';
 
 export const COOKIE_NAME = process.env.VOWPAL_DEMO === "1" ? "vowpal_demo_session" : "admin_session";
 type AdminSessionClaims = {
@@ -9,7 +10,7 @@ type AdminSessionClaims = {
 };
 
 function getSecretBytes() {
-  const s = process.env.ADMIN_AUTH_SECRET;
+  const s = runtimeSecret('ADMIN_AUTH_SECRET');
   if (!s || s.length < 16) {
     throw new Error("ADMIN_AUTH_SECRET must be set and at least 16 characters.");
   }

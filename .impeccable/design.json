@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-02T22:06:02.528587+00:00",
+  "generatedAt": "2026-11-03T03:47:33.447120+00:00",
   "title": "Design System: VowPal",
   "extensions": {
     "colorMeta": {
@@ -434,7 +434,8 @@
         "displayName": "Finance page title"
       },
       "finance-figure": {
-        "displayName": "Finance summary amount"
+        "displayName": "Finance summary amount",
+        "purpose": "Desktop budget summary uses fluid 24\u201334px amounts; below 640px planned/expected amounts use 22px and remaining budget uses 28px."
       }
     },
     "shadows": [
@@ -531,7 +532,7 @@
       "kind": "custom",
       "description": "Shared agreed, paid and remaining hierarchy on an expense or vendor.",
       "html": "<dl class=\"ds-cost-strip\"><div><dt>Agreed cost</dt><dd>CA$20,000</dd></div><div><dt>Paid</dt><dd>CA$5,000</dd></div><div><dt>Remaining</dt><dd>CA$15,000</dd></div></dl>",
-      "css": ".ds-cost-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:24px 0;border-block:1px solid var(--border-soft);font-family:var(--font-ui),sans-serif;color:var(--foreground)}.ds-cost-strip dt{font-size:13px;color:var(--muted-text)}.ds-cost-strip dd{margin:8px 0 0;font-size:clamp(21px,2.6vw,34px);line-height:1.2;letter-spacing:-.025em;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}@media(max-width:639px){.ds-cost-strip{gap:10px}.ds-cost-strip dt{font-size:12px}}"
+      "css": ".ds-cost-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:24px 0;border-block:1px solid var(--border-soft);font-family:var(--font-ui),sans-serif;color:var(--foreground)}.ds-cost-strip dt{font-size:13px;color:var(--muted-text)}.ds-cost-strip dd{margin:8px 0 0;font-size:clamp(21px,2.6vw,34px);line-height:1.2;letter-spacing:-.025em;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}@media(max-width:639px){.ds-cost-strip{grid-template-columns:1fr;gap:14px;padding-block:20px}.ds-cost-strip>div{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.ds-cost-strip dt{font-size:13px}.ds-cost-strip dd{margin-top:0;font-size:clamp(20px,5.5vw,24px);white-space:nowrap;overflow-wrap:normal}}"
     }
   ],
   "narrative": {

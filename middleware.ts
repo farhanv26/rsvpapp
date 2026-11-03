@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { COOKIE_NAME, verifyAdminSessionToken } from "@/lib/admin-session";
+import { runtimeSecret } from './lib/runtime-env';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -14,7 +15,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const secret = process.env.ADMIN_AUTH_SECRET;
+  const secret = runtimeSecret('ADMIN_AUTH_SECRET');
   if (!secret || secret.length < 16) {
     return new NextResponse("Admin auth is not configured (set ADMIN_AUTH_SECRET, 16+ characters).", {
       status: 503,

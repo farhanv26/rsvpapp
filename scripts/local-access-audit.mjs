@@ -1,5 +1,5 @@
 /** Local-only read-only diagnostics. Never print hashes, passwords or connection credentials. */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { execFileSync } from 'node:child_process';
 import { existsSync,readFileSync } from 'node:fs';
 const connection=(database)=>new PrismaClient({datasources:{db:{url:`postgresql://postgres@127.0.0.1:54330/${database}`}},log:[]});

@@ -1,5 +1,5 @@
 /** Synthetic HTTP regression. Fixed disposable database; never alters Farhan or rsvp_dev. */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { randomBytes } from 'node:crypto';
 import { hash } from 'bcryptjs';
 import { spawn } from 'node:child_process';

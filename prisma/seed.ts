@@ -4,7 +4,7 @@
  *   BOOTSTRAP_ADMIN_PASSWORD='…' npm run db:seed
  * Not registered as Prisma's automatic seed, so `prisma migrate` never runs it implicitly.
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../scripts/prisma-client.mjs";
 import { hash } from "bcryptjs";
 import { BOOTSTRAP_SUPER_ADMIN } from "../lib/admin-identities";
 

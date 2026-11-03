@@ -1,55 +1,44 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { runtimeSecret, workerContext } from './runtime-env';
+import { requestResource } from './worker-database-lifetime';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-function buildPrismaClient(): PrismaClient {
-  const isDev = process.env.NODE_ENV === "development";
-  const log = (isDev ? ["warn", "error"] : ["error"]) as ("warn" | "error")[];
-
-  if (!isDev) {
-    return new PrismaClient({ log });
-  }
-
-  // In development the Next.js dev server handles concurrent requests inside a single
-  // long-running process, so all requests share one PrismaClient. A connection_limit of 1
-  // (typical for Supabase's PgBouncer pooler URL) means any two simultaneous requests
-  // exhaust the pool. Bump to 5 for the local dev process only — production Lambda
-  // instances each get their own client, so connection_limit=1 stays correct there.
-  const rawUrl = process.env.DATABASE_URL ?? "";
-  let url = rawUrl;
-  try {
-    const parsed = new URL(rawUrl);
-    const current = Number(parsed.searchParams.get("connection_limit") ?? "0");
-    if (current > 0 && current < 5) {
-      parsed.searchParams.set("connection_limit", "5");
-      url = parsed.toString();
-    }
-  } catch {
-    // non-parseable URL — leave as-is
-  }
-
-  return new PrismaClient({ log, datasources: { db: { url } } });
+function buildPrismaClient(worker = false): PrismaClient {
+  const connectionString = runtimeSecret('DATABASE_URL');
+  if (!connectionString) throw new Error('DATABASE_URL runtime secret is required.');
+  const adapter = new PrismaPg({
+    connectionString,
+    max: worker ? 2 : 5,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 10_000,
+  });
+  // pg owns pooling; Prisma connection_limit URL parameters do not configure pg.
+  return new PrismaClient({ adapter, log: [] });
 }
 
-export const prisma = globalForPrisma.prisma ?? buildPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+const nodeGlobal = globalThis as typeof globalThis & { vowpalNodePrisma?: PrismaClient };
+function currentClient(): PrismaClient {
+  const context = workerContext();
+  if (context) {
+    return requestResource(context.ctx, () => {
+      const client = buildPrismaClient(true);
+      return { client, close: () => client.$disconnect() };
+    }).client;
+  }
+  // Long-lived Node processes safely share a pool, including across development HMR.
+  return nodeGlobal.vowpalNodePrisma ??= buildPrismaClient();
 }
 
-// Retry a Prisma call once after reconnecting when the connection was closed
-// by the database server (common on Vercel cold/warm-start with Supabase).
+// Lazy facade owns no sockets. Native PrismaPromises and both transaction forms are preserved.
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = currentClient();
+    const value = Reflect.get(client, property);
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});
+
+/** Execute once: a lost reply may follow a committed write. Never replay arbitrary callbacks. */
 export async function withReconnect<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("Closed") || msg.includes("connection") || msg.includes("ECONNRESET")) {
-      await prisma.$connect();
-      return fn();
-    }
-    throw err;
-  }
+  return fn();
 }

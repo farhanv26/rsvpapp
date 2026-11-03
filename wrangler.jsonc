@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "vowpal",
-  "main": ".open-next/worker.js", // 👈 Tells wrangler where the server script is
+  "main": "worker.ts", // 👈 Tells wrangler where the server script is
   "compatibility_date": "2026-11-02",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
@@ -11,9 +11,6 @@
   
     // ...
     "vars": {
-      "ADMIN_PASSWORD": "farhan",
-      "DATABASE_URL": "postgresql://postgres.ntcybuqsecdiqioflvit:farhanrafiya@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&sslmode=require",
-      "DIRECT_URL": "postgresql://postgres:farhanrafiya@db.ntcybuqsecdiqioflvit.supabase.co:5432/postgres?sslmode=require",
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_qZmx4rVk8muzGZlqZTRDlw_nvNJCuJB",
       "NEXT_PUBLIC_SUPABASE_URL": "https://ntcybuqsecdiqioflvit.supabase.co",
       "NPM_FLAGS": "--legacy-peer-deps",

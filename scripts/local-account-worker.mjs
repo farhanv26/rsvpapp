@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { hash, compare } from 'bcryptjs';
 import { assertLocalAccountSetup } from './local-target.mjs';
 import { verifyLocalSignIn } from './local-sign-in-check.mjs';

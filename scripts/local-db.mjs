@@ -138,7 +138,7 @@ export function migrate({ quiet = false, url = LOCAL_DB_URL } = {}) {
 
 /** Creates the demo database if needed, applies migrations to it, and loads the fictional wedding there. */
 async function seedDemo() {
-  const { PrismaClient } = await import("@prisma/client");
+  const { PrismaClient } = await import("./prisma-client.mjs");
   const admin = new PrismaClient({ datasources: { db: { url: LOCAL_DB_URL } } });
   try {
     const rows = await admin.$queryRawUnsafe(`SELECT 1 FROM pg_database WHERE datname = '${LOCAL_DEMO_DB_NAME}'`);
@@ -207,7 +207,7 @@ async function demoInventory(db) {
 
 /** Dry run by default. With --yes: snapshot the data directory, export the rows as JSON, then delete them. */
 async function removeDemo({ apply }) {
-  const { PrismaClient } = await import("@prisma/client");
+  const { PrismaClient } = await import("./prisma-client.mjs");
   let db = new PrismaClient({ datasources: { db: { url: LOCAL_DB_URL } } });
   let inv;
   try {
@@ -302,7 +302,7 @@ async function importUsers() {
     process.exit(1);
   }
 
-  const { PrismaClient } = await import("@prisma/client");
+  const { PrismaClient } = await import("./prisma-client.mjs");
   const source = new PrismaClient({ datasources: { db: { url: sourceUrl } } });
   let users;
   try {

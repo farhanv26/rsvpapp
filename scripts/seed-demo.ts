@@ -4,7 +4,7 @@
  * (normally rsvp_demo), so demo accounts never mix with real local accounts.
  *   npm run db:demo:seed
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "./prisma-client.mjs";
 import { hash } from "bcryptjs";
 import { randomBytes } from "node:crypto";
 

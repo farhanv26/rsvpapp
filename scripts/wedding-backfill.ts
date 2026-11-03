@@ -14,7 +14,7 @@
  * and account names: keep them out of git.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "./prisma-client.mjs";
 import {
   buildBackfillReport,
   planBackfillApply,

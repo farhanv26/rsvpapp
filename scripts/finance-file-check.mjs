@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { createRequire } from 'node:module';
 import { SignJWT } from 'jose';
 import { randomUUID,createHash } from 'node:crypto';

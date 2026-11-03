@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { safeContractName, validateContract, CONTRACT_MAX_BYTES } from '@/lib/vendor-contract-validation';
 const mocks=vi.hoisted(()=>({actor:vi.fn(),access:vi.fn(),vendor:vi.fn(),find:vi.fn(),create:vi.fn(),remove:vi.fn(),count:vi.fn(),transaction:vi.fn(),lock:vi.fn(),update:vi.fn()}));
 vi.mock('@/lib/admin-api-auth',()=>({getCurrentAdminUserFromApi:mocks.actor}));
@@ -22,6 +23,18 @@ describe('private contracts',()=>{
  it('rejects cross-wedding members',async()=>{mocks.access.mockResolvedValue({status:'forbidden'});expect((await POST(upload(),ctx)).status).toBe(404);expect((await GET(new Request(url),ctx)).status).toBe(404);expect(mocks.find).not.toHaveBeenCalled();});
  it('rejects cross-origin upload and removal',async()=>{expect((await POST(upload(pdf,'a.pdf','application/pdf','https://attacker.test'),ctx)).status).toBe(403);expect((await DELETE(new Request(url,{method:'DELETE',headers:{origin:'https://attacker.test'}}),ctx)).status).toBe(403);expect(mocks.remove).not.toHaveBeenCalled();});
  it('stores validated files without public URLs',async()=>{expect((await POST(upload(),ctx)).status).toBe(201);expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({data:expect.objectContaining({vendorId:'vendor-a',content:pdf,size:pdf.length})}));});
+ it('does not restore a removed contract from an old upload retry',async()=>{
+  const key='12345678-1234-1234-1234-123456789012';
+  mocks.find.mockResolvedValue({id:'old',digest:createHash('sha256').update(pdf).digest('hex'),deletedAt:new Date(),requestKey:key});
+  const request=upload();request.headers.set('x-upload-key',key);
+  expect((await POST(request,ctx)).status).toBe(409);expect(mocks.update).not.toHaveBeenCalled();
+ });
+ it('enforces the file limit when deliberately restoring an identical removed file',async()=>{
+  mocks.find.mockResolvedValue({id:'old',digest:createHash('sha256').update(pdf).digest('hex'),deletedAt:new Date(),requestKey:'old-key'});
+  mocks.count.mockResolvedValue(20);expect((await POST(upload(),ctx)).status).toBe(400);expect(mocks.update).not.toHaveBeenCalled();
+  mocks.count.mockResolvedValue(19);const response=await POST(upload(),ctx);
+  expect(response.status).toBe(200);expect(await response.json()).toMatchObject({id:'old',restored:true});expect(mocks.update).toHaveBeenCalledWith({where:{id:'old'},data:{deletedAt:null,requestKey:expect.any(String)}});
+ });
  it('rejects disguised HTML and empty files',async()=>{expect((await POST(upload(Buffer.from('<html>bad</html>')),ctx)).status).toBe(400);expect(validateContract('a.pdf','application/pdf',new Uint8Array())).toBeTruthy();expect(mocks.create).not.toHaveBeenCalled();});
  it('rejects oversized files even without content length',async()=>{expect((await POST(new Request(url,{method:'POST',headers:{origin:'http://localhost'},body:new Uint8Array(CONTRACT_MAX_BYTES+65537)}),ctx)).status).toBe(413);expect(mocks.create).not.toHaveBeenCalled();});
  it('scopes downloads to the parent vendor and disables caching/sniffing',async()=>{mocks.find.mockResolvedValue({name:'a.pdf',content:pdf,contentType:'application/pdf',size:pdf.length});const response=await GET(new Request(url),ctx);expect(response.headers.get('cache-control')).toBe('private, no-store');expect(response.headers.get('x-content-type-options')).toBe('nosniff');expect(response.headers.get('content-disposition')).toContain('attachment');expect(mocks.find).toHaveBeenCalledWith({where:{id:'contract-a',vendorId:'vendor-a',deletedAt:null}});});

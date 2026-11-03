@@ -1,5 +1,5 @@
 /** Explicit, isolated synthetic weddings in the canonical local DB; never seeds normal startup. */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { randomBytes } from 'node:crypto';
 import { hash } from 'bcryptjs';
 import { writeFileSync,mkdirSync } from 'node:fs';

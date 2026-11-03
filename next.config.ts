@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep the development badge clear of the app's account controls and phone navigation.
+  devIndicators: false,
   // Demo and normal development must never share a Next build/cache directory.
   distDir: process.env.VOWPAL_DEMO === "1" ? ".next-demo" : ".next",
   reactCompiler: true,

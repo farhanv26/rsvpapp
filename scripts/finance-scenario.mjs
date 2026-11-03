@@ -1,5 +1,5 @@
 /** Acceptance scenario through canonical localhost app; only explicitly labelled fixture records. */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { createRequire } from 'node:module';
 import { randomUUID,randomBytes,createHash } from 'node:crypto';
 import { SignJWT } from 'jose';

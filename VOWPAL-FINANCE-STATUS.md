@@ -1,7 +1,8 @@
 # Connected finance — 2026-11-02
 
-Implemented and functionally tested locally. **Visual acceptance is incomplete:** the independent
-Impeccable reviewer returned `recapture`. No current finance before/after screenshots exist.
+Implemented and verified locally, including rendered desktop (1440×1000) and phone (390×844) walkthroughs.
+The independent Impeccable reviewer requested two fixes, then returned **ship** for both resolved fixes.
+Before screenshots are explicitly reconstructed from preserved source; after screenshots use the canonical app.
 
 ## Local review
 
@@ -95,7 +96,7 @@ actual source without claiming rendered acceptance.
   Independent finish reviewer: **recapture**, because required finance captures are missing.
 - Reports: `.impeccable/review/finance/`; logs: `.local/finance-*.txt`.
 
-## Remaining visual acceptance
+## Historical visual blocker — resolved below
 
 Native Chrome control repeatedly timed out, including a final retry; browser-host control is
 unavailable. Permission for terminal Playwright/Chrome remains unanswered; it was not run.
@@ -108,3 +109,85 @@ keyboard focus, long filenames, empty/error/upload states and rendered preview, 
 complete capture set to the independent reviewer. Do not mark visual acceptance complete first.
 
 No production changes, pushes, deployments, real payments or messages occurred.
+
+## Redesign continuation after Prisma runtime correction (earlier source checks)
+
+Canonical development was restarted on port 3000 with both database URLs explicitly pinned to
+local rsvp_dev and message API keys disabled, without running migrations. Existing Prisma/Worker
+changes were preserved. The existing CAD fixture was checked read-only through the current app:
+expected CAD 6,000, paid CAD 1,000, outstanding CAD 5,000, remaining budget CAD 14,000;
+Vogue remaining CAD 4,800. Existing synthetic PDF/JPG/PNG byte round-trips passed again.
+
+Fixed a newly verified payment-date mismatch: the form used the UTC day while the server checked
+the wedding timezone. New payments now default to and are bounded by the same wedding calendar
+day as server validation. Existing recorded dates retain their calendar date. Regression tests
+cover Toronto after UTC midnight and daylight-saving boundaries.
+
+Fixed removed-contract retry behavior: an old upload retry cannot resurrect a subsequently removed
+contract. Deliberately choosing the file again may restore it, while enforcing the same 20-file
+limit. The upload feedback distinguishes an existing saved file from a new upload or restoration.
+
+Current unit/UI run: 129 passed, 32 skipped in database suites that truncate tables. Those suites
+were not enabled under the preserved no-reset instruction. TypeScript passed; lint has zero errors
+and four existing warnings. The OpenNext Cloudflare build passed, including removal of private
+environment fallbacks; nothing was deployed. Current logs: `.local/redesign-{types,tests,lint,build,files}.txt`.
+
+Rendered acceptance remains **recapture**. The browser host is unavailable and native Chrome
+control timed out again. Explicit approval for terminal Playwright/Chrome was requested and is
+still pending. No visual review, screenshot comparison or browser PDF rendering is claimed.
+
+
+## Final browser verification — explicit permission received
+
+The user explicitly authorized local Playwright/Chrome. Browser tools were installed only in ignored
+`.local/browser-tools/`; no production browser, database or deployment was used. Canonical acceptance
+ran on **http://127.0.0.1:3000**, `rsvp_dev`. A temporary port-3004 source reconstruction was used
+only for clearly labelled before captures, blocked mutating browser requests, and has been stopped.
+
+Actual rendering found and corrected phone money overflow/decimal wrapping. Mobile vendor cost strips
+now stack label/amount pairs; budget figures remain readable without horizontal scrolling. Event
+filters disappear when there are no useful event choices. Source-only checks had missed those defects.
+Native Chrome keyboard tests also found Tab could escape after the last dialog control; shared dialogs
+now focus the first visible field and explicitly wrap Tab/Shift-Tab. Dirty Escape still confirms discard.
+The reviewer then requested 44px phone disclosure targets and accurate design documentation. Both were
+fixed and recaptured; the verdict was **ship**, scoped to those two scored fixes, with no regressions
+observed in the affected captures. This is not a comprehensive accessibility or cross-browser audit.
+
+### Captures
+
+- Final desktop/phone Vendor details, Budget, Record payment, Upload contract, Edit vendor,
+  Add expense, shared expense detail and Contracts: `.impeccable/review/finance/final/`.
+  All sixteen captures were validated by the independent reviewer. No overflow or page errors in
+  the final capture matrix.
+- Before: `.impeccable/review/finance/before-reconstructed/`, including its provenance README.
+  Preserved old Vendor/Budget/Dialog/Contracts/CSS source was rendered with current auth/Prisma
+  and the synthetic CAD fixture. These are reconstructed comparisons, not historical screenshots.
+- Failure, long-name, empty-state and actual PDF preview evidence:
+  `.impeccable/review/finance/interaction/`. Native PDF rendering was visibly inspected at both widths;
+  the initial blank/loading phone capture was replaced only after the real viewer loaded.
+
+### Actual browser checks
+
+- Initial field focus, twelve forward Tab steps contained, clean Escape, dirty Escape cancellation,
+  retained values after synthetic HTTP503, and successful retry.
+- Recorded a CAD 50 synthetic payment, confirmed recoverable removal and observed recalculated totals.
+- Overpayment revealed an explicit confirmation checkbox; no overpayment was saved.
+- From Budget, changed agreed cost5,800 → 5,900 → 5,800; Vendor and Budget tabs updated live without reload.
+- Edited the existing fixture payment1,000 → 1,200 → 1,000; both screens recalculated live.
+- Invalid disguised PDF rejected with file retained. A long-name PDF uploaded once after two rapid
+  clicks, wrapped on the phone, and was recoverably removed. Re-uploading an existing PDF displayed
+  already-saved feedback without creating another file. Actual browser download matched source bytes.
+- A fresh temporary member of the other fixture wedding was denied the expense, payment mutation and
+  actual contract file. The pre-existing inactive test account was preserved; the temporary account
+  was deleted afterward. Empty Budget verified in that separate fixture wedding.
+
+The canonical scenario was restored and checked: expected CAD 6,000, paid 1,000, outstanding 5,000, budget
+remaining 14,000; Vogue remaining 4,800. The exact old zero-page synthetic PDF (known ID/hash/structure)
+was backed up to `.local/finance-contract-fixtures/retired-zero-page.json` and soft-retired. Its duplicate
+filename was not proof of duplicate content. Valid fixtures and all genuine/uncertain records remained.
+
+Current checks: **129 tests passed**, 32 skipped in the existing truncating DB suites (not enabled under
+the no-reset instruction). The targeted database-backed browser checks above ran. TypeScript and
+final OpenNext Cloudflare build passed. Lint: zero errors, four existing warnings. Build retained the
+existing middleware-deprecation notice. No new migration, reset, password change, push, deployment or
+real message occurred in this continuation. The canonical local development server remains running.

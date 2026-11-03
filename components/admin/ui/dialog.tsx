@@ -34,7 +34,13 @@ export function Dialog({
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      d.showModal();
+      // React inserts the form before showModal runs; focus its first visible field now.
+      const field = Array.from(d.querySelectorAll<HTMLElement>('input:not([type="hidden"]), select, textarea'))
+        .find(element => !element.matches(':disabled') && element.getClientRects().length > 0);
+      field?.focus({ preventScroll: true });
+    }
     if (!open && d.open) d.close();
   }, [open]);
 
@@ -46,6 +52,18 @@ export function Dialog({
       className={`sheet text-start ${width}`}
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
+      onKeyDown={(event) => {
+        if (event.key !== 'Tab') return;
+        const d = event.currentTarget;
+        const controls = Array.from(d.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea, summary, [tabindex]'))
+          .filter(element => !element.matches(':disabled, [tabindex="-1"], input[type="hidden"]') && element.getClientRects().length > 0);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (!first) { event.preventDefault(); d.focus(); return; }
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || !d.contains(document.activeElement))) {
+          event.preventDefault(); first.focus();
+        }
+      }}
       onCancel={(e) => {
         e.preventDefault();
         if (dismissible) onClose();

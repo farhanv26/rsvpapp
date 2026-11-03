@@ -1,6 +1,6 @@
 /** Read-only page checks plus a synthetic attachment upload/removal in rsvp_demo only. */
 import { createRequire } from 'node:module';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { SignJWT } from 'jose';
 import { mkdirSync,writeFileSync } from 'node:fs';
 const require=createRequire(import.meta.url);require('@next/env').loadEnvConfig(process.cwd(),false,{info(){},error(){}});

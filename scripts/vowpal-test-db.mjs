@@ -1,5 +1,5 @@
 /** Fresh isolated database for destructive integration suites; never resets rsvp_dev. */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './prisma-client.mjs';
 import { spawnSync } from 'node:child_process';
 const name = `rsvp_vowpal_test_${Date.now()}`;
 const url = `postgresql://postgres@127.0.0.1:54330/${name}`;

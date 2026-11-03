@@ -76,3 +76,6 @@ public/uploads
 # impeccable-ignore-end
 # Separate fictional demo environment build/cache
 /.next-demo/
+/.open-next/
+/.wrangler/
+.dev.vars*
