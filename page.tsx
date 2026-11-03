@@ -1,10 +1,17 @@
-import { redirect } from "next/navigation";
-import { getOptionalAdminUser } from "@/lib/admin-auth";
+import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
 
 export default async function Page() {
-  const admin = await getOptionalAdminUser();
-  if (admin) {
-    redirect("/admin/events");
-  }
-  redirect("/admin/login");
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
+
+  const { data: todos } = await supabase.from('todos').select()
+
+  return (
+    <ul>
+      {todos?.map((todo) => (
+        <li key={todo.id}>{todo.name}</li>
+      ))}
+    </ul>
+  )
 }
